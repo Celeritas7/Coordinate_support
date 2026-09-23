@@ -1,0 +1,18 @@
+<!-- @dsCard group="Components" viewport="700x400" name="Data display" subtitle="Readout, RunList/RunItem, Legend, Tag, CompareTable" -->
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Data display</title><link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script></head><body style="background:var(--panel);padding:16px"><div id="root"></div>
+<script type="text/babel">const DS=window.RouteStudioDesignSystem_a31f22;
+const {Readout,RunList,RunItem,Legend,Tag,CompareTable}=DS;
+const runs=[{name:'As entered R65',color:'var(--run-1)',sub:'R 41.7 mm · 7 pts'},{name:'Generated R65 x1.5',color:'var(--run-2)',sub:'R 98.2 mm · 34 pts'},{name:'Gap 40 min xy',color:'var(--run-3)',sub:'R 88.0 mm · 7 pts · gap 40.0'}];
+function App(){const [sel,setSel]=React.useState(1);return <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:18,alignItems:'start'}}>
+<div><Readout value="R 98.2" name="Generated R65 x1.5" tone="ok" verdict="Passes. Tightest bend is 1.51x the minimum radius." facts="34 points. Length 2103 mm." style={{maxWidth:'none'}}/>
+<div style={{marginTop:10}}><Readout value="R 41.7" tone="bad" verdict="Too tight: 23.3 mm below the 65 mm minimum." style={{maxWidth:'none'}}/></div>
+<div style={{marginTop:14,display:'flex',gap:8,alignItems:'center'}}><Tag>tightest bend R 41.7 mm</Tag><Tag variant="text">P3</Tag><Tag variant="text">master</Tag></div>
+<Legend style={{marginTop:12}} items={[{color:'var(--bad)',label:'below min radius'},{color:'var(--warn)',label:'inside safety margin'},{color:'var(--ok)',label:'OK'}]}/></div>
+<div><RunList style={{marginTop:0,borderTop:0,paddingTop:0}} hint="Tick to show in the 3D view. Click a run to select it and load its settings.">{runs.map((r,i)=><RunItem key={i} run={r} selected={i===sel} onSelect={()=>setSel(i)}/>)}</RunList>
+<CompareTable style={{marginTop:14}} runs={runs.slice(0,2)} rows={[{label:'Points',values:[7,34]},{label:'Min bend radius, mm',values:['41.7','98.2']},{label:'Against limit',values:['fails by 23.3','passes (1.51x)']}]}/></div>
+</div>;}
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);</script></body></html>

@@ -1,0 +1,25 @@
+/* Route Studio type — IBM Plex Sans for UI, IBM Plex Mono for point data. Sizes are the exact px values from index.html; no scale was snapped. */
+:root{
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif; /* @kind font */
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace; /* @kind font */
+  --font-ui:var(--sans);--font-data:var(--mono);
+  /* sizes */
+  --text-big:30px;        /* readout number */
+  --text-big-mobile:24px;
+  --text-h1:20px;         /* app title */
+  --text-body:15px;       /* body, primary button */
+  --text-control:14px;    /* sidebar tabs, selects, number inputs */
+  --text-lede:13.5px;     /* lede, verdict */
+  --text-small:13px;      /* mono inputs, dock tabs, outline buttons, run names, tables, summary */
+  --text-label:12.5px;    /* field labels, hints under buttons, status, facts, presets */
+  --text-caption:12px;    /* hints, legend, tags, help, chart labels */
+  --text-micro:11.5px;    /* run sub-line */
+  /* weights */
+  --weight-regular:400;--weight-medium:500;--weight-semibold:600;
+  /* leading */
+  --leading-body:1.45;--leading-field:1.5;--leading-tight:1.1;--leading-run:1.25;
+  /* tracking */
+  --tracking-h1:-.01em;--tracking-big:-.02em;
+  /* numerals */
+  --numerals:tabular-nums; /* @kind other */
+}

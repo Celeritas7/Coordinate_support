@@ -1,0 +1,22 @@
+/* Route Studio spacing, radii, borders, shadows, layout — exact values from index.html. Spacing is ad-hoc (no strict grid); these are the values that actually occur. */
+:root{
+  --space-2:2px;--space-3:3px;--space-4:4px;--space-5:5px;--space-6:6px;--space-7:7px;--space-8:8px;--space-9:9px;
+  --space-10:10px;--space-11:11px;--space-12:12px;--space-13:13px;--space-14:14px;--space-16:16px;--space-18:18px;--space-20:20px;--space-28:28px;
+  /* named */
+  --pad-sidebar:18px 18px 28px;--pad-field:7px 8px;--pad-button-primary:11px;--pad-button-outline:6px 11px;--pad-button-small:4px 10px;
+  --pad-cell:7px 12px;--pad-tab-sidebar:9px 4px;--pad-tab-dock:7px 11px;--pad-run:7px 6px;--pad-tag:2px 5px;
+  --gap-fields:9px;--gap-run:8px;--gap-tools:8px;--gap-legend:13px;--gap-presets:12px;
+  /* radii */
+  --radius-swatch:2px;--radius-tag:3px;--radius-control:4px;
+  /* borders */
+  --border-width:1px;--border-indicator:2px;--focus-width:2px;--focus-offset:1px;
+  --border:1px solid var(--rule);
+  /* shadows — the only shadow in the product is an inset ring on the selected run */
+  --shadow-selected:inset 0 0 0 1px var(--rule);
+  /* layout */
+  --sidebar-width:360px;--dock-height:230px;--dock-height-mobile:260px;--breakpoint-mobile:860px;
+  --swatch-size:11px;--legend-bar:16px 5px; /* @kind spacing */--sphere-tag-offset:8px;
+  --opacity-disabled:.55; /* @kind other */
+  --opacity-placeholder:.7; /* @kind other */
+  --opacity-unselected-line:.6; /* @kind other */
+}

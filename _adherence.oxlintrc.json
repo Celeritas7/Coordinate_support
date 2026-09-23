@@ -1,0 +1,374 @@
+{
+  "plugins": [
+    "react",
+    "import"
+  ],
+  "rules": {
+    "react/forbid-elements": [
+      "warn",
+      {
+        "forbid": []
+      }
+    ],
+    "no-restricted-imports": [
+      "warn",
+      {
+        "patterns": [
+          {
+            "group": [
+              "components/actions/**",
+              "components/data/**",
+              "components/forms/**",
+              "components/navigation/**",
+              "ui_kits/route-studio/**"
+            ],
+            "message": "Import design-system components from 'index.js', not component internals."
+          }
+        ]
+      }
+    ],
+    "no-restricted-syntax": [
+      "warn",
+      {
+        "selector": "Literal[value=/#[0-9a-fA-F]{3,8}\\b/]",
+        "message": "Raw hex color — use a design-system color token via var()."
+      },
+      {
+        "selector": "Literal[value=/\\b\\d+px\\b/]",
+        "message": "Raw px value — use a design-system spacing token via var()."
+      },
+      {
+        "selector": "Literal[value=/font-family\\s*:\\s*(?!['\\\"]?(?:IBM Plex Mono|IBM Plex Sans))/i]",
+        "message": "Font not provided by the design system. Available: IBM Plex Mono, IBM Plex Sans."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Button'] > JSXAttribute > JSXIdentifier[name!=/^(?:variant|disabled|busy|children|key|ref|className|style|children)$/]",
+        "message": "<Button> doesn't accept that prop. Declared props: variant, disabled, busy, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Button'] > JSXAttribute[name.name='variant'] > Literal[value!=/^(?:primary|outline|small|link|icon)$/]",
+        "message": "<Button> variant must be one of 'primary' | 'outline' | 'small' | 'link' | 'icon'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Checkbox'] > JSXAttribute > JSXIdentifier[name!=/^(?:label|style|key|ref|className|style|children)$/]",
+        "message": "<Checkbox> doesn't accept that prop. Declared props: label, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='FieldGrid'] > JSXAttribute > JSXIdentifier[name!=/^(?:columns|children|style|key|ref|className|style|children)$/]",
+        "message": "<FieldGrid> doesn't accept that prop. Declared props: columns, children, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Label'] > JSXAttribute > JSXIdentifier[name!=/^(?:children|unit|htmlFor|style|key|ref|className|style|children)$/]",
+        "message": "<Label> doesn't accept that prop. Declared props: children, unit, htmlFor, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Legend'] > JSXAttribute > JSXIdentifier[name!=/^(?:items|style|key|ref|className|style|children)$/]",
+        "message": "<Legend> doesn't accept that prop. Declared props: items, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Readout'] > JSXAttribute > JSXIdentifier[name!=/^(?:value|unit|name|verdict|tone|facts|style|key|ref|className|style|children)$/]",
+        "message": "<Readout> doesn't accept that prop. Declared props: value, unit, name, verdict, tone, facts, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Readout'] > JSXAttribute[name.name='tone'] > Literal[value!=/^(?:ok|warn|bad)$/]",
+        "message": "<Readout> tone must be one of 'ok' | 'warn' | 'bad'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Run'] > JSXAttribute > JSXIdentifier[name!=/^(?:name|color|sub|visible|key|ref|className|style|children)$/]",
+        "message": "<Run> doesn't accept that prop. Declared props: name, color, sub, visible."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='SegmentedControl'] > JSXAttribute > JSXIdentifier[name!=/^(?:options|value|onChange|label|style|key|ref|className|style|children)$/]",
+        "message": "<SegmentedControl> doesn't accept that prop. Declared props: options, value, onChange, label, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Tabs'] > JSXAttribute > JSXIdentifier[name!=/^(?:tabs|value|onChange|variant|right|style|key|ref|className|style|children)$/]",
+        "message": "<Tabs> doesn't accept that prop. Declared props: tabs, value, onChange, variant, right, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Tabs'] > JSXAttribute[name.name='variant'] > Literal[value!=/^(?:sidebar|dock)$/]",
+        "message": "<Tabs> variant must be one of 'sidebar' | 'dock'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='TextInput'] > JSXAttribute > JSXIdentifier[name!=/^(?:font|key|ref|className|style|children)$/]",
+        "message": "<TextInput> doesn't accept that prop. Declared props: font."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='TextInput'] > JSXAttribute[name.name='font'] > Literal[value!=/^(?:mono|sans)$/]",
+        "message": "<TextInput> font must be one of 'mono' | 'sans'."
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": [
+        "**/index.js"
+      ],
+      "rules": {
+        "no-restricted-imports": "off"
+      }
+    }
+  ],
+  "x-omelette": {
+    "components": {
+      "Button": {
+        "replaces": []
+      },
+      "Checkbox": {
+        "replaces": []
+      },
+      "FieldGrid": {
+        "replaces": []
+      },
+      "Label": {
+        "replaces": []
+      },
+      "Legend": {
+        "replaces": []
+      },
+      "Readout": {
+        "replaces": []
+      },
+      "Run": {
+        "replaces": []
+      },
+      "SegmentedControl": {
+        "replaces": []
+      },
+      "Tabs": {
+        "replaces": []
+      },
+      "TextInput": {
+        "replaces": []
+      }
+    },
+    "tokens": [
+      "--action-primary-bg",
+      "--action-primary-fg",
+      "--bad",
+      "--border",
+      "--border-grid",
+      "--border-indicator",
+      "--border-rule",
+      "--border-width",
+      "--breakpoint-mobile",
+      "--dock-height",
+      "--dock-height-mobile",
+      "--field",
+      "--focus",
+      "--focus-offset",
+      "--focus-ring",
+      "--focus-width",
+      "--font-data",
+      "--font-ui",
+      "--gap-fields",
+      "--gap-legend",
+      "--gap-presets",
+      "--gap-run",
+      "--gap-tools",
+      "--grid",
+      "--ink",
+      "--leading-body",
+      "--leading-field",
+      "--leading-run",
+      "--leading-tight",
+      "--legend-bar",
+      "--link",
+      "--mono",
+      "--muted",
+      "--numerals",
+      "--ok",
+      "--opacity-disabled",
+      "--opacity-placeholder",
+      "--opacity-unselected-line",
+      "--overlay-tag-bg",
+      "--overlay-tag-border",
+      "--pad-button-outline",
+      "--pad-button-primary",
+      "--pad-button-small",
+      "--pad-cell",
+      "--pad-field",
+      "--pad-run",
+      "--pad-sidebar",
+      "--pad-tab-dock",
+      "--pad-tab-sidebar",
+      "--pad-tag",
+      "--panel",
+      "--paper",
+      "--radius-control",
+      "--radius-swatch",
+      "--radius-tag",
+      "--rule",
+      "--run-1",
+      "--run-2",
+      "--run-3",
+      "--run-4",
+      "--run-5",
+      "--run-6",
+      "--sans",
+      "--selected-bg",
+      "--selected-ring",
+      "--shadow-selected",
+      "--sidebar-width",
+      "--space-10",
+      "--space-11",
+      "--space-12",
+      "--space-13",
+      "--space-14",
+      "--space-16",
+      "--space-18",
+      "--space-2",
+      "--space-20",
+      "--space-28",
+      "--space-3",
+      "--space-4",
+      "--space-5",
+      "--space-6",
+      "--space-7",
+      "--space-8",
+      "--space-9",
+      "--sphere-tag-offset",
+      "--status-bad",
+      "--status-ok",
+      "--status-warn",
+      "--surface-app",
+      "--surface-field",
+      "--surface-panel",
+      "--swatch-size",
+      "--text-big",
+      "--text-big-mobile",
+      "--text-body",
+      "--text-caption",
+      "--text-control",
+      "--text-h1",
+      "--text-label",
+      "--text-lede",
+      "--text-micro",
+      "--text-muted",
+      "--text-on-ink",
+      "--text-small",
+      "--tracking-big",
+      "--tracking-h1",
+      "--warn",
+      "--weight-medium",
+      "--weight-regular",
+      "--weight-semibold"
+    ],
+    "tokenKinds": {
+      "--paper": "color",
+      "--panel": "color",
+      "--field": "color",
+      "--ink": "color",
+      "--muted": "color",
+      "--rule": "color",
+      "--grid": "color",
+      "--ok": "color",
+      "--warn": "color",
+      "--bad": "color",
+      "--focus": "color",
+      "--run-1": "color",
+      "--run-2": "color",
+      "--run-3": "color",
+      "--run-4": "color",
+      "--run-5": "color",
+      "--run-6": "color",
+      "--surface-app": "color",
+      "--surface-panel": "color",
+      "--surface-field": "color",
+      "--text-body": "font",
+      "--text-muted": "font",
+      "--text-on-ink": "font",
+      "--border-rule": "color",
+      "--border-grid": "color",
+      "--action-primary-bg": "color",
+      "--action-primary-fg": "color",
+      "--link": "color",
+      "--focus-ring": "color",
+      "--status-ok": "color",
+      "--status-warn": "color",
+      "--status-bad": "color",
+      "--overlay-tag-bg": "color",
+      "--overlay-tag-border": "color",
+      "--selected-bg": "color",
+      "--selected-ring": "color",
+      "--sans": "font",
+      "--mono": "font",
+      "--font-ui": "font",
+      "--font-data": "font",
+      "--text-big": "font",
+      "--text-big-mobile": "font",
+      "--text-h1": "font",
+      "--text-control": "font",
+      "--text-lede": "font",
+      "--text-small": "font",
+      "--text-label": "font",
+      "--text-caption": "font",
+      "--text-micro": "font",
+      "--weight-regular": "font",
+      "--weight-medium": "font",
+      "--weight-semibold": "font",
+      "--leading-body": "font",
+      "--leading-field": "font",
+      "--leading-tight": "font",
+      "--leading-run": "font",
+      "--tracking-h1": "font",
+      "--tracking-big": "font",
+      "--numerals": "other",
+      "--space-2": "spacing",
+      "--space-3": "spacing",
+      "--space-4": "spacing",
+      "--space-5": "spacing",
+      "--space-6": "spacing",
+      "--space-7": "spacing",
+      "--space-8": "spacing",
+      "--space-9": "spacing",
+      "--space-10": "spacing",
+      "--space-11": "spacing",
+      "--space-12": "spacing",
+      "--space-13": "spacing",
+      "--space-14": "spacing",
+      "--space-16": "spacing",
+      "--space-18": "spacing",
+      "--space-20": "spacing",
+      "--space-28": "spacing",
+      "--pad-sidebar": "spacing",
+      "--pad-field": "spacing",
+      "--pad-button-primary": "spacing",
+      "--pad-button-outline": "spacing",
+      "--pad-button-small": "spacing",
+      "--pad-cell": "spacing",
+      "--pad-tab-sidebar": "spacing",
+      "--pad-tab-dock": "spacing",
+      "--pad-run": "spacing",
+      "--pad-tag": "spacing",
+      "--gap-fields": "spacing",
+      "--gap-run": "spacing",
+      "--gap-tools": "spacing",
+      "--gap-legend": "spacing",
+      "--gap-presets": "spacing",
+      "--radius-swatch": "radius",
+      "--radius-tag": "radius",
+      "--radius-control": "radius",
+      "--border-width": "spacing",
+      "--border-indicator": "spacing",
+      "--focus-width": "spacing",
+      "--focus-offset": "spacing",
+      "--border": "color",
+      "--shadow-selected": "shadow",
+      "--sidebar-width": "spacing",
+      "--dock-height": "spacing",
+      "--dock-height-mobile": "spacing",
+      "--breakpoint-mobile": "spacing",
+      "--swatch-size": "spacing",
+      "--legend-bar": "spacing",
+      "--sphere-tag-offset": "spacing",
+      "--opacity-disabled": "other",
+      "--opacity-placeholder": "other",
+      "--opacity-unselected-line": "other"
+    },
+    "fontFamilies": [
+      "IBM Plex Mono",
+      "IBM Plex Sans"
+    ]
+  }
+}

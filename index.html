@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Route Studio - hose routing checks for Creo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#E9EDF1;--panel:#F7F9FB;--ink:#1F2A36;--muted:#5B6878;--rule:#C9D2DB;--grid:#CBD4DD;
+  --ok:#2B6CB0;--warn:#D08A1E;--bad:#C8323C;--field:#FFFFFF;--focus:#2B6CB0;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#161C23;--panel:#1C242D;--ink:#E3E9EF;--muted:#94A2B2;--rule:#303B47;--grid:#2A3440;
+  --ok:#5A9BE0;--warn:#E3A340;--bad:#EE5A63;--field:#131920;--focus:#5A9BE0;}}
+:root[data-theme="dark"]{--paper:#161C23;--panel:#1C242D;--ink:#E3E9EF;--muted:#94A2B2;--rule:#303B47;--grid:#2A3440;--ok:#5A9BE0;--warn:#E3A340;--bad:#EE5A63;--field:#131920;--focus:#5A9BE0;}
+*,*::before,*::after{box-sizing:border-box}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;height:100%;background:var(--paper);color:var(--ink);font:15px/1.45 var(--sans)}
+.app{display:grid;grid-template-columns:360px 1fr;height:100%}
+aside{background:var(--panel);border-right:1px solid var(--rule);overflow-y:auto;padding:18px 18px 28px}
+h1{font-size:20px;font-weight:600;margin:0 0 3px;letter-spacing:-.01em}
+.lede{color:var(--muted);font-size:13.5px;margin:0 0 16px}
+.tabs{display:flex;border-bottom:1px solid var(--rule);margin-bottom:14px}
+.tabs button{flex:1;border:0;background:none;color:var(--muted);font:500 14px var(--sans);padding:9px 4px;cursor:pointer;border-bottom:2px solid transparent}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink)}
+label,.lbl{display:block;font-size:12.5px;font-weight:500;margin:0 0 4px;white-space:nowrap}
+textarea,input,select{font:13px/1.5 var(--mono);color:var(--ink);background:var(--field);border:1px solid var(--rule);border-radius:4px;width:100%;padding:7px 8px}
+select,.fields input{font-family:var(--sans);font-size:14px}
+textarea{resize:vertical}
+::placeholder{color:var(--muted);opacity:.7}
+:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+.fields{display:grid;gap:9px;margin:12px 0}
+.c2{grid-template-columns:1fr 1fr}.c3{grid-template-columns:1fr 1fr 1fr}
+.unit{font-weight:400;color:var(--muted)}
+.hint{color:var(--muted);font-size:12px;margin:5px 0 0}
+.presets{display:flex;gap:12px;margin:6px 0 2px;font-size:12.5px;flex-wrap:wrap}
+.presets button,.linkish{background:none;border:0;padding:0;color:var(--ok);text-decoration:underline;text-underline-offset:2px;cursor:pointer;font:inherit}
+details{margin:10px 0}summary{cursor:pointer;color:var(--muted);font-size:13px}
+.go{display:block;width:100%;padding:11px;border:0;border-radius:4px;background:var(--ink);color:var(--paper);font:600 15px var(--sans);cursor:pointer;margin-top:4px}
+.go:disabled{opacity:.55;cursor:progress}
+.status{font-size:12.5px;color:var(--muted);margin-top:9px;min-height:1.3em}
+.runs{margin-top:20px;border-top:1px solid var(--rule);padding-top:14px}
+.runs h2{font-size:13px;font-weight:600;margin:0 0 8px;color:var(--muted)}
+.run{display:flex;align-items:center;gap:8px;padding:7px 6px;border-radius:4px;cursor:pointer}
+.run[data-sel="1"]{background:var(--field);box-shadow:inset 0 0 0 1px var(--rule)}
+.run input[type=checkbox]{width:auto;margin:0}
+.sw{width:11px;height:11px;border-radius:2px;flex:none}
+.run .nm{flex:1;font-size:13px;line-height:1.25;min-width:0}
+.run .nm small{display:block;color:var(--muted);font-size:11.5px;font-variant-numeric:tabular-nums}
+.run .del{border:0;background:none;color:var(--muted);cursor:pointer;font-size:16px;line-height:1;padding:2px 4px}
+.empty{color:var(--muted);font-size:13px}
+main{display:grid;grid-template-rows:1fr 230px;min-width:0;min-height:0}
+.view{position:relative;min-height:0;overflow:hidden}
+#gl{position:absolute;inset:0;touch-action:none;cursor:grab}#gl:active{cursor:grabbing}
+.readout{position:absolute;left:18px;top:14px;pointer-events:none;max-width:60%}
+.big{font-size:30px;font-weight:600;letter-spacing:-.02em;line-height:1.1;font-variant-numeric:tabular-nums}
+.big small{font-size:14px;font-weight:500;color:var(--muted);letter-spacing:0}
+.verdict{font-size:13.5px;margin-top:2px}.facts{font-size:12.5px;color:var(--muted);margin-top:5px;font-variant-numeric:tabular-nums}
+.tools{position:absolute;right:16px;top:14px;display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.tools button,.seg button{border:1px solid var(--rule);border-radius:4px;background:var(--panel);color:var(--ink);font:500 13px var(--sans);padding:6px 11px;cursor:pointer}
+.seg{display:flex;border:1px solid var(--rule);border-radius:4px;overflow:hidden;background:var(--panel)}
+.seg button{border:0;border-radius:0;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.legend{position:absolute;left:18px;bottom:12px;display:flex;gap:13px;font-size:12px;color:var(--muted);flex-wrap:wrap;pointer-events:none}
+.legend i{display:inline-block;width:16px;height:5px;border-radius:3px;vertical-align:middle;margin-right:5px}
+.help{position:absolute;right:16px;bottom:12px;font-size:12px;color:var(--muted);pointer-events:none}
+.tag{position:absolute;font:500 12px var(--sans);padding:2px 5px;border-radius:3px;background:var(--panel);border:1px solid var(--rule);white-space:nowrap;pointer-events:none;transform:translate(8px,-50%)}
+.tag.t{border:0;background:none;padding:0;color:var(--muted);transform:translate(6px,-120%)}
+.dock{border-top:1px solid var(--rule);background:var(--panel);display:grid;grid-template-rows:auto 1fr;min-height:0}
+.docktabs{display:flex;gap:2px;padding:6px 10px 0;border-bottom:1px solid var(--rule);align-items:center}
+.docktabs button{border:0;background:none;color:var(--muted);font:500 13px var(--sans);padding:7px 11px;cursor:pointer;border-bottom:2px solid transparent}
+.docktabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink)}
+.docktabs .right{margin-left:auto;display:flex;gap:8px;padding-bottom:5px}
+.dockbody{position:relative;min-height:0;overflow:auto}
+#ch{width:100%;height:100%;display:block}
+.pane{display:none;height:100%}.pane[data-on="1"]{display:block}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{border-bottom:1px solid var(--rule);padding:7px 12px;text-align:left;white-space:nowrap;font-variant-numeric:tabular-nums}
+th{font-weight:600;color:var(--muted)}
+td.metric{color:var(--muted)}
+.pts{padding:10px 12px}
+.pts textarea{height:150px}
+.ptshead{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
+.ptshead .right{display:flex;gap:8px}
+.ptshead button{border:1px solid var(--rule);border-radius:4px;background:var(--field);color:var(--ink);font:500 13px var(--sans);padding:4px 10px;cursor:pointer}
+@media (max-width:860px){
+  .app{grid-template-columns:1fr;height:auto}
+  aside{border-right:0;border-bottom:1px solid var(--rule)}
+  main{grid-template-rows:58vh 260px}
+  .tools{left:16px;right:auto;justify-content:flex-start}.readout{top:52px;max-width:90%}
+  .big{font-size:24px}.help{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+<aside>
+  <h1>Route Studio</h1>
+  <p class="lede">Check hose routes before you build them in Creo: bend radius on a single route, clearance between two. Run several settings and compare them side by side.</p>
+
+  <div class="tabs" role="tablist">
+    <button role="tab" id="tabBend" aria-selected="true">Bend radius</button>
+    <button role="tab" id="tabClear" aria-selected="false">Clearance</button>
+  </div>
+
+  <section id="panBend">
+    <label for="pts">Target points <span class="unit">(X Y Z per line)</span></label>
+    <textarea id="pts" rows="7" spellcheck="false" wrap="off"></textarea>
+    <div class="presets"><span class="unit">Load:</span><button type="button" data-preset="target">example route</button></div>
+    <div class="fields c3">
+      <div><label for="r">Min radius <span class="unit">mm</span></label><input id="r" type="number" value="65" min="1" step="1" inputmode="decimal"></div>
+      <div><label for="sf">Safety factor</label><input id="sf" type="number" value="1.5" min="1" step="0.1" inputmode="decimal"></div>
+      <div><label for="sp">Spacing <span class="unit">mm</span></label><input id="sp" type="number" value="85" min="10" step="5" inputmode="decimal"></div>
+    </div>
+    <details>
+      <summary>Fix end directions</summary>
+      <div class="fields c2">
+        <div><label for="sd">Start direction</label><input id="sd" placeholder="0,-1,0"></div>
+        <div><label for="ed">End direction</label><input id="ed" placeholder="1,1,0"></div>
+      </div>
+      <p class="hint">Direction of travel along the hose, as X,Y,Z.</p>
+    </details>
+    <button class="go" id="runBend" type="button">Check, then add to comparison</button>
+    <p class="hint" id="bendHint">Adds two runs: the spline through your points as entered, and a generated route that holds the radius.</p>
+    <div class="status" id="statusBend"></div>
+  </section>
+
+  <section id="panClear" hidden>
+    <label for="mpts">Master route <span class="unit">(stays put)</span></label>
+    <textarea id="mpts" rows="5" spellcheck="false" wrap="off"></textarea>
+    <label for="spts" style="margin-top:10px">Slave route <span class="unit">(gets moved)</span></label>
+    <textarea id="spts" rows="5" spellcheck="false" wrap="off"></textarea>
+    <div class="presets"><span class="unit">Load:</span><button type="button" data-preset="pair">example pair</button></div>
+    <div class="fields c3">
+      <div><label for="gap">Gap <span class="unit">mm</span></label><input id="gap" type="number" value="40" min="0" step="1" inputmode="decimal"></div>
+      <div><label for="mode">Mode</label><select id="mode"><option value="min">min</option><option value="const">const</option></select></div>
+      <div><label for="plane">Push in</label><select id="plane"><option value="free">free</option><option value="xy">xy</option><option value="xz">xz</option><option value="yz">yz</option></select></div>
+    </div>
+    <div class="fields c3">
+      <div><label for="smooth">Smooth</label><input id="smooth" type="number" value="2" min="0" max="20" step="1"></div>
+      <div><label for="blend">Blend</label><input id="blend" type="number" value="0" min="0" max="20" step="1"></div>
+      <div><label for="cr">Min radius <span class="unit">mm</span></label><input id="cr" type="number" value="65" min="1" step="1"></div>
+    </div>
+    <div class="fields c2">
+      <div><label for="lock">Locked points</label><input id="lock" placeholder="0,1,16"></div>
+      <div><label for="reorder" style="margin-bottom:8px">Point order</label>
+        <label style="font-weight:400;font-size:12.5px;white-space:normal"><input type="checkbox" id="reorder" checked style="width:auto;margin-right:6px">re-insert stray points</label></div>
+    </div>
+    <button class="go" id="runClear" type="button">Adjust, then add to comparison</button>
+    <div class="status" id="statusClear"></div>
+  </section>
+
+  <div class="runs">
+    <h2>Comparison runs</h2>
+    <div id="runlist"><p class="empty">No runs yet. Run a check to add one.</p></div>
+    <p class="hint" id="runhint" hidden>Tick to show in the 3D view. Click a run to select it and load its settings.</p>
+  </div>
+</aside>
+
+<main>
+  <div class="view" id="view">
+    <canvas id="gl" aria-label="3D view of the routes"></canvas>
+    <div class="readout" id="readout"></div>
+    <div class="tools">
+      <button type="button" id="zoom">Zoom to tightest bend</button>
+      <button type="button" id="fit">Fit</button>
+      <div class="seg" role="group" aria-label="Colour">
+        <button type="button" id="cRad" aria-pressed="true">Colour by radius</button>
+        <button type="button" id="cRun" aria-pressed="false">By run</button>
+      </div>
+    </div>
+    <div class="legend" id="legend"></div>
+    <div class="help">Drag to rotate, shift-drag to pan, scroll to zoom</div>
+    <div id="tags"></div>
+  </div>
+  <div class="dock">
+    <div class="docktabs" role="tablist">
+      <button role="tab" id="dRad" aria-selected="true">Bend radius</button>
+      <button role="tab" id="dClr" aria-selected="false">Clearance</button>
+      <button role="tab" id="dCmp" aria-selected="false">Compare</button>
+      <button role="tab" id="dPts" aria-selected="false">Points</button>
+    </div>
+    <div class="dockbody">
+      <div class="pane" id="paneChart" data-on="1"><canvas id="ch"></canvas></div>
+      <div class="pane" id="paneCmp"><div id="cmp"></div></div>
+      <div class="pane" id="panePts"><div class="pts">
+        <div class="ptshead"><span class="lbl" id="ptsname">Points</span>
+          <span class="right"><button type="button" id="copy">Copy</button><button type="button" id="dl">Download .pts</button></span></div>
+        <textarea id="outtxt" readonly spellcheck="false" wrap="off"></textarea>
+      </div></div>
+    </div>
+  </div>
+</main>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ---------- core math (no DOM) ----------
+const V={sub:(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]],add:(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]],
+ mul:(a,s)=>[a[0]*s,a[1]*s,a[2]*s],dot:(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2],
+ cross:(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],
+ len:a=>Math.hypot(a[0],a[1],a[2]),norm:a=>{const l=Math.hypot(a[0],a[1],a[2])||1;return[a[0]/l,a[1]/l,a[2]/l]}};
+
+function parsePts(text){
+  const P=[];
+  for(const raw of text.split(/\r?\n/)){
+    const line=raw.split('!')[0].trim(); if(!line) continue;
+    const v=line.replace(/,/g,' ').split(/\s+/).map(Number);
+    if(v.length>=3&&v.slice(0,3).every(Number.isFinite)) P.push(v.slice(0,3));
+  }
+  return P.filter((p,i)=>i===0||V.len(V.sub(p,P[i-1]))>1e-6);
+}
+
+// natural cubic spline through Q, chord-length parameter; returns sampler
+function naturalSpline(Q){
+  const n=Q.length; const t=[0];
+  for(let i=1;i<n;i++) t.push(t[i-1]+V.len(V.sub(Q[i],Q[i-1])));
+  const M=[[],[],[]];
+  for(let d=0;d<3;d++){
+    const y=Q.map(q=>q[d]); const m=new Array(n).fill(0);
+    if(n>2){
+      const a=[],b=[],c=[],r=[];
+      for(let i=1;i<n-1;i++){const h0=t[i]-t[i-1],h1=t[i+1]-t[i];
+        a.push(h0);b.push(2*(h0+h1));c.push(h1);r.push(6*((y[i+1]-y[i])/h1-(y[i]-y[i-1])/h0));}
+      const k=b.length;
+      for(let i=1;i<k;i++){const w=a[i]/b[i-1];b[i]-=w*c[i-1];r[i]-=w*r[i-1];}
+      const x=new Array(k);x[k-1]=r[k-1]/b[k-1];
+      for(let i=k-2;i>=0;i--)x[i]=(r[i]-c[i]*x[i+1])/b[i];
+      for(let i=0;i<k;i++)m[i+1]=x[i];
+    }
+    M[d]=m;
+  }
+  function at(i,s){ // segment i, local s in [0,h]
+    const h=t[i+1]-t[i];const p=[],d1=[],d2=[];
+    for(let d=0;d<3;d++){const y0=Q[i][d],y1=Q[i+1][d],m0=M[d][i],m1=M[d][i+1];
+      const A=(t[i+1]-(t[i]+s))/h,B=s/h;
+      p.push(A*y0+B*y1+((A*A*A-A)*m0+(B*B*B-B)*m1)*h*h/6);
+      d1.push((y1-y0)/h-(3*A*A-1)/6*h*m0+(3*B*B-1)/6*h*m1);
+      d2.push(A*m0+B*m1);}
+    return{p,d1,d2};
+  }
+  return{t,at,nseg:n-1};
+}
+function curvOf(d1,d2){const c=V.len(V.cross(d1,d2)),l=V.len(d1);return c/(l*l*l);}
+
+// sample a curve source into dense polyline with curvature + arclength
+function sampleSpline(sp,per=40){
+  const pts=[],k=[],d1s=[],d2s=[];
+  for(let i=0;i<sp.nseg;i++){const h=sp.t[i+1]-sp.t[i];const m=Math.max(4,Math.ceil(per*h/ (sp.t[sp.nseg]/sp.nseg)));
+    for(let j=(i?1:0);j<=m;j++){const r=sp.at(i,h*j/m);pts.push(r.p);k.push(curvOf(r.d1,r.d2));d1s.push(r.d1);d2s.push(r.d2);}}
+  const s=[0];for(let i=1;i<pts.length;i++)s.push(s[i-1]+V.len(V.sub(pts[i],pts[i-1])));
+  return{pts,k,s,d1s,d2s};
+}
+
+// ---------- Hermite route optimisation ----------
+function hermite(p0,p1,m0,m1,u){
+  const u2=u*u,u3=u2*u;
+  const h=[2*u3-3*u2+1,u3-2*u2+u,-2*u3+3*u2,u3-u2],
+        d=[6*u2-6*u,3*u2-4*u+1,-6*u2+6*u,3*u2-2*u],
+        e=[12*u-6,6*u-4,-12*u+6,6*u-2];
+  const f=w=>[0,1,2].map(i=>w[0]*p0[i]+w[1]*m0[i]+w[2]*p1[i]+w[3]*m1[i]);
+  return{p:f(h),d1:f(d),d2:f(e)};
+}
+function makeRoute(P,opts={}){
+  const n=P.length,L=[];for(let i=0;i<n-1;i++)L.push(V.len(V.sub(P[i+1],P[i])));
+  const chord=L.reduce((a,b)=>a+b,0);
+  const T0=P.map((_,i)=>V.norm(V.sub(P[Math.min(i+1,n-1)],P[Math.max(i-1,0)])));
+  if(opts.startDir)T0[0]=V.norm(opts.startDir); if(opts.endDir)T0[n-1]=V.norm(opts.endDir);
+  const x=[];T0.forEach(t=>x.push(...t));for(let i=0;i<2*(n-1);i++)x.push(1);
+  function segs(x){
+    const T=[];for(let i=0;i<n;i++)T.push(V.norm([x[3*i],x[3*i+1],x[3*i+2]]));
+    if(opts.startDir)T[0]=V.norm(opts.startDir); if(opts.endDir)T[n-1]=V.norm(opts.endDir);
+    const out=[];for(let i=0;i<n-1;i++){const s0=x[3*n+2*i],s1=x[3*n+2*i+1];
+      out.push([P[i],P[i+1],V.mul(T[i],L[i]*s0),V.mul(T[i+1],L[i]*s1)]);}
+    return out;
+  }
+  function evalX(x,S=40){
+    let len=0,kmax=0;const ks=[];
+    for(const g of segs(x)){let prev=null;
+      for(let j=0;j<=S;j++){const r=hermite(g[0],g[1],g[2],g[3],j/S);const k=curvOf(r.d1,r.d2);ks.push(k);if(k>kmax)kmax=k;
+        if(prev)len+=V.len(V.sub(r.p,prev));prev=r.p;}}
+    return{len,ks,kmax};
+  }
+  return{P,n,L,chord,x,segs,evalX,opts};
+}
+// one optimisation "chunk": returns updated state; Adam on penalty objective
+function optimiser(route,designR){
+  const kt=1/designR,x=route.x.slice(),N=x.length,n=route.n;
+  const m=new Array(N).fill(0),v=new Array(N).fill(0);
+  const fixed=new Array(N).fill(false);
+  if(route.opts.startDir)for(let d=0;d<3;d++)fixed[d]=true;
+  if(route.opts.endDir)for(let d=0;d<3;d++)fixed[3*(n-1)+d]=true;
+  let w=10,it=0,t=0;const ws=[10,1e2,1e3,1e4,1e5];let stage=0;
+  function f(x){const r=route.evalX(x,24);let pen=0;for(const k of r.ks){const e=Math.max(k-kt,0)/kt;pen+=e*e;}
+    return r.len/route.chord+w*pen/r.ks.length;}
+  function step(k){
+    for(let s=0;s<k;s++){
+      const f0=f(x),g=new Array(N).fill(0);
+      for(let i=0;i<N;i++){if(fixed[i])continue;const hh=1e-4;const old=x[i];x[i]=old+hh;g[i]=(f(x)-f0)/hh;x[i]=old;}
+      t++;const lr=0.01;
+      for(let i=0;i<N;i++){if(fixed[i])continue;m[i]=0.9*m[i]+0.1*g[i];v[i]=0.999*v[i]+0.001*g[i]*g[i];
+        const mh=m[i]/(1-Math.pow(0.9,t)),vh=v[i]/(1-Math.pow(0.999,t));x[i]-=lr*mh/(Math.sqrt(vh)+1e-8);}
+      for(let i=0;i<n;i++){const u=V.norm([x[3*i],x[3*i+1],x[3*i+2]]);x[3*i]=u[0];x[3*i+1]=u[1];x[3*i+2]=u[2];}
+      for(let i=3*n;i<N;i++)x[i]=Math.min(2,Math.max(0.2,x[i]));
+      it++;
+      if(it%120===0&&stage<ws.length-1){const r=route.evalX(x,40);
+        if(1/r.kmax<designR*0.99){stage++;w=ws[stage];t=0;m.fill(0);v.fill(0);}}
+    }
+    const r=route.evalX(x,60);return{x,it,minR:1/r.kmax,len:r.len,done:it>=900||(it>=240&&1/r.kmax>=designR*0.99&&stage>0)};
+  }
+  return{step,x};
+}
+function samplePoints(route,x,spacing){
+  const out=[],tidx=[];
+  route.segs(x).forEach((g,i)=>{
+    const D=[];for(let j=0;j<=600;j++)D.push(hermite(g[0],g[1],g[2],g[3],j/600).p);
+    const s=[0];for(let j=1;j<D.length;j++)s.push(s[j-1]+V.len(V.sub(D[j],D[j-1])));
+    const m=Math.max(1,Math.ceil(s[s.length-1]/spacing));
+    tidx.push(out.length);out.push(route.P[i].slice());
+    let j=0;for(let q=1;q<m;q++){const tgt=s[s.length-1]*q/m;while(s[j]<tgt)j++;out.push(D[j]);}
+  });
+  tidx.push(out.length);out.push(route.P[route.n-1].slice());
+  return{Q:out.map(p=>p.map(c=>Math.round(c*100)/100)),tidx};
+}
+function toPts(Q,info){
+  const f=c=>c.toFixed(2).padStart(15);
+  return["!","!       DATUM POINT ARRAY DATA FILE","!",
+   `! Hose min bend radius ${info.R} mm, design ${info.designR} mm, achieved ${info.minR.toFixed(1)} mm`,
+   `! ${Q.length} points, route length ~${Math.round(info.len)} mm`,
+   `! Target points at positions: ${info.tidx.map(i=>i+1).join(', ')}`,
+   "!","! Enter values with respect to datum arrays' coordinate system:","!",
+   "!CARTESIAN coordinates:","!        X                Y                Z","!",
+   ...Q.map(q=>`${f(q[0])} ${f(q[1])} ${f(q[2])}`)].join("\n")+"\n";
+}
+// ---------- clearance between two routes (port of route_parallel.py) ----------
+const PLANE={free:[1,1,1],xy:[1,1,0],xz:[1,0,1],yz:[0,1,1]};
+function closestOnSegment(p,a,b){
+  const ab=V.sub(b,a),L2=V.dot(ab,ab);
+  if(L2===0)return{foot:a,d:V.len(V.sub(p,a))};
+  let t=V.dot(V.sub(p,a),ab)/L2;t=Math.max(0,Math.min(1,t));
+  const foot=V.add(a,V.mul(ab,t));return{foot,d:V.len(V.sub(p,foot))};
+}
+function closestOnPath(p,path){let bf=null,bd=Infinity;
+  for(let i=0;i<path.length-1;i++){const r=closestOnSegment(p,path[i],path[i+1]);if(r.d<bd){bd=r.d;bf=r.foot;}}
+  return{foot:bf,d:bd};}
+function pathLength(Q){let s=0;for(let i=1;i<Q.length;i++)s+=V.len(V.sub(Q[i],Q[i-1]));return s;}
+// re-insert stray points so the route reads in true order; first point stays the start
+function reorderPath(pts){
+  if(pts.length>150)return{pts,moves:0};
+  let order=pts.map((_,i)=>i),moves=0;
+  for(let round=0;round<40;round++){
+    let improved=false;
+    for(const idx of order.slice()){
+      const cur=order.indexOf(idx);if(cur===0)continue;
+      const without=order.filter(i=>i!==idx);
+      let bestPos=cur,bestLen=pathLength(order.map(i=>pts[i]));
+      for(let pos=1;pos<=without.length;pos++){
+        const trial=without.slice(0,pos).concat([idx],without.slice(pos));
+        const L=pathLength(trial.map(i=>pts[i]));
+        if(L<bestLen-1e-6){bestPos=pos;bestLen=L;}
+      }
+      if(bestPos!==cur){order=without.slice(0,bestPos).concat([idx],without.slice(bestPos));improved=true;moves++;}
+    }
+    if(!improved)break;
+  }
+  return{pts:order.map(i=>pts[i]),moves};
+}
+function smoothDirs(vecs,passes){
+  let out=vecs.map(v=>v.slice());
+  for(let p=0;p<passes;p++){
+    const nx=[out[0]];
+    for(let i=1;i<out.length-1;i++)nx.push(V.norm([0,1,2].map(k=>(out[i-1][k]+2*out[i][k]+out[i+1][k])/4)));
+    nx.push(out[out.length-1]);out=nx;
+  }
+  return out;
+}
+function adjustClearance(master,slave,gap,mode,plane,smooth,locks,blend){
+  const mask=PLANE[plane]||PLANE.free,pr=q=>[q[0]*mask[0],q[1]*mask[1],q[2]*mask[2]];
+  const pm=master.map(pr);
+  let dirs=[],gaps=[];
+  for(const p of slave){const{foot,d}=closestOnPath(pr(p),pm);let v=V.sub(pr(p),foot);
+    if(V.len(v)<1e-9)v=mask[1]?[0,1,0]:[0,0,1];dirs.push(V.norm(v));gaps.push(d);}
+  if(smooth)dirs=smoothDirs(dirs,smooth);
+  const moved=slave.map(p=>p.slice()),delta=slave.map(()=>0);
+  slave.forEach((p,i)=>{
+    if(locks.has(i))return;
+    if(mode==='min'&&gaps[i]>=gap)return;
+    const d=V.mul(dirs[i],gap-gaps[i]);moved[i]=V.add(p,d);delta[i]=V.len(d);
+  });
+  for(let b=0;b<blend;b++){
+    const out=moved.map(p=>p.slice());
+    for(let i=1;i<moved.length-1;i++){
+      if(locks.has(i)||delta[i]>0)continue;
+      if(delta[i-1]===0&&delta[i+1]===0)continue;
+      for(let k=0;k<3;k++)out[i][k]=moved[i][k]+0.25*((moved[i-1][k]+moved[i+1][k])/2-moved[i][k]);
+    }
+    for(let i=0;i<moved.length;i++)moved[i]=out[i];
+  }
+  const after=moved.map(p=>closestOnPath(pr(p),pm).d),shift=slave.map((p,i)=>V.len(V.sub(moved[i],p)));
+  return{moved:moved.map(p=>p.map(c=>Math.round(c*1000)/1000)),before:gaps,after,shift};
+}
+// clearance of a dense curve against a master polyline (for the graph)
+function clearanceProfile(pts,master,plane){
+  const mask=PLANE[plane]||PLANE.free,pr=q=>[q[0]*mask[0],q[1]*mask[1],q[2]*mask[2]];
+  const pm=master.map(pr);return pts.map(p=>closestOnPath(pr(p),pm).d);
+}
+const PRESETS={target:`! example target points
+-1655.50  -225.00  -155.50
+-1133.50  -671.80   -90.00
+ -833.75  -563.19  -141.16
+ -583.50  -671.80   -90.00
+ -253.50  -528.51     1.00
+ -183.50  -279.99    -3.00
+    0.00     0.00     0.00`,
+master:`! master route
+-1655.50  -225.00  -155.50
+-1133.50  -671.80   -90.00
+ -833.75  -563.19  -141.16
+ -583.50  -671.80   -90.00
+ -253.50  -528.51     1.00
+ -183.50  -279.99    -3.00
+    0.00     0.00     0.00`,
+slave:`! slave route, gap varies 18-62 mm
+-1652.80  -218.70  -138.94
+-1125.25  -652.55   -39.40
+ -831.65  -558.29  -128.28
+ -574.20  -650.10   -32.96
+ -249.75  -519.76    24.00
+ -179.00  -269.49    24.60
+    7.20    16.80    44.16`};
+const PALETTE=['#2B6CB0','#C8323C','#2F8F63','#8A5BD6','#D08A1E','#0E7C86'];
+const $=id=>document.getElementById(id);
+const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const fmt=(v,d=1)=>v==null||!isFinite(v)?'--':v.toFixed(d);
+
+let runs=[],selId=null,colorMode='radius',dock='rad',nextId=1,hover=null;
+
+// ---------------- analysis helpers ----------------
+function analyse(Q){const d=sampleSpline(naturalSpline(Q),40);let wi=0;
+  for(let i=1;i<d.k.length;i++)if(d.k[i]>d.k[wi])wi=i;
+  return{Q,d,wi,minR:1/d.k[wi],len:d.s[d.s.length-1]};}
+function parseDir(s){const v=(s||'').split(/[,\s]+/).filter(Boolean).map(Number);
+  return v.length===3&&v.every(Number.isFinite)&&Math.hypot(...v)>0?v:null;}
+function addRun(run){run.id=nextId++;run.color=PALETTE[(run.id-1)%PALETTE.length];run.visible=true;
+  runs.push(run);if(runs.length>6){const gone=runs.shift();if(selId===gone.id)selId=null;}
+  selId=run.id;renderRuns();rebuild(true);return run;}
+function selected(){return runs.find(r=>r.id===selId)||runs[runs.length-1]||null;}
+function visible(){return runs.filter(r=>r.visible);}
+
+// ---------------- three.js ----------------
+const renderer=new THREE.WebGLRenderer({canvas:$('gl'),antialias:true});
+renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));
+const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(40,1,1,1e6);camera.up.set(0,0,1);
+scene.add(new THREE.AmbientLight(0xffffff,0.55));const dl=new THREE.DirectionalLight(0xffffff,0.75);scene.add(dl);
+let content=new THREE.Group();scene.add(content);
+const orbit={target:new THREE.Vector3(),dist:3000,theta:-2.2,phi:1.05};
+let diag=1000,tubeR=6,marker=null,tagEls=[],home=null,zoomed=false;
+function placeCamera(){const o=orbit,sp=Math.sin(o.phi);
+  camera.position.set(o.target.x+o.dist*sp*Math.cos(o.theta),o.target.y+o.dist*sp*Math.sin(o.theta),o.target.z+o.dist*Math.cos(o.phi));
+  camera.lookAt(o.target);dl.position.copy(camera.position);camera.near=o.dist/200;camera.far=o.dist*50;camera.updateProjectionMatrix();}
+function fitAll(){const b=new THREE.Box3();let any=false;
+  visible().forEach(r=>{r.Q.forEach(p=>{b.expandByPoint(new THREE.Vector3(...p));any=true;});
+    if(r.master)r.master.forEach(p=>b.expandByPoint(new THREE.Vector3(...p)));});
+  if(!any)return;b.getCenter(orbit.target);diag=Math.max(b.getSize(new THREE.Vector3()).length(),100);
+  const asp=($('view').clientWidth||1)/($('view').clientHeight||1);
+  orbit.dist=diag*1.35*Math.max(1,Math.pow(1/asp,0.8));tubeR=Math.max(diag*0.0042,1.5);
+  home={t:orbit.target.clone(),d:orbit.dist};zoomed=false;$('zoom').textContent='Zoom to tightest bend';}
+function tube(pts,colors,r){
+  const seg=9,pos=[],cols=[],idx=[];let N=null;
+  for(let i=0;i<pts.length;i++){
+    const p=new THREE.Vector3(...pts[i]);
+    const T=new THREE.Vector3(...pts[Math.min(i+1,pts.length-1)]).sub(new THREE.Vector3(...pts[Math.max(i-1,0)])).normalize();
+    if(!N){N=Math.abs(T.z)<0.9?new THREE.Vector3(0,0,1):new THREE.Vector3(1,0,0);}
+    N=N.sub(T.clone().multiplyScalar(N.dot(T))).normalize();
+    const B=new THREE.Vector3().crossVectors(T,N);
+    for(let j=0;j<seg;j++){const a=j/seg*Math.PI*2;
+      const v=N.clone().multiplyScalar(Math.cos(a)*r).add(B.clone().multiplyScalar(Math.sin(a)*r)).add(p);
+      pos.push(v.x,v.y,v.z);const c=colors[i];cols.push(c.r,c.g,c.b);}
+    if(i>0)for(let j=0;j<seg;j++){const a0=(i-1)*seg+j,a1=(i-1)*seg+(j+1)%seg,b0=i*seg+j,b1=i*seg+(j+1)%seg;idx.push(a0,b0,a1,a1,b0,b1);}
+  }
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+  g.setAttribute('color',new THREE.Float32BufferAttribute(cols,3));g.setIndex(idx);g.computeVertexNormals();
+  return new THREE.Mesh(g,new THREE.MeshLambertMaterial({vertexColors:true}));
+}
+function circle(c,u,v,r,color,dashed){const pts=[];
+  for(let i=0;i<=96;i++){const a=i/96*Math.PI*2;pts.push(new THREE.Vector3(
+    c[0]+r*(Math.cos(a)*u[0]+Math.sin(a)*v[0]),c[1]+r*(Math.cos(a)*u[1]+Math.sin(a)*v[1]),c[2]+r*(Math.cos(a)*u[2]+Math.sin(a)*v[2])));}
+  const g=new THREE.BufferGeometry().setFromPoints(pts);
+  const l=new THREE.Line(g,dashed?new THREE.LineDashedMaterial({color,dashSize:r*0.12,gapSize:r*0.08}):new THREE.LineBasicMaterial({color}));
+  if(dashed)l.computeLineDistances();return l;}
+function radiusColor(rad,R,SF,c){return rad<R?c.bad:(rad<R*SF?c.warn:c.ok);}
+function addTag(p,text,cls){const e=document.createElement('div');e.className='tag '+(cls||'');e.textContent=text;
+  $('tags').appendChild(e);tagEls.push({e,p:new THREE.Vector3(...p)});}
+
+function rebuild(refit){
+  scene.remove(content);content.traverse(o=>{o.geometry&&o.geometry.dispose();o.material&&o.material.dispose();});
+  content=new THREE.Group();scene.add(content);$('tags').innerHTML='';tagEls=[];
+  renderer.setClearColor(css('--paper'));
+  if(refit)fitAll();
+  const vis=visible(),sel=selected();
+  if(vis.length){
+    let zmin=Infinity;vis.forEach(r=>r.Q.forEach(p=>zmin=Math.min(zmin,p[2])));
+    const gs=Math.pow(10,Math.floor(Math.log10(diag/4))),size=Math.ceil(diag*1.6/gs)*gs;
+    const grid=new THREE.GridHelper(size,Math.round(size/gs),css('--grid'),css('--grid'));
+    grid.rotation.x=Math.PI/2;grid.position.set(orbit.target.x,orbit.target.y,zmin-diag*0.08);content.add(grid);
+  }
+  const c={bad:new THREE.Color(css('--bad')),warn:new THREE.Color(css('--warn')),ok:new THREE.Color(css('--ok'))};
+  const sg=new THREE.SphereGeometry(1,14,10);
+  const masters=new Set();
+  vis.forEach(r=>{
+    const R=r.params.R,SF=r.params.SF||1.5;
+    const cols=colorMode==='radius'&&r.kind!=='master'
+      ? r.d.k.map(k=>radiusColor(1/k,R,SF,c))
+      : r.d.k.map(()=>new THREE.Color(r.color));
+    content.add(tube(r.d.pts,cols,r.id===(sel&&sel.id)?tubeR:tubeR*0.8));
+    const pm=new THREE.MeshLambertMaterial({color:new THREE.Color(r.color)});
+    r.Q.forEach((q,i)=>{const isT=!r.tidx||r.tidx.includes(i);const s=new THREE.Mesh(sg,pm);
+      s.scale.setScalar(isT?tubeR*1.9:tubeR*1.15);s.position.set(...q);content.add(s);});
+    if(r.master&&!masters.has(r.master)){masters.add(r.master);
+      const mp=r.master.map(p=>new THREE.Vector3(...p));
+      const ml=new THREE.Line(new THREE.BufferGeometry().setFromPoints(mp),new THREE.LineBasicMaterial({color:css('--muted')}));
+      content.add(ml);const mm=new THREE.MeshLambertMaterial({color:css('--muted')});
+      r.master.forEach(p=>{const s=new THREE.Mesh(sg,mm);s.scale.setScalar(tubeR*1.4);s.position.set(...p);content.add(s);});
+      addTag(r.master[0],'master','t');}
+  });
+  if(sel&&sel.visible){
+    const p=sel.d.pts[sel.wi],T=V.norm(sel.d.d1s[sel.wi]),d2=sel.d.d2s[sel.wi];
+    let N=V.sub(d2,V.mul(T,V.dot(d2,T)));
+    if(V.len(N)>1e-12){N=V.norm(N);const R=sel.params.R,SF=sel.params.SF||1.5,rw=sel.minR;
+      const cc=rw<R?css('--bad'):(rw<R*SF?css('--warn'):css('--ok'));
+      if(rw<diag*2)content.add(circle(V.add(p,V.mul(N,rw)),V.mul(N,-1),T,rw,cc,false));
+      content.add(circle(V.add(p,V.mul(N,R)),V.mul(N,-1),T,R,css('--ink'),true));
+      addTag(V.add(p,V.mul(N,-tubeR*3)),`tightest bend R ${fmt(rw)} mm`);}
+    sel.Q.forEach((q,i)=>{if(!sel.tidx||sel.tidx.includes(i))addTag(q,'P'+((sel.tidx?sel.tidx.indexOf(i):i)+1),'t');});
+  }
+  marker=new THREE.Mesh(sg,new THREE.MeshBasicMaterial({color:css('--ink')}));
+  marker.scale.setScalar(tubeR*2.6);marker.visible=false;content.add(marker);
+  readout();legend();draw();
+}
+function readout(){
+  const r=selected();
+  if(!r){$('readout').innerHTML='<div class="verdict">Run a check to see it here.</div>';return;}
+  const R=r.params.R,SF=r.params.SF||1.5,ok=r.minR>=R,safe=r.minR>=R*SF*0.98;
+  const v=ok?(safe?`Passes. Tightest bend is ${(r.minR/R).toFixed(2)}x the minimum radius.`:`Passes, but inside the x${SF} safety margin.`)
+            :`Too tight: ${fmt(R-r.minR)} mm below the ${R} mm minimum.`;
+  let extra=`${r.Q.length} points. Length ${Math.round(r.len)} mm.`;
+  if(r.clear)extra+=` Clearance ${fmt(Math.min(...r.clear.after))}-${fmt(Math.max(...r.clear.after))} mm.`;
+  $('readout').innerHTML=`<div class="big">R ${fmt(r.minR)} <small>mm tightest bend &middot; ${r.name}</small></div>
+    <div class="verdict" style="color:var(${ok?(safe?'--ok':'--warn'):'--bad'})">${v}</div><div class="facts">${extra}</div>`;
+}
+function legend(){
+  const L=$('legend');
+  if(colorMode==='radius')L.innerHTML=`<span><i style="background:var(--bad)"></i>below min radius</span>
+    <span><i style="background:var(--warn)"></i>inside safety margin</span><span><i style="background:var(--ok)"></i>OK</span>`;
+  else L.innerHTML=visible().map(r=>`<span><i style="background:${r.color}"></i>${r.name}</span>`).join('');
+}
+function draw(){
+  const w=$('view').clientWidth,h=$('view').clientHeight;if(!w||!h)return;
+  renderer.setSize(w,h,false);camera.aspect=w/h;placeCamera();renderer.render(scene,camera);
+  for(const t of tagEls){const v=t.p.clone().project(camera);
+    t.e.style.left=((v.x+1)/2*w)+'px';t.e.style.top=((1-v.y)/2*h)+'px';t.e.style.display=v.z<1?'':'none';}
+  drawChart();
+}
+(function(){let drag=null,pinch=null;const cv=$('gl');
+  cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);drag={x:e.clientX,y:e.clientY,pan:e.shiftKey||e.button===2};});
+  cv.addEventListener('pointermove',e=>{if(!drag||pinch)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;drag.x=e.clientX;drag.y=e.clientY;
+    if(drag.pan){const s=orbit.dist*0.0012,right=new THREE.Vector3().setFromMatrixColumn(camera.matrix,0),up=new THREE.Vector3().setFromMatrixColumn(camera.matrix,1);
+      orbit.target.add(right.multiplyScalar(-dx*s)).add(up.multiplyScalar(dy*s));}
+    else{orbit.theta-=dx*0.008;orbit.phi=Math.min(3.1,Math.max(0.05,orbit.phi-dy*0.008));}draw();});
+  cv.addEventListener('pointerup',()=>drag=null);cv.addEventListener('contextmenu',e=>e.preventDefault());
+  cv.addEventListener('wheel',e=>{e.preventDefault();orbit.dist*=Math.exp(e.deltaY*0.001);draw();},{passive:false});
+  cv.addEventListener('touchstart',e=>{if(e.touches.length===2){drag=null;pinch=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);}},{passive:true});
+  cv.addEventListener('touchmove',e=>{if(e.touches.length===2&&pinch){const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);orbit.dist*=pinch/d;pinch=d;draw();}},{passive:true});
+  cv.addEventListener('touchend',e=>{if(e.touches.length<2)pinch=null;},{passive:true});
+})();
+
+// ---------------- charts ----------------
+const ctx=$('ch').getContext('2d');let chartGeom=null;
+function drawChart(){
+  const cv=$('ch'),dpr=window.devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;
+  if(!W||!H)return;cv.width=W*dpr;cv.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,H);
+  const vis=visible().filter(r=>dock!=='clr'||r.clearDense);
+  const sel=selected();if(!vis.length||!sel){chartGeom=null;return;}
+  const L={l:60,r:16,t:14,b:28},pw=W-L.l-L.r,ph=H-L.t-L.b;
+  const maxLen=Math.max(...vis.map(r=>r.len));
+  const X=s=>L.l+s/maxLen*pw;
+  ctx.font='12px '+css('--sans');ctx.strokeStyle=css('--rule');ctx.lineWidth=1;
+  const isRad=dock==='rad';
+  let Y,ticks;
+  if(isRad){
+    const R=sel.params.R,SF=sel.params.SF||1.5;
+    const lo=Math.max(1,Math.pow(10,Math.floor(Math.log10(Math.min(R,...vis.map(r=>r.minR))*0.7)))),hi=Math.max(2000,R*SF*4);
+    Y=v=>L.t+ph*(1-(Math.log10(Math.min(Math.max(v,lo),hi))-Math.log10(lo))/(Math.log10(hi)-Math.log10(lo)));
+    ticks=[];for(let e=Math.log10(lo);e<=Math.log10(hi)+1e-9;e++)ticks.push(Math.pow(10,e));
+  }else{
+    const all=vis.flatMap(r=>r.clearDense),gap=sel.clear?sel.clear.gap:0;
+    const hi=Math.max(gap*1.6,Math.max(...all)*1.05),lo=0;
+    Y=v=>L.t+ph*(1-(Math.min(Math.max(v,lo),hi)-lo)/(hi-lo));
+    ticks=[];const raw=hi/5,p10=Math.pow(10,Math.floor(Math.log10(raw))),st=[1,2,2.5,5,10].find(m=>m*p10>=raw)*p10;for(let v=0;v<=hi;v+=st)ticks.push(v);
+  }
+  ctx.fillStyle=css('--muted');ctx.textAlign='right';
+  ticks.forEach(v=>{const y=Y(v);ctx.beginPath();ctx.moveTo(L.l,y);ctx.lineTo(L.l+pw,y);ctx.stroke();
+    ctx.fillText(v>=1000?(v/1000)+'k':String(Math.round(v)),L.l-8,y+4);});
+  ctx.save();ctx.translate(15,L.t+ph/2);ctx.rotate(-Math.PI/2);ctx.textAlign='center';
+  ctx.fillText(isRad?'bend radius, mm':'clearance to master, mm',0,0);ctx.restore();
+  const step=pw<520?(maxLen>2000?1000:500):(maxLen>2000?500:250);
+  ctx.textAlign='center';for(let s=step;s<=maxLen;s+=step)ctx.fillText(s,X(s),H-9);
+  ctx.textAlign='left';ctx.fillText('mm along route',L.l,H-9);
+  const lim=(v,cv2,t)=>{ctx.lineWidth=1.5;ctx.strokeStyle=css(cv2);ctx.setLineDash([6,4]);ctx.beginPath();
+    ctx.moveTo(L.l,Y(v));ctx.lineTo(L.l+pw,Y(v));ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle=css(cv2);ctx.textAlign='right';ctx.fillText(t,L.l+pw-4,Y(v)-4);};
+  if(isRad){lim(sel.params.R,'--bad',`min ${sel.params.R}`);lim(sel.params.R*(sel.params.SF||1.5),'--warn',`x${sel.params.SF||1.5} margin`);}
+  else if(sel.clear)lim(sel.clear.gap,'--bad',`gap ${sel.clear.gap}`);
+  ctx.lineWidth=2;
+  vis.forEach(r=>{
+    const vals=isRad?r.d.k.map(k=>1/k):r.clearDense;
+    const single=vis.length===1&&isRad&&colorMode==='radius';
+    if(single){const R=r.params.R,SF=r.params.SF||1.5,cb=css('--bad'),cw=css('--warn'),co=css('--ok');
+      for(let i=1;i<vals.length;i++){ctx.strokeStyle=vals[i]<R?cb:(vals[i]<R*SF?cw:co);
+        ctx.beginPath();ctx.moveTo(X(r.d.s[i-1]),Y(vals[i-1]));ctx.lineTo(X(r.d.s[i]),Y(vals[i]));ctx.stroke();}
+    }else{ctx.strokeStyle=r.color;ctx.globalAlpha=r.id===sel.id?1:0.6;ctx.beginPath();
+      vals.forEach((v,i)=>i?ctx.lineTo(X(r.d.s[i]),Y(v)):ctx.moveTo(X(r.d.s[0]),Y(v)));ctx.stroke();ctx.globalAlpha=1;}
+  });
+  chartGeom={L,pw,maxLen,X,Y,isRad};
+  if(hover!=null&&sel){const i=Math.min(hover,sel.d.pts.length-1);const x=X(sel.d.s[i]);
+    ctx.strokeStyle=css('--ink');ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x,L.t);ctx.lineTo(x,L.t+ph);ctx.stroke();
+    const v=isRad?1/sel.d.k[i]:sel.clearDense[i];ctx.font='500 12px '+css('--sans');ctx.fillStyle=css('--ink');
+    ctx.textAlign=x>W-170?'right':'left';
+    ctx.fillText(`${isRad?'R':'gap'} ${v>=1e4?'inf':fmt(v)} mm at ${Math.round(sel.d.s[i])} mm`,x+(x>W-170?-6:6),Y(v)-8);}
+}
+function chartHover(e){
+  if(!chartGeom||dock==='cmp'||dock==='pts')return;const sel=selected();if(!sel)return;
+  const rect=$('ch').getBoundingClientRect(),x=e.clientX-rect.left,{L,pw,maxLen}=chartGeom;
+  if(x<L.l||x>L.l+pw){hover=null;if(marker)marker.visible=false;return draw();}
+  const s=(x-L.l)/pw*maxLen;let i=0;while(i<sel.d.s.length-1&&sel.d.s[i]<s)i++;hover=i;
+  if(marker){marker.position.set(...sel.d.pts[i]);marker.visible=true;}draw();
+}
+$('ch').addEventListener('pointermove',chartHover);$('ch').addEventListener('pointerdown',chartHover);
+$('ch').addEventListener('pointerleave',()=>{hover=null;if(marker)marker.visible=false;draw();});
+
+// ---------------- runs list, compare table, points ----------------
+function renderRuns(){
+  const box=$('runlist');
+  if(!runs.length){box.innerHTML='<p class="empty">No runs yet. Run a check to add one.</p>';$('runhint').hidden=true;}
+  else{$('runhint').hidden=false;
+    box.innerHTML=runs.map(r=>`<div class="run" data-id="${r.id}" data-sel="${r.id===selId?1:0}">
+      <input type="checkbox" ${r.visible?'checked':''} aria-label="show ${r.name}">
+      <span class="sw" style="background:${r.color}"></span>
+      <span class="nm">${r.name}<small>R ${fmt(r.minR)} mm &middot; ${r.Q.length} pts${r.clear?' &middot; gap '+fmt(Math.min(...r.clear.after)):''}</small></span>
+      <button class="del" title="remove" aria-label="remove ${r.name}">&times;</button></div>`).join('');
+  }
+  box.querySelectorAll('.run').forEach(el=>{
+    const id=+el.dataset.id,r=runs.find(x=>x.id===id);
+    el.querySelector('input').onchange=e=>{r.visible=e.target.checked;rebuild(true);renderRuns();};
+    el.querySelector('.del').onclick=e=>{e.stopPropagation();runs=runs.filter(x=>x.id!==id);
+      if(selId===id)selId=runs.length?runs[runs.length-1].id:null;renderRuns();rebuild(true);renderCmp();renderPts();};
+    el.onclick=()=>{selId=id;loadSettings(r);renderRuns();rebuild(false);renderCmp();renderPts();};
+  });
+  renderCmp();renderPts();
+}
+function loadSettings(r){
+  const p=r.params;
+  if(r.kind==='clear'){showPanel('clear');$('gap').value=p.gap;$('mode').value=p.mode;$('plane').value=p.plane;
+    $('smooth').value=p.smooth;$('blend').value=p.blend;$('cr').value=p.R;$('lock').value=p.lock||'';}
+  else{showPanel('bend');$('r').value=p.R;$('sf').value=p.SF;if(p.spacing)$('sp').value=p.spacing;}
+}
+function renderCmp(){
+  const box=$('cmp');
+  if(!runs.length){box.innerHTML='<p class="empty" style="padding:14px">Nothing to compare yet.</p>';return;}
+  const rows=[
+    ['Use case',r=>r.kindLabel],
+    ['Points',r=>r.Q.length],
+    ['Route length, mm',r=>Math.round(r.len)],
+    ['Min bend radius, mm',r=>fmt(r.minR)],
+    ['Against limit',r=>{const R=r.params.R;return r.minR>=R?`passes (${(r.minR/R).toFixed(2)}x)`:`fails by ${fmt(R-r.minR)}`;}],
+    ['Min clearance, mm',r=>r.clear?fmt(Math.min(...r.clear.after)):'--'],
+    ['Max clearance, mm',r=>r.clear?fmt(Math.max(...r.clear.after)):'--'],
+    ['Largest point shift, mm',r=>r.clear?fmt(Math.max(...r.clear.shift)):'--'],
+    ['Settings',r=>r.settings]];
+  box.innerHTML=`<table><thead><tr><th></th>${runs.map(r=>`<th style="color:${r.color}">${r.name}</th>`).join('')}</tr></thead>
+    <tbody>${rows.map(([n,f])=>`<tr><td class="metric">${n}</td>${runs.map(r=>`<td>${f(r)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+}
+function renderPts(){
+  const r=selected();$('ptsname').textContent=r?r.name:'Points';
+  $('outtxt').value=r?r.text:'';
+}
+function showPane(){
+  $('paneChart').dataset.on=(dock==='rad'||dock==='clr')?1:0;
+  $('paneCmp').dataset.on=dock==='cmp'?1:0;$('panePts').dataset.on=dock==='pts'?1:0;
+  ['dRad','dClr','dCmp','dPts'].forEach((id,i)=>$(id).setAttribute('aria-selected',['rad','clr','cmp','pts'][i]===dock));
+  draw();
+}
+['rad','clr','cmp','pts'].forEach((k,i)=>$(['dRad','dClr','dCmp','dPts'][i]).onclick=()=>{dock=k;showPane();});
+
+// ---------------- running the checks ----------------
+function showPanel(which){
+  $('panBend').hidden=which!=='bend';$('panClear').hidden=which==='bend'?true:false;
+  $('tabBend').setAttribute('aria-selected',which==='bend');$('tabClear').setAttribute('aria-selected',which!=='bend');
+}
+$('tabBend').onclick=()=>showPanel('bend');$('tabClear').onclick=()=>showPanel('clear');
+document.querySelectorAll('[data-preset]').forEach(b=>b.onclick=()=>{
+  if(b.dataset.preset==='target')$('pts').value=PRESETS.target;
+  else{$('mpts').value=PRESETS.master;$('spts').value=PRESETS.slave;}});
+
+$('runBend').onclick=()=>{
+  const P=parsePts($('pts').value);
+  if(P.length<3)return $('statusBend').textContent='Paste at least three points.';
+  const R=+$('r').value||65,SF=+$('sf').value||1.5,SP=+$('sp').value||85;
+  const asEntered=analyse(P);
+  addRun(Object.assign(asEntered,{name:`As entered R${R}`,kind:'bend',kindLabel:'bend radius, as entered',
+    params:{R,SF},settings:`${P.length} points as entered`,text:toPts(P,{R,designR:R*SF,minR:asEntered.minR,len:asEntered.len,tidx:P.map((_,i)=>i)})}));
+  store.set('rs.pts',$('pts').value);
+  const route=makeRoute(P,{startDir:parseDir($('sd').value),endDir:parseDir($('ed').value)});
+  const o=optimiser(route,R*SF);$('runBend').disabled=true;
+  const tick=()=>{const r=o.step(12);$('statusBend').textContent=`Shaping the curve... tightest bend so far R ${fmt(r.minR)} mm`;
+    if(!r.done)return setTimeout(tick,0);
+    let sp=SP,res;for(let a=0;a<4;a++){const s=samplePoints(route,r.x,sp);const A=analyse(s.Q);res={A,s};if(A.minR>=R*1.15)break;sp*=0.7;}
+    const A=res.A;A.tidx=res.s.tidx;
+    addRun(Object.assign(A,{name:`Generated R${R} x${SF}`,kind:'bend',kindLabel:'bend radius, generated',
+      params:{R,SF,spacing:SP},settings:`gap ${sp.toFixed(0)} mm between points, x${SF} margin`,
+      text:toPts(A.Q,{R,designR:+(R*SF).toFixed(1),minR:A.minR,len:A.len,tidx:A.tidx})}));
+    $('runBend').disabled=false;
+    $('statusBend').textContent=`Added. Generated route holds R ${fmt(A.minR)} mm over ${A.Q.length} points.`;};
+  setTimeout(tick,20);
+};
+
+$('runClear').onclick=()=>{
+  let M=parsePts($('mpts').value),S=parsePts($('spts').value);
+  if(M.length<2||S.length<2)return $('statusClear').textContent='Paste both routes, at least two points each.';
+  let note='';
+  if($('reorder').checked){const rm=reorderPath(M),rs=reorderPath(S);M=rm.pts;S=rs.pts;
+    if(rm.moves||rs.moves)note=` Reordered ${rm.moves} master and ${rs.moves} slave point(s).`;}
+  const gap=+$('gap').value||0,mode=$('mode').value,plane=$('plane').value,
+        smooth=+$('smooth').value||0,blend=+$('blend').value||0,R=+$('cr').value||65,
+        lockTxt=$('lock').value.trim(),locks=new Set(lockTxt.split(/[,\s]+/).filter(v=>v!=='').map(Number).filter(Number.isFinite));
+  const res=adjustClearance(M,S,gap,mode,plane,smooth,locks,blend);
+  const A=analyse(res.moved);A.clearDense=clearanceProfile(A.d.pts,M,plane);
+  addRun(Object.assign(A,{name:`Gap ${gap} ${mode}${plane!=='free'?' '+plane:''}`,kind:'clear',kindLabel:`clearance, ${mode}`,
+    master:M,clear:{gap,mode,plane,before:res.before,after:res.after,shift:res.shift},
+    params:{R,SF:1.5,gap,mode,plane,smooth,blend,lock:lockTxt},
+    settings:`${mode}, push ${plane}, smooth ${smooth}, blend ${blend}${locks.size?', locked '+lockTxt:''}`,
+    text:toPts(res.moved,{R,designR:R*1.5,minR:A.minR,len:A.len,tidx:res.moved.map((_,i)=>i)})}));
+  store.set('rs.master',$('mpts').value);store.set('rs.slave',$('spts').value);
+  $('statusClear').textContent=`Clearance now ${fmt(Math.min(...res.after))} to ${fmt(Math.max(...res.after))} mm, `
+    +`largest shift ${fmt(Math.max(...res.shift))} mm, tightest bend R ${fmt(A.minR)} mm.`+note;
+};
+
+// ---------------- view controls, output ----------------
+$('fit').onclick=()=>{fitAll();draw();};
+$('zoom').onclick=()=>{const r=selected();if(!r)return;
+  if(zoomed&&home){orbit.target.copy(home.t);orbit.dist=home.d;zoomed=false;$('zoom').textContent='Zoom to tightest bend';}
+  else{orbit.target.set(...r.d.pts[r.wi]);orbit.dist=Math.max(r.params.R,r.minR)*9;zoomed=true;$('zoom').textContent='Show whole route';}
+  draw();};
+$('cRad').onclick=()=>{colorMode='radius';$('cRad').setAttribute('aria-pressed','true');$('cRun').setAttribute('aria-pressed','false');rebuild(false);};
+$('cRun').onclick=()=>{colorMode='run';$('cRun').setAttribute('aria-pressed','true');$('cRad').setAttribute('aria-pressed','false');rebuild(false);};
+$('copy').onclick=async()=>{const t=$('outtxt');if(!t.value)return;
+  try{await navigator.clipboard.writeText(t.value);$('copy').textContent='Copied';}
+  catch(e){t.select();try{document.execCommand('copy');$('copy').textContent='Copied';}catch(e2){$('copy').textContent='Select and copy';}}
+  setTimeout(()=>$('copy').textContent='Copy',1600);};
+$('dl').onclick=()=>{const r=selected();if(!r)return;
+  try{const b=new Blob([r.text],{type:'text/plain'}),u=URL.createObjectURL(b),a=document.createElement('a');
+    a.href=u;a.download=r.name.replace(/[^\w.-]+/g,'_')+'.pts';document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(u),2000);}
+  catch(e){$('dl').textContent='Use Copy instead';setTimeout(()=>$('dl').textContent='Download .pts',2000);}};
+
+window.addEventListener('resize',draw);
+const mq=matchMedia('(prefers-color-scheme: dark)');mq.addEventListener&&mq.addEventListener('change',()=>rebuild(false));
+
+// init
+$('pts').value=store.get('rs.pts')||PRESETS.target;
+$('mpts').value=store.get('rs.master')||PRESETS.master;
+$('spts').value=store.get('rs.slave')||PRESETS.slave;
+showPanel('bend');showPane();renderRuns();rebuild(true);
+</script>
+</body>
+</html>

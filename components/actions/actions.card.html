@@ -1,0 +1,15 @@
+<!-- @dsCard group="Components" viewport="700x260" name="Actions" subtitle="Button variants and the segmented toggle" -->
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Actions</title><link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script></head><body style="background:var(--panel);padding:16px"><div id="root"></div>
+<script type="text/babel">const DS=window.RouteStudioDesignSystem_a31f22;
+const {Button,SegmentedControl}=DS;
+function App(){const [m,setM]=React.useState('radius');return <div style={{display:'grid',gap:14}}>
+<Button variant="primary">Check, then add to comparison</Button>
+<Button variant="primary" disabled busy>Check, then add to comparison</Button>
+<div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}><Button variant="outline">Zoom to tightest bend</Button><Button variant="outline">Fit</Button><Button variant="small">Copy</Button><Button variant="small">Download .pts</Button><SegmentedControl label="Colour" value={m} onChange={setM} options={[{id:'radius',label:'Colour by radius'},{id:'run',label:'By run'}]}/></div>
+<div style={{display:'flex',gap:12,alignItems:'center',fontSize:12.5}}><span style={{color:'var(--muted)'}}>Load:</span><Button variant="link">example route</Button><Button variant="link">example pair</Button><span style={{color:'var(--muted)',marginLeft:12}}>remove</span><Button variant="icon" aria-label="remove">×</Button></div>
+</div>;}
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);</script></body></html>
