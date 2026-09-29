@@ -1,8 +1,0 @@
-/* Minimal global resets from index.html — the product sets these on html/body. */
-*,*::before,*::after{box-sizing:border-box}
-body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.45 var(--sans)}
-::placeholder{color:var(--muted);opacity:.7}
-:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
-a{color:var(--ok);text-decoration:underline;text-underline-offset:2px}
-a:hover{color:var(--ink)}
-@media (prefers-reduced-motion:reduce){*{transition:none!important}}
