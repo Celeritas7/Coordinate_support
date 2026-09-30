@@ -38,14 +38,33 @@ Output
 - Filter by cable and by check; summary count per cable
 - Export issue report (.csv)
 
-## Phase 4 — Local point refinement (built, in review)
+## Phase 4 — Local point refinement (done)
 Refine tab in the dock. Pick a point (field, Points table row, or an issue), set span ± N points.
 - Re-fit span: interior points re-solved for the local min R; ends keep position and direction
 - Add K points: span re-seeded evenly by arc length before the fit
 - Move X/Y/Z: shifts the picked point, span re-fits around it (moved point stays put)
 - Keep clear of other visible cables and of obstacles (bundle or Analyse tab)
 - Before/after: old span shown dashed, span start/end tagged; Undo per run
-- Works on imported cables from Phase 3; re-run Analyse to re-check
+- Works on imported cables from Phase 3; issues re-checked after every change
+
+## Phase 5 — Fix issues, drag, delete (done)
+- Re-fit kept when the span clears bend, clearance and kink checks, or leaves fewer failures
+- Fix button per issue; Fix all / Step through (accept, skip, stop) with widen → add points → give up; summary; one Undo per batch
+- Delete point from an issue row or Refine (never start/end)
+- Add points by count or by spacing (mm)
+- Drag a point in 3D along X / Y / Z, in a plane, or in the screen plane; optional re-fit of neighbours on release
+- Point # follows renumbering; a fresh Analyse replaces earlier runs of the same cables
+
+## Phase 6 — Clearance with fixed ends (done)
+- Slave start / end inputs (fixed points)
+- Push along any combination of X / Y / Z, or Normal (parallel); gap is the true 3D distance
+- Ramp length: fixed in mm, or auto (shortest that passes the bend check)
+- Pass/fail on bend, ramp bend, unreachable gap (P-numbers listed), exact-gap deviation; length change vs original
+- Locked points by P-number; mode "exact" replaces "const"
+
+## Open
+- Re-fits take 10–60 s on long spans; speed up the span optimiser
+- Multi-cable routing portal: per-cable start/end, constraint waypoints, radius + bend + no-tangle
 
 Previous plan:
 Not in the current build. Today the 4th-value radius and "closer points" both re-solve the whole path.

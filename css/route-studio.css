@@ -91,6 +91,11 @@ textarea[data-drop]{outline:2px dashed var(--ok);outline-offset:1px}
 .ref{padding:10px 12px}.ref .fields{grid-template-columns:repeat(auto-fill,minmax(104px,1fr));margin:8px 0}
 .ref .hint{margin:0}.rfgo{border:0;border-radius:4px;background:var(--ink);color:var(--paper);font:600 13px var(--sans);padding:7px 14px;cursor:pointer}.rfgo:disabled{opacity:.55;cursor:progress}
 .ref .chk{margin:0;align-self:end;padding-bottom:8px}
+.axes{display:flex;flex-wrap:wrap;gap:4px 14px;margin:2px 0 0}.axes .chk{margin:0}.axes input:disabled+*,.axes label:has(input:disabled){opacity:.5}
+.rfstep{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin-top:10px;padding:8px 10px;border:1px solid var(--warn);border-radius:4px;font-size:12.5px}.rfstep[hidden]{display:none}
+.rfstep .right{margin-left:auto;display:flex;gap:8px}.rfstep button:not(.rfgo){border:1px solid var(--rule);border-radius:4px;background:var(--field);color:var(--ink);font:500 13px var(--sans);padding:6px 12px;cursor:pointer}
+.rfsum{font-size:12.5px;margin-top:8px}.rfsum p{margin:0 0 4px}.rfsum ul{margin:0;padding-left:18px;max-height:140px;overflow:auto}.rfsum li{margin:1px 0}
+.fixbtn{border:1px solid var(--rule);border-radius:4px;background:var(--field);color:var(--ink);font:500 12px var(--sans);padding:2px 9px;cursor:pointer;white-space:nowrap}#iss .fixc{display:flex;gap:6px}.fixbtn:disabled,.ptshead button:disabled,.isshead button:disabled{opacity:.5;cursor:progress}
 @media (max-width:860px){
   .app{grid-template-columns:1fr;height:auto}
   aside{border-right:0;border-bottom:1px solid var(--rule)}

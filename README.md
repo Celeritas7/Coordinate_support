@@ -7,7 +7,8 @@ Hose and cable routing checks for Creo: bend radius on one route, clearance betw
 - css/route-studio.css - styles, light and dark theme
 - js/route-studio.js - geometry, optimiser, 3D view, bend / clearance / bundle tabs
 - js/analysis.js - Analyse tab and Issues list
-- js/refine.js - Refine tab
+- js/refine.js - Refine tab: re-fit, Fix / Fix all / Step through, delete, drag in 3D
+- js/clearance.js - Clearance tab: axis push, fixed start/end, ramp, pass/fail
 - Launch Route Studio.bat - double-click on Windows; serves the folder on localhost:8765 and opens the browser
 - ROADMAP.md - what is built and what is planned
 

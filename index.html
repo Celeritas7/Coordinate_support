@@ -51,18 +51,25 @@
     <label for="spts" style="margin-top:10px">Slave route <span class="unit">(gets moved)</span></label>
     <textarea id="spts" rows="5" spellcheck="false" wrap="off"></textarea>
     <div class="presets"><span class="unit">Load:</span><button type="button" data-preset="pair">example pair</button></div>
-    <div class="fields c3">
-      <div><label for="gap">Gap <span class="unit">mm</span></label><input id="gap" type="number" value="40" min="0" step="1" inputmode="decimal"></div>
-      <div><label for="mode">Mode</label><select id="mode"><option value="min">min</option><option value="const">const</option></select></div>
-      <div><label for="plane">Push in</label><select id="plane"><option value="free">free</option><option value="xy">xy</option><option value="xz">xz</option><option value="yz">yz</option><option value="normal">normal (parallel)</option></select></div>
+    <div class="fields c2">
+      <div><label for="cStart">Slave start <span class="unit">x y z</span></label><input id="cStart" placeholder="slave's first point" spellcheck="false"></div>
+      <div><label for="cEnd">Slave end <span class="unit">x y z</span></label><input id="cEnd" placeholder="slave's last point" spellcheck="false"></div>
     </div>
     <div class="fields c3">
-      <div><label for="smooth">Smooth</label><input id="smooth" type="number" value="2" min="0" max="20" step="1"></div>
-      <div><label for="blend">Blend</label><input id="blend" type="number" value="0" min="0" max="20" step="1"></div>
+      <div><label for="gap">Gap <span class="unit">mm</span></label><input id="gap" type="number" value="40" min="0" step="1" inputmode="decimal"></div>
+      <div><label for="mode">Mode</label><select id="mode" title="min: push only points closer than the gap. exact: put every point at the gap."><option value="min">min</option><option value="const">exact</option></select></div>
+      <div><label for="cRamp">Ramp <span class="unit">mm</span></label><input id="cRamp" type="number" min="0" step="1" placeholder="auto" title="Distance from start/end out to the full gap. Empty: shortest ramp that passes the bend check."></div>
+    </div>
+    <span class="lbl">Push along</span>
+    <div class="axes"><label class="chk"><input type="checkbox" id="cx">X front/back</label><label class="chk"><input type="checkbox" id="cy" checked>Y left/right</label><label class="chk"><input type="checkbox" id="cz" checked>Z up/down</label><label class="chk"><input type="checkbox" id="cn">Normal (parallel)</label></div>
+    <p class="hint">Gap is the true 3D clearance to the master. The ticks limit which way the slave may move.</p>
+    <div class="fields c3">
+      <div><label for="smooth">Smooth <span class="unit">0–5</span></label><input id="smooth" type="number" value="2" min="0" max="5" step="1" title="Fairing passes on the push directions"></div>
+      <div><label for="blend">Blend <span class="unit">0–5</span></label><input id="blend" type="number" value="0" min="0" max="5" step="1" title="How far the push spreads to neighbouring points"></div>
       <div><label for="cr">Min radius <span class="unit">mm</span></label><input id="cr" type="number" value="65" min="1" step="1"></div>
     </div>
     <div class="fields c2">
-      <div><label for="lock">Locked points</label><input id="lock" placeholder="0,1,16"></div>
+      <div><label for="lock">Locked points <span class="unit">P-numbers</span></label><input id="lock" placeholder="e.g. 4, 5"></div>
       <div><label for="reorder" style="margin-bottom:8px">Point order</label>
         <label style="font-weight:400;font-size:12.5px;white-space:normal"><input type="checkbox" id="reorder" checked style="width:auto;margin-right:6px">re-insert stray points</label></div>
     </div>
@@ -169,19 +176,24 @@
       <div class="pane" id="paneIss"><div id="iss"></div></div>
       <div class="pane" id="paneRef"><div class="ref">
         <div class="ptshead"><span class="lbl" id="refname">Refine</span>
-          <span class="right"><button type="button" id="rfZoom">Zoom to span</button><button type="button" id="rfUndo" disabled>Undo</button></span></div>
-        <p class="hint">Reshape the selected cable around one point. Points outside the span never move; the span joins the rest with the same position and direction at both ends. Pick the point here, in the Points table, or from an issue.</p>
+          <span class="right"><button type="button" id="rfFixAll" title="Fix every failure and kink warning">Fix all</button><button type="button" id="rfStepAll" title="Fix one at a time; accept or skip each">Step through</button><button type="button" id="rfZoom">Zoom to span</button><button type="button" id="rfUndo" disabled>Undo</button></span></div>
+        <p class="hint">Reshape the selected cable around one point. Points outside the span never move; the span joins the rest with the same position and direction at both ends. Pick the point here, in the Points table, or from an issue. A re-fit is kept when it clears bend, clearance and kink checks, or leaves fewer failures.</p>
         <div class="fields">
           <div><label for="rfPt">Point #</label><input id="rfPt" type="number" value="1" min="1" step="1"></div>
           <div><label for="rfSpan">Span <span class="unit">± points</span></label><input id="rfSpan" type="number" value="2" min="1" step="1"></div>
           <div><label for="rfR">Local min R <span class="unit">mm</span></label><input id="rfR" type="number" min="1" step="1" placeholder="run R"></div>
           <div><label for="rfAdd">Add points</label><input id="rfAdd" type="number" value="0" min="0" step="1"></div>
+          <div><label for="rfSp">Spacing <span class="unit">mm</span></label><input id="rfSp" type="number" min="1" step="1" placeholder="or by count" title="Add enough points to the span for roughly this spacing"></div>
           <div><label for="rfDx">Move X <span class="unit">mm</span></label><input id="rfDx" type="number" value="0" step="1"></div>
           <div><label for="rfDy">Move Y <span class="unit">mm</span></label><input id="rfDy" type="number" value="0" step="1"></div>
           <div><label for="rfDz">Move Z <span class="unit">mm</span></label><input id="rfDz" type="number" value="0" step="1"></div>
           <label class="chk"><input type="checkbox" id="rfAvoid" checked>Keep clear of other cables</label>
+          <div><label for="rfDrag">Drag in 3D</label><select id="rfDrag"><option value="">off</option><option value="x">X front/back</option><option value="y">Y left/right</option><option value="z">Z up/down</option><option value="xy">XY plane</option><option value="xz">XZ plane</option><option value="yz">YZ plane</option><option value="v">screen plane</option></select></div>
+          <label class="chk"><input type="checkbox" id="rfDragFit" checked>Re-fit neighbours after a drag</label>
         </div>
-        <div class="ptshead" style="margin:0"><button type="button" class="rfgo" id="rfGo">Re-fit span</button><span class="status" id="statusRef" style="margin:0"></span></div>
+        <div class="ptshead" style="margin:0"><span class="right"><button type="button" class="rfgo" id="rfGo">Re-fit span</button><button type="button" id="rfDel" title="Delete the point in Point #">Delete point</button></span><span class="status" id="statusRef" style="margin:0"></span></div>
+        <div class="rfstep" id="rfStep" hidden><span id="rfStepTxt"></span><span class="right"><button type="button" class="rfgo" id="rfAccept">Accept</button><button type="button" id="rfSkip">Skip</button><button type="button" id="rfStop">Stop</button></span></div>
+        <div class="rfsum" id="rfSum"></div>
       </div></div>
       <div class="pane" id="panePts"><div class="pts">
         <div class="ptshead"><span class="lbl" id="ptsname">Points</span>
@@ -198,5 +210,6 @@
 <script src="js/route-studio.js"></script>
 <script src="js/analysis.js"></script>
 <script src="js/refine.js"></script>
+<script src="js/clearance.js"></script>
 </body>
 </html>

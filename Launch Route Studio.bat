@@ -7,11 +7,11 @@ title Route Studio  -  %URL%
 
 if not exist "index.html" (
   echo index.html was not found next to this file.
-  echo Put this .bat in the same folder as index.html, analysis.js and refine.js.
+  echo Put this .bat in the same folder as index.html (with its css\ and js\ folders).
   pause
   exit /b 1
 )
-for %%F in (analysis.js refine.js) do if not exist "%%F" echo Warning: %%F is missing, the Analyse or Refine tab will not work.
+for %%F in (js\route-studio.js js\analysis.js js\refine.js css\route-studio.css) do if not exist "%%F" echo Warning: %%F is missing, the app will not work fully.
 
 netstat -ano | findstr /c:":%PORT% " | findstr /c:"LISTENING" >nul
 if not errorlevel 1 (

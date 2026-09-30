@@ -108,7 +108,7 @@ function optimiser(route,designR){
   const os=1/Math.pow(Math.max(route.opts.rad||0,10),2);
   const vio=r=>{let m=0;for(let i=0;i<r.ks.length;i++)m=Math.max(m,r.ks[i]*Math.max(designR,r.rl[i]));return m;};
   let w=10,it=0,t=0;const ws=[10,1e2,1e3,1e4,1e5];let stage=0;
-  function f(x){const r=route.evalX(x,24);let pen=0;
+  function f(x){const r=route.evalX(x,route.opts.S||24);let pen=0;
     for(let i=0;i<r.ks.length;i++){const kt=1/Math.max(designR,r.rl[i]),e=Math.max(r.ks[i]-kt,0)/kt;pen+=e*e;}
     return r.len/route.chord+w*(pen/r.ks.length+r.obs*os);}
   function step(k){

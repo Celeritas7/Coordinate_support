@@ -43,31 +43,26 @@ function waGroup(sev,bad,key){const out=[];let cur=null;
     else if(s){cur={a:i,b:i,w:i,sev:s,k};out.push(cur);}else cur=null;}
   return out;}
 
-function waRun(){
-  const st=$('statusAnalyse');st.style.color='';
-  const cabs=waParseBlocks($('acab').value);
-  if(!cabs.length)return st.textContent='Paste or open at least one cable.';
-  ['acab','aprop','aobs','aref'].forEach(k=>store.set('rs.'+k,$(k).value));
+function waCfg(){
   const num=(id,d)=>{const v=+$(id).value;return Number.isFinite(v)&&v>0?v:d;};
-  const dD=num('ad',8),dR=num('ar',50),dG=+$('ag').value||0,SF=num('asf',1.5),kink=num('akink',30),ratio=num('aratio',3),
-        dup=num('adup',0.5),keep=+$('akeep').value||0,mov=num('amove',5);
-  const props={};waRows($('aprop').value).forEach(r=>{if(r.length>=2)props[r[0]]={d:+r[1]||dD,R:+r[2]||dR,gap:r[3]!=null?+r[3]||0:dG};});
-  const obs=waRows($('aobs').value).filter(r=>r.length>=7).map(r=>{const v=r.slice(1,7).map(Number);
+  const cfg={dD:num('ad',8),dR:num('ar',50),dG:+$('ag').value||0,SF:num('asf',1.5),kink:num('akink',30),ratio:num('aratio',3),
+    dup:num('adup',0.5),keep:+$('akeep').value||0,mov:num('amove',5),props:{},refs:{}};
+  waRows($('aprop').value).forEach(r=>{if(r.length>=2)cfg.props[r[0]]={d:+r[1]||cfg.dD,R:+r[2]||cfg.dR,gap:r[3]!=null?+r[3]||0:cfg.dG};});
+  cfg.obs=waRows($('aobs').value).filter(r=>r.length>=7).map(r=>{const v=r.slice(1,7).map(Number);
     return{id:r[0],min:[Math.min(v[0],v[3]),Math.min(v[1],v[4]),Math.min(v[2],v[5])],max:[Math.max(v[0],v[3]),Math.max(v[1],v[4]),Math.max(v[2],v[5])]};});
-  const refs={};waParseBlocks($('aref').value).forEach(c=>refs[c.name]=c);
-  const skipped=[];
-  const W=cabs.map(c=>{
-    const pr=props[c.name]||{d:dD,R:dR,gap:dG},P=c.P,rd=[],D=[],first=[];
-    P.forEach((p,i)=>{if(!D.length||V.len(V.sub(p,D[D.length-1]))>1e-6){D.push(p);first.push(i);}rd.push(D.length-1);});
-    if(D.length<3){skipped.push(c.name);return null;}
-    return{c,pr,P,D,rd,first,S:waSample(D,Math.max(0.5,Math.min(2,pr.d/3)))};
-  }).filter(Boolean);
-  if(!W.length)return st.textContent='Each cable needs at least three distinct points.';
+  waParseBlocks($('aref').value).forEach(c=>cfg.refs[c.name]=c);
+  return cfg;}
+function waPrep(c,pr){const P=c.P,rd=[],D=[],first=[];
+  P.forEach((p,i)=>{if(!D.length||V.len(V.sub(p,D[D.length-1]))>1e-6){D.push(p);first.push(i);}rd.push(D.length-1);});
+  if(D.length<3)return null;
+  return{c,pr,P,D,rd,first,S:waSample(D,Math.max(0.5,Math.min(2,pr.d/3)))};}
+// all checks for a set of prepared cables; returns [{issues,ref,clr}] in the same order
+function waCheck(W,cfg){
+  const{SF,kink,ratio,dup,keep,mov,obs,refs}=cfg;
   const maxNeed=Math.max(...W.map(w=>w.pr.d+w.pr.gap),keep)+2;
   W.forEach(w=>{let ms=0;for(let i=1;i<w.S.pts.length;i++)ms=Math.max(ms,V.len(V.sub(w.S.pts[i],w.S.pts[i-1])));
     w.G=waGrid(w.S.pts,Math.max(2*maxNeed+2*ms,20));});
-  const batch=waBatch++,made=[];
-  W.forEach(w=>{
+  return W.map(w=>{
     const{c,pr,P,D,rd,first,S}=w,n=P.length,nd=D.length,issues=[];
     const add=(g,check,o)=>issues.push(Object.assign({uid:waUid++,cable:c.name,a:g.a,b:g.b,w:g.w,sev:g.sev,check,p:P[g.w],line:c.lines[g.w]},o));
     // bend radius on the spline Creo will fit through these points
@@ -106,7 +101,7 @@ function waRun(){
       waGroup(sv4,bd4).forEach(g=>{const d=g0[rd[g.w]],k=first[wh[rd[g.w]]]+1;add(g,'Self contact',{found:d,foundTxt:`${fmt(d)} to own #${k}`,limit:pr.gap,limitTxt:`≥ ${pr.gap}`,unit:'mm',bad:bd4[g.w],
         note:`The cable comes back to its own point #${k}.`});});}
     // earlier version
-    const ref=refs[c.name]||(cabs.length===1&&Object.keys(refs).length===1?Object.values(refs)[0]:null);let refDense=null,refInfo='';
+    const ref=refs[c.name]||(W.length===1&&Object.keys(refs).length===1?Object.values(refs)[0]:null);let refDense=null,refInfo='';
     if(ref&&ref.P.length>=2){const RD=ref.P.filter((p,i)=>i===0||V.len(V.sub(p,ref.P[i-1]))>1e-6);
       refDense=RD.length>=3?waSample(RD,4).pts:RD;
       const mv=P.map(p=>closestOnPath(p,refDense).d);
@@ -117,14 +112,27 @@ function waRun(){
       if(Math.abs(L1-L0)>mov||RD.length!==P.length){refInfo=`length ${Math.round(L0)} → ${Math.round(L1)} mm, points ${ref.P.length} → ${n}`;
         issues.push({uid:waUid++,cable:c.name,a:null,b:null,w:0,sev:1,check:'Length / count',p:P[0],line:'',found:L1-L0,foundTxt:`${L1>=L0?'+':''}${fmt(L1-L0)} mm, ${n-ref.P.length>=0?'+':''}${n-ref.P.length} pts`,
           limit:mov,limitTxt:`≤ ${mov}`,unit:'mm',bad:0,note:`Earlier version: ${refInfo}.`});}}
-    const A=analyse(D);A.Q=P;
-    const nf=issues.filter(x=>x.sev===3).length,nw=issues.filter(x=>x.sev===2).length;
-    Object.assign(A,{name:c.name,kind:'analysis',kindLabel:'analysed as loaded',params:{R:pr.R,SF},cable:{d:pr.d,gap:pr.gap},batch,
-      issues,ref:refDense,clr:isFinite(near)?{min:near,need:nearNeed}:null,
-      settings:`d ${pr.d}, min R ${pr.R}, gap ${pr.gap}; ${nf} fail, ${nw} warn${ref?'; vs earlier version':''}`,
-      text:c.raw.join('\n').trim()+'\n'});
-    issues.forEach(x=>x.runRef=A);made.push(A);
+    return{issues,ref:refDense,clr:isFinite(near)?{min:near,need:nearNeed}:null};
   });
+}
+function waCounts(issues){return{nf:issues.filter(x=>x.sev===3).length,nw:issues.filter(x=>x.sev===2).length};}
+function waRun(){
+  const st=$('statusAnalyse');st.style.color='';
+  const cabs=waParseBlocks($('acab').value);
+  if(!cabs.length)return st.textContent='Paste or open at least one cable.';
+  ['acab','aprop','aobs','aref'].forEach(k=>store.set('rs.'+k,$(k).value));
+  const cfg=waCfg(),skipped=[];
+  const W=cabs.map(c=>{const w=waPrep(c,cfg.props[c.name]||{d:cfg.dD,R:cfg.dR,gap:cfg.dG});if(!w)skipped.push(c.name);return w;}).filter(Boolean);
+  if(!W.length)return st.textContent='Each cable needs at least three distinct points.';
+  const batch=waBatch++,res=waCheck(W,cfg);
+  // a fresh analysis replaces earlier runs of the same cables, so the Issues list never mixes old and new
+  const names=new Set(W.map(w=>w.c.name));runs=runs.filter(o=>!(o.kind==='analysis'&&names.has(o.name)));
+  const made=W.map((w,k)=>{const{c,pr,D,P}=w,o=res[k],A=analyse(D);A.Q=P;const{nf,nw}=waCounts(o.issues);
+    Object.assign(A,{name:c.name,kind:'analysis',kindLabel:'analysed as loaded',params:{R:pr.R,SF:cfg.SF},cable:{d:pr.d,gap:pr.gap},batch,waCfg:cfg,waLines:c.lines,
+      issues:o.issues,ref:o.ref,clr:o.clr,
+      settings:`d ${pr.d}, min R ${pr.R}, gap ${pr.gap}; ${nf} fail, ${nw} warn${o.ref?'; vs earlier version':''}`,
+      text:c.raw.join('\n').trim()+'\n'});
+    o.issues.forEach(x=>x.runRef=A);return A;});
   made.forEach(a=>addRun(a));
   const all=made.flatMap(a=>a.issues),f=all.filter(x=>x.sev===3).length,wn=all.filter(x=>x.sev===2).length,ch=all.filter(x=>x.sev===1).length;
   const worst=all.slice().sort(waCmp)[0];
@@ -135,6 +143,18 @@ function waRun(){
   st.style.color=f?'var(--bad)':'';
 }
 function waCmp(a,b){return b.sev-a.sev||b.bad-a.bad;}
+function waBatchRuns(r){return runs.filter(o=>o.kind==='analysis'&&o.batch===r.batch);}
+// re-run every check for r's batch; Q (optional) replaces r's points without touching the run
+function waEval(r,Q){const B=waBatchRuns(r),cfg=r.waCfg||waCfg();
+  const W=B.map(o=>{const own=o===r&&Q,P=own?Q:o.Q,lines=!own&&!(o.hist&&o.hist.length)?(o.waLines||[]):[];
+    return waPrep({name:o.name,P,lines,raw:[]},{d:o.cable.d,R:o.params.R,gap:o.cable.gap});});
+  if(W.some(w=>!w))return null;
+  return waCheck(W,cfg).map((e,k)=>Object.assign(e,{run:B[k]}));}
+function waRecheck(r){const E=waEval(r);if(!E)return;
+  E.forEach(e=>{const o=e.run;e.issues.forEach(x=>x.runRef=o);o.issues=e.issues;o.clr=e.clr;const{nf,nw}=waCounts(e.issues);
+    o.settings=o.settings.replace(/\d+ fail, \d+ warn/,`${nf} fail, ${nw} warn`);});}
+// auto-fixable: every failure plus kink warnings
+function waFixable(x){return x.a!=null&&x.check!=='Moved'&&(x.sev===3||(x.sev===2&&x.check==='Kink'));}
 function waAll(){return runs.filter(r=>r.kind==='analysis').flatMap(r=>r.issues);}
 function waShown(){const f=waFilter;return waAll().filter(x=>(!f.cable||x.cable===f.cable)&&(!f.check||x.check===f.check)&&
   (f.show==='all'||(f.show==='fw'?x.sev>=2:x.sev===3))).sort(waCmp);}
@@ -151,10 +171,10 @@ function renderIssues(){
     <select id="fCab" aria-label="cable">${opt('','All cables',waFilter.cable)}${cabs.map(c=>opt(c,c,waFilter.cable)).join('')}</select>
     <select id="fChk" aria-label="check">${opt('','All checks',waFilter.check)}${checks.map(c=>opt(c,c,waFilter.check)).join('')}</select>
     <select id="fShow" aria-label="show">${opt('fw','Fail + warn',waFilter.show)}${opt('f','Fail only',waFilter.show)}${opt('all','Everything',waFilter.show)}</select>
-    <span class="right"><button type="button" id="issCsv">Download .csv</button></span></div>
-    ${L.length?`<table><thead><tr><th></th><th>Cable</th><th>Point</th><th>Line</th><th>Check</th><th>Found</th><th>Limit</th><th>Note</th></tr></thead><tbody>${L.map(x=>`<tr data-u="${x.uid}" data-on="${x.uid===waSel?1:0}">
+    <span class="right"><button type="button" id="issFixAll" title="Fix every failure and kink warning">Fix all</button><button type="button" id="issStep" title="Fix one at a time; accept or skip each">Step through</button><button type="button" id="issCsv">Download .csv</button></span></div>
+    ${L.length?`<table><thead><tr><th></th><th>Cable</th><th>Point</th><th>Line</th><th>Check</th><th>Found</th><th>Limit</th><th>Note</th><th></th></tr></thead><tbody>${L.map(x=>`<tr data-u="${x.uid}" data-on="${x.uid===waSel?1:0}">
       <td><span class="sev"><i style="background:var(${WA_SEV[x.sev].c})"></i>${WA_SEV[x.sev].t}</span></td><td>${x.cable}</td><td>${waPts(x)}</td><td class="metric">${x.line||'--'}</td>
-      <td>${x.check}</td><td style="color:var(${WA_SEV[x.sev].c})">${x.foundTxt}</td><td class="metric">${x.limitTxt}</td><td class="note">${x.note}</td></tr>`).join('')}</tbody></table>`
+      <td>${x.check}</td><td style="color:var(${WA_SEV[x.sev].c})">${x.foundTxt}</td><td class="metric">${x.limitTxt}</td><td class="note">${x.note}</td><td><span class="fixc">${waFixable(x)?`<button type="button" class="fixbtn" data-fix="${x.uid}">Fix</button>`:''}${x.a!=null?`<button type="button" class="fixbtn" data-del="${x.uid}" title="Delete point #${x.w+1}">Delete #${x.w+1}</button>`:''}</span></td></tr>`).join('')}</tbody></table>`
       :'<p class="empty" style="padding:14px">No issues match these filters.</p>'}`;
   $('fCab').onchange=e=>{waFilter.cable=e.target.value;renderIssues();rebuild(false);};
   $('fChk').onchange=e=>{waFilter.check=e.target.value;renderIssues();rebuild(false);};
