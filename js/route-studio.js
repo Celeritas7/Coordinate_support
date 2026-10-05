@@ -80,23 +80,30 @@ function makeRoute(P,opts={}){
     for(let i=-1;i<=1;i++)for(let j=-1;j<=1;j++)for(let k=-1;k<=1;k++){const L=grid.get(key(ci+i,cj+j,ck+k));if(!L)continue;
       for(const a of L){const need=a[3]+me.r+Math.max(a[4],me.g)+1,dx=p[0]-a[0],dy=p[1]-a[1],dz=p[2]-a[2],d2=dx*dx+dy*dy+dz*dz;if(d2<need*need){const e=need-Math.sqrt(d2);s+=e*e;}}}
     return s;}
-  function pts(x){const Q=P.map(p=>p.slice(0,3));free.forEach((i,f)=>{Q[i]=[x[off+3*f],x[off+3*f+1],x[off+3*f+2]].map(c=>c*chord0);});return Q;}
-  function segs(x){
-    const Q=pts(x),T=[];for(let i=0;i<n;i++)T.push(fix[i]?V.norm(fix[i]):V.norm([x[3*i],x[3*i+1],x[3*i+2]]));
-    const out=[];for(let i=0;i<n-1;i++){const L=V.len(V.sub(Q[i+1],Q[i])),s0=x[3*n+2*i],s1=x[3*n+2*i+1];
-      out.push([Q[i],Q[i+1],V.mul(T[i],L*s0),V.mul(T[i+1],L*s1)]);}
-    return out;
-  }
-  function evalX(x,S=40){
-    let len=0,kmax=0,obs=0;const ks=[],rl=[],rad=opts.rad||0,boxes=opts.obstacles||[];
-    segs(x).forEach((g,i)=>{let prev=null;const r0=loc[i]||0,r1=loc[i+1]||0;
-      for(let j=0;j<=S;j++){const u=j/S,r=hermite(g[0],g[1],g[2],g[3],u),k=curvOf(r.d1,r.d2);ks.push(k);rl.push(r0*(1-u)+r1*u);if(k>kmax)kmax=k;
-        if(prev)len+=V.len(V.sub(r.p,prev));prev=r.p;
-        for(const b of boxes){const d=boxDepth(r.p,b,rad);if(d>0)obs+=d*d;}
-        if(j>0&&j<S)obs+=avoidDepth(r.p);}});
+  const freeAt=new Map(free.map((i,f)=>[i,f]));
+  function ptAt(x,i){const f=freeAt.get(i);return f==null?P[i].slice(0,3):[x[off+3*f]*chord0,x[off+3*f+1]*chord0,x[off+3*f+2]*chord0];}
+  function tanAt(x,i){return fix[i]?V.norm(fix[i]):V.norm([x[3*i],x[3*i+1],x[3*i+2]]);}
+  function pts(x){const Q=[];for(let i=0;i<n;i++)Q.push(ptAt(x,i));return Q;}
+  function seg(x,i){const a=ptAt(x,i),b=ptAt(x,i+1),L=V.len(V.sub(b,a));return[a,b,V.mul(tanAt(x,i),L*x[3*n+2*i]),V.mul(tanAt(x,i+1),L*x[3*n+2*i+1])];}
+  function segs(x){const out=[];for(let i=0;i<n-1;i++)out.push(seg(x,i));return out;}
+  // one segment: length, curvature samples, local-radius samples, obstacle depth
+  function evalSeg(x,i,S){
+    const g=seg(x,i),rad=opts.rad||0,boxes=opts.obstacles||[],r0=loc[i]||0,r1=loc[i+1]||0;let len=0,kmax=0,obs=0,prev=null;const ks=[],rl=[];
+    for(let j=0;j<=S;j++){const u=j/S,r=hermite(g[0],g[1],g[2],g[3],u),k=curvOf(r.d1,r.d2);ks.push(k);rl.push(r0*(1-u)+r1*u);if(k>kmax)kmax=k;
+      if(prev)len+=V.len(V.sub(r.p,prev));prev=r.p;
+      for(const b of boxes){const d=boxDepth(r.p,b,rad);if(d>0)obs+=d*d;}
+      if(j>0&&j<S)obs+=avoidDepth(r.p);}
     return{len,ks,rl,kmax,obs};
   }
-  return{P,n,chord:chord0,x,segs,pts,evalX,opts,fix,free};
+  function evalX(x,S=40){
+    let len=0,kmax=0,obs=0;const ks=[],rl=[];
+    for(let i=0;i<n-1;i++){const r=evalSeg(x,i,S);len+=r.len;obs+=r.obs;if(r.kmax>kmax)kmax=r.kmax;for(let j=0;j<r.ks.length;j++){ks.push(r.ks[j]);rl.push(r.rl[j]);}}
+    return{len,ks,rl,kmax,obs};
+  }
+  // which segments a solver variable touches (tangent i -> segs i-1,i; scale -> one seg; free point -> segs i-1,i)
+  function touches(j){const segsOf=i=>[i-1,i].filter(s=>s>=0&&s<n-1);
+    if(j<3*n)return segsOf(Math.floor(j/3));if(j<off)return [Math.floor((j-3*n)/2)];return segsOf(free[Math.floor((j-off)/3)]);}
+  return{P,n,chord:chord0,x,segs,pts,evalX,evalSeg,touches,opts,fix,free};
 }
 // depth of p inside box b grown by rad (>0 = inside)
 function boxDepth(p,b,rad){let m=Infinity;for(let k=0;k<3;k++)m=Math.min(m,p[k]-b.min[k]+rad,b.max[k]+rad-p[k]);return m;}
@@ -108,13 +115,15 @@ function optimiser(route,designR){
   const os=1/Math.pow(Math.max(route.opts.rad||0,10),2);
   const vio=r=>{let m=0;for(let i=0;i<r.ks.length;i++)m=Math.max(m,r.ks[i]*Math.max(designR,r.rl[i]));return m;};
   let w=10,it=0,t=0;const ws=[10,1e2,1e3,1e4,1e5];let stage=0;
-  function f(x){const r=route.evalX(x,route.opts.S||24);let pen=0;
-    for(let i=0;i<r.ks.length;i++){const kt=1/Math.max(designR,r.rl[i]),e=Math.max(r.ks[i]-kt,0)/kt;pen+=e*e;}
-    return r.len/route.chord+w*(pen/r.ks.length+r.obs*os);}
+  // objective is a sum over segments; a variable only moves 1-2 segments, so the gradient re-evaluates just those
+  const S=route.opts.S||24,M=(n-1)*(S+1),aff=[];for(let j=0;j<N;j++)aff.push(route.touches(j));
+  function fi(x,i){const r=route.evalSeg(x,i,S);let pen=0;
+    for(let q=0;q<r.ks.length;q++){const kt=1/Math.max(designR,r.rl[q]),e=Math.max(r.ks[q]-kt,0)/kt;pen+=e*e;}
+    return r.len/route.chord+w*(pen/M+r.obs*os);}
   function step(k){
     for(let s=0;s<k;s++){
-      const f0=f(x),g=new Array(N).fill(0);
-      for(let i=0;i<N;i++){if(fixed[i])continue;const hh=1e-4;const old=x[i];x[i]=old+hh;g[i]=(f(x)-f0)/hh;x[i]=old;}
+      const F=[];for(let i=0;i<n-1;i++)F.push(fi(x,i));const g=new Array(N).fill(0);
+      for(let i=0;i<N;i++){if(fixed[i])continue;const hh=1e-4;const old=x[i];x[i]=old+hh;let d=0;for(const sg of aff[i])d+=fi(x,sg)-F[sg];g[i]=d/hh;x[i]=old;}
       t++;const lr=0.01;
       for(let i=0;i<N;i++){if(fixed[i])continue;m[i]=0.9*m[i]+0.1*g[i];v[i]=0.999*v[i]+0.001*g[i]*g[i];
         const mh=m[i]/(1-Math.pow(0.9,t)),vh=v[i]/(1-Math.pow(0.999,t));x[i]-=lr*mh/(Math.sqrt(vh)+1e-8);}
@@ -171,6 +180,22 @@ function frameAlong(Q){
   return{T,N:Ns,B:T.map((t,i)=>V.cross(t,Ns[i]))};
 }
 function pathLength(Q){let s=0;for(let i=1;i<Q.length;i++)s+=V.len(V.sub(Q[i],Q[i-1]));return s;}
+// drop points the spline doesn't need: a point goes if the spline through the rest still holds needR
+// and passes within tol mm of every dropped point. Kept: ends + target points. step(ms) runs for ~ms, returns done.
+function thinner(Q0,keepIdx,needR,tol){
+  const keep=new Set(keepIdx);keep.add(0);keep.add(Q0.length-1);
+  let ids=Q0.map((_,i)=>i),pos=1,pass=0,changed=false,best=analyse(Q0);
+  function tryDrop(j){const ids2=ids.slice(0,j).concat(ids.slice(j+1)),A=analyse(ids2.map(i=>Q0[i]));
+    if(A.minR<needR)return null;
+    for(let o=ids2[Math.max(0,j-2)]+1;o<ids2[Math.min(ids2.length-1,j+1)];o++){if(ids2.includes(o))continue;if(closestOnPath(Q0[o],A.d.pts).d>tol)return null;}
+    return{ids2,A};}
+  function step(ms){const t0=performance.now();
+    while(performance.now()-t0<ms){
+      if(pos>=ids.length-1){pass++;if(!changed||pass>=4)return true;changed=false;pos=1;continue;}
+      if(keep.has(ids[pos])){pos++;continue;}
+      const r=tryDrop(pos);if(r){ids=r.ids2;best=r.A;changed=true;}else pos++;}
+    return false;}
+  return{step,get ids(){return ids;},get A(){return best;},get n(){return ids.length;}};}
 // re-insert stray points so the route reads in true order; first point stays the start
 function reorderPath(pts){
   if(pts.length>150)return{pts,moves:0};
@@ -322,10 +347,16 @@ renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));
 const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(40,1,1,1e6);camera.up.set(0,0,1);
 scene.add(new THREE.AmbientLight(0xffffff,0.55));const dl=new THREE.DirectionalLight(0xffffff,0.75);scene.add(dl);
 let content=new THREE.Group();scene.add(content);
-const orbit={target:new THREE.Vector3(),dist:3000,theta:-2.2,phi:1.05};
+// free (trackball) orbit: dir = unit vector target->camera, up = camera up; no pole lock
+const orbit={target:new THREE.Vector3(),dist:3000,dir:new THREE.Vector3(Math.sin(1.05)*Math.cos(-2.2),Math.sin(1.05)*Math.sin(-2.2),Math.cos(1.05)),up:new THREE.Vector3(0,0,1)};
+orbit.up.sub(orbit.dir.clone().multiplyScalar(orbit.up.dot(orbit.dir))).normalize();
+const ORBIT_HOME={dir:orbit.dir.clone(),up:orbit.up.clone()};
+function orbitRotate(dx,dy){const right=new THREE.Vector3().crossVectors(orbit.up,orbit.dir).normalize();
+  const q=new THREE.Quaternion().setFromAxisAngle(orbit.up,-dx*0.008).multiply(new THREE.Quaternion().setFromAxisAngle(right,-dy*0.008));
+  orbit.dir.applyQuaternion(q).normalize();orbit.up.applyQuaternion(q);orbit.up.sub(orbit.dir.clone().multiplyScalar(orbit.up.dot(orbit.dir))).normalize();}
 let diag=1000,tubeR=6,marker=null,tagEls=[],home=null,zoomed=false;
-function placeCamera(){const o=orbit,sp=Math.sin(o.phi);
-  camera.position.set(o.target.x+o.dist*sp*Math.cos(o.theta),o.target.y+o.dist*sp*Math.sin(o.theta),o.target.z+o.dist*Math.cos(o.phi));
+function placeCamera(){const o=orbit;
+  camera.position.copy(o.target).add(o.dir.clone().multiplyScalar(o.dist));camera.up.copy(o.up);
   camera.lookAt(o.target);dl.position.copy(camera.position);camera.near=o.dist/200;camera.far=o.dist*50;camera.updateProjectionMatrix();}
 function fitAll(){const b=new THREE.Box3();let any=false;
   visible().forEach(r=>{r.Q.forEach(p=>{b.expandByPoint(new THREE.Vector3(...p));any=true;});
@@ -447,7 +478,8 @@ function draw(){
   cv.addEventListener('pointermove',e=>{if(!drag||pinch)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;drag.x=e.clientX;drag.y=e.clientY;
     if(drag.pan){const s=orbit.dist*0.0012,right=new THREE.Vector3().setFromMatrixColumn(camera.matrix,0),up=new THREE.Vector3().setFromMatrixColumn(camera.matrix,1);
       orbit.target.add(right.multiplyScalar(-dx*s)).add(up.multiplyScalar(dy*s));}
-    else{orbit.theta-=dx*0.008;orbit.phi=Math.min(3.1,Math.max(0.05,orbit.phi-dy*0.008));}draw();});
+    else orbitRotate(dx,dy);draw();});
+  cv.addEventListener('dblclick',()=>{orbit.dir.copy(ORBIT_HOME.dir);orbit.up.copy(ORBIT_HOME.up);draw();});
   cv.addEventListener('pointerup',()=>drag=null);cv.addEventListener('contextmenu',e=>e.preventDefault());
   cv.addEventListener('wheel',e=>{e.preventDefault();orbit.dist*=Math.exp(e.deltaY*0.001);draw();},{passive:false});
   cv.addEventListener('touchstart',e=>{if(e.touches.length===2){drag=null;pinch=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);}},{passive:true});
@@ -604,26 +636,35 @@ document.querySelectorAll('[data-preset]').forEach(b=>b.onclick=()=>{
   else if(b.dataset.preset==='bundle'){$('bcab').value=PRESETS.bcab;$('brt').value=PRESETS.brt;$('bcl').value=PRESETS.bcl;$('bob').value=PRESETS.bob;}
   else{$('mpts').value=PRESETS.master;$('spts').value=PRESETS.slave;}});
 
+let bendJob=0,bendSeq=0;const BEND_LABEL=$('runBend').textContent;
 $('runBend').onclick=()=>{
+  if(bendJob){bendJob=0;$('runBend').textContent=BEND_LABEL;$('statusBend').textContent='Stopped. The "as entered" run was kept; press Check to shape again.';return;}
   const P=parsePts($('pts').value);
   if(P.length<3)return $('statusBend').textContent='Paste at least three points.';
   const R=+$('r').value||65,SF=+$('sf').value||1.5,SP=+$('sp').value||85;
-  const asEntered=analyse(P);
+  const asEntered=analyse(P),frameNote=(typeof CAD!=='undefined'&&CAD.frame&&$('cadpick_pts')&&!$('cadpick_pts').hidden)?`, in ${CAD.frame.name} frame`:'';
   addRun(Object.assign(asEntered,{name:`As entered R${R}`,kind:'bend',kindLabel:'bend radius, as entered',
-    params:{R,SF},settings:`${P.length} points as entered`,text:toPts(P,{R,designR:R*SF,minR:asEntered.minR,len:asEntered.len,tidx:P.map((_,i)=>i)})}));
+    params:{R,SF},settings:`${P.length} points as entered${frameNote}`,text:toPts(P,{R,designR:R*SF,minR:asEntered.minR,len:asEntered.len,tidx:P.map((_,i)=>i)})}));
   store.set('rs.pts',$('pts').value);
   const route=makeRoute(P,{startDir:parseDir($('sd').value),endDir:parseDir($('ed').value),localR:P.map(p=>p.loc||0)});
   const nloc=P.filter(p=>p.loc).length;
-  const o=optimiser(route,R*SF);$('runBend').disabled=true;
-  const tick=()=>{const t0=performance.now();let r;do{r=o.step(6);}while(!r.done&&performance.now()-t0<40);$('statusBend').textContent=`Shaping the curve... tightest bend so far R ${fmt(r.minR)} mm`;
+  const o=optimiser(route,R*SF),job=++bendSeq;bendJob=job;$('runBend').textContent='Stop';
+  const tick=()=>{if(bendJob!==job)return;const t0=performance.now();let r;do{r=o.step(6);}while(!r.done&&performance.now()-t0<30);$('statusBend').textContent=`Shaping the curve... tightest bend so far R ${fmt(r.minR)} mm (${P.length} points, step ${r.it} of up to 900)`;
     if(!r.done)return defer(tick);
     let sp=SP,res;for(let a=0;a<4;a++){const s=samplePoints(route,r.x,sp,$('adapt').checked,R*SF);const A=analyse(s.Q);res={A,s};if(A.minR>=R*1.15)break;sp*=0.7;}
-    const A=res.A;A.tidx=res.s.tidx;
-    addRun(Object.assign(A,{name:`Generated R${R} x${SF}`,kind:'bend',kindLabel:'bend radius, generated',
-      params:{R,SF,spacing:SP},settings:`gap ${sp.toFixed(0)} mm between points${$('adapt').checked?', closer in bends':''}, x${SF} margin${nloc?`, ${nloc} local radius override${nloc>1?'s':''}`:''}`,
-      text:toPts(A.Q,{R,designR:+(R*SF).toFixed(1),minR:A.minR,len:A.len,tidx:A.tidx})}));
-    $('runBend').disabled=false;
-    $('statusBend').textContent=`Added. Generated route holds R ${fmt(A.minR)} mm over ${A.Q.length} points.`;};
+    const finish=(A,tidx,thinNote)=>{A.tidx=tidx;if(bendJob!==job&&bendJob!==-job)return;bendJob=0;$('runBend').textContent=BEND_LABEL;
+      addRun(Object.assign(A,{name:`Generated R${R} x${SF}`,kind:'bend',kindLabel:'bend radius, generated',
+        params:{R,SF,spacing:SP},settings:`gap ${sp.toFixed(0)} mm between points${$('adapt').checked?', closer in bends':''}, x${SF} margin${nloc?`, ${nloc} local radius override${nloc>1?'s':''}`:''}${thinNote}${frameNote}`,
+        text:toPts(A.Q,{R,designR:+(R*SF).toFixed(1),minR:A.minR,len:A.len,tidx})}));
+      $('statusBend').textContent=`Added. Generated route holds R ${fmt(A.minR)} mm over ${A.Q.length} points${thinNote?` (${res.s.Q.length} before removing unneeded points)`:''}.`;};
+    if(!$('thin').checked)return finish(res.A,res.s.tidx,'');
+    const tol=Math.max(0.05,+$('thinTol').value||1),needR=Math.max(R,Math.min(R*SF,res.A.minR*0.97)),T=thinner(res.s.Q,res.s.tidx,needR,tol),n0=res.s.Q.length;
+    bendJob=-job;
+    const thinTick=()=>{if(bendJob!==-job)return;const done=T.step(30);$('statusBend').textContent=`Removing points the curve doesn't need... ${n0} → ${T.n}`;
+      if(!done)return defer(thinTick);
+      const keepSet=new Set(res.s.tidx),tidx=T.ids.map((o,i)=>keepSet.has(o)?i:-1).filter(i=>i>=0);
+      finish(T.A,tidx,`, fewest points (shift ≤ ${tol} mm)`);};
+    defer(thinTick);};
   setTimeout(tick,20);
 };
 

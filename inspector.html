@@ -1,0 +1,332 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>File Inspector - Route Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: one column, drop zone then findings. Matches Route Studio's palette and type. */
+:root{
+  --paper:#E9EDF1; --panel:#F7F9FB; --ink:#1F2A36; --muted:#5B6878; --rule:#C9D2DB;
+  --field:#FFFFFF; --ok:#2B6CB0; --warn:#D08A1E; --bad:#C8323C; --focus:#2B6CB0;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#161C23; --panel:#1C242D; --ink:#E3E9EF; --muted:#94A2B2; --rule:#303B47;
+  --field:#131920; --ok:#5A9BE0; --warn:#E3A340; --bad:#EE5A63; --focus:#5A9BE0;
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --paper:#161C23; --panel:#1C242D; --ink:#E3E9EF; --muted:#94A2B2; --rule:#303B47;
+  --field:#131920; --ok:#5A9BE0; --warn:#E3A340; --bad:#EE5A63; --focus:#5A9BE0;
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 var(--sans)}
+.wrap{max-width:1060px;margin:0 auto;padding-block:28px 56px;padding-left:16px;padding-right:16px}
+h1{font-size:24px;font-weight:600;letter-spacing:-.01em;margin:0 0 4px;text-wrap:balance}
+.lede{color:var(--muted);margin:0 0 22px;max-width:62ch}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+
+.drop{border:1.5px dashed var(--rule);border-radius:6px;background:var(--panel);
+  padding:30px 20px;text-align:center;transition:border-color .15s,background .15s}
+.drop.over{border-color:var(--ok);background:var(--field)}
+.drop p{margin:0 0 12px;color:var(--muted);font-size:14px}
+.btn{font:500 14px var(--sans);color:var(--ink);background:var(--field);
+  border:1px solid var(--rule);border-radius:4px;padding:7px 14px;cursor:pointer}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+input[type=file]{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+
+.out{margin-top:26px}
+.out[hidden]{display:none}
+section{margin-top:24px}
+h2{font-size:13px;font-weight:600;color:var(--muted);letter-spacing:.04em;margin:0 0 9px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:1px;
+  background:var(--rule);border:1px solid var(--rule);border-radius:5px;overflow:hidden}
+.stat{background:var(--panel);padding:11px 13px;min-width:0}
+.stat b{display:block;font-size:19px;font-weight:600;font-variant-numeric:tabular-nums;
+  overflow-wrap:anywhere}
+.stat span{display:block;font-size:11.5px;color:var(--muted);margin-top:1px}
+
+.note{border-left:3px solid var(--bad);background:var(--panel);padding:13px 15px;border-radius:0 5px 5px 0}
+.note.good{border-left-color:var(--ok)}
+.note h3{margin:0 0 6px;font-size:15px;font-weight:600}
+.note ol,.note ul{margin:8px 0 0;padding-left:20px;color:var(--muted);font-size:14px}
+.note li{margin-bottom:5px}
+.note li:last-child{margin-bottom:0}
+
+.tablewrap{overflow-x:auto;border:1px solid var(--rule);border-radius:5px;background:var(--panel)}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{text-align:left;padding:7px 13px;border-bottom:1px solid var(--rule);white-space:nowrap}
+tbody tr:last-child td{border-bottom:0}
+th:last-child,td:last-child{width:100%}
+th{font-weight:600;color:var(--muted);font-size:12px;letter-spacing:.03em}
+td.n{font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right}
+td.name{font-family:var(--mono)}
+tr.sel td{background:var(--field)}
+
+.chips{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:11px}
+.chip{font:500 13px var(--sans);border:1px solid var(--rule);background:var(--panel);
+  color:var(--ink);border-radius:999px;padding:5px 13px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.chip span{color:var(--muted);font-weight:400}
+.chip[aria-pressed="true"] span{color:var(--paper);opacity:.72}
+
+.exporthead{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:9px}
+.exporthead h2{margin:0}
+textarea{width:100%;min-height:190px;font:13px/1.55 var(--mono);color:var(--ink);
+  background:var(--field);border:1px solid var(--rule);border-radius:5px;padding:10px 11px;resize:vertical;white-space:pre;overflow-x:auto}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:8px;background:var(--warn)}.dot[data-ok="true"]{background:var(--ok)}.dot[data-ok="false"]{background:var(--bad)}.dot[data-ok="null"]{background:var(--muted)}
+.hint{color:var(--muted);font-size:12.5px;margin:7px 0 0}
+a{color:var(--ok)}a:hover{color:var(--ink)}.back{margin:0 0 10px;font-size:13px}
+footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--rule);color:var(--muted);font-size:12.5px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+<div class="wrap">
+  <h1>File Inspector</h1><p class="back"><a href="index.html">Back to Route Studio</a></p>
+  <p class="lede">Drop a Creo IGES or STEP export here to check, before routing, whether the datum points and coordinate systems actually came out. When a file comes back empty, it tells you which export setting is missing.</p>
+
+  <div class="drop" id="drop">
+    <p>Drop an <b>.igs</b>, <b>.iges</b>, <b>.stp</b> or <b>.step</b> file here</p>
+    <button class="btn primary" type="button" id="pick">Choose a file</button>
+    <input type="file" id="file" accept=".igs,.iges,.stp,.step,.txt">
+  </div>
+
+  <div class="out" id="out" hidden>
+    <section>
+      <h2>File</h2>
+      <div class="stats" id="stats"></div>
+    </section>
+
+    <section id="verdictSec">
+      <div class="note" id="verdict"></div>
+    </section>
+
+    <section>
+      <h2>Quality check</h2>
+      <div class="tablewrap"><table><tbody id="check"></tbody></table></div>
+      <p class="hint">Green passes, amber is a warning, red blocks routing. "Names tell cables apart" warns on Creo default names (PNT, CS); rename as C1_01, C1_02, C2_01.</p>
+    </section>
+
+    <section id="datumSec" hidden>
+      <h2 id="datumHead">Datums found</h2>
+      <div class="chips" id="chips"></div>
+      <div class="tablewrap">
+        <table id="datumTable">
+          <thead><tr><th>Name</th><th>X</th><th>Y</th><th>Z</th><th id="extraHead">Level</th></tr></thead>
+          <tbody id="datumBody"></tbody>
+        </table>
+      </div>
+      <p class="hint" id="datumHint"></p>
+    </section>
+
+    <section id="exportSec" hidden>
+      <div class="exporthead">
+        <h2>Paste into Route Studio</h2>
+        <span><button class="btn" type="button" id="fmtPts">.pts format</button>
+        <button class="btn" type="button" id="copy">Copy</button></span>
+      </div>
+      <textarea id="outtxt" readonly spellcheck="false" wrap="off"></textarea>
+      <p class="hint">Points are listed in file order, which is the order Creo writes them along the route.</p>
+    </section>
+
+    <section>
+      <h2>Entity breakdown</h2>
+      <div class="tablewrap">
+        <table><thead><tr><th>Type</th><th>Name</th><th>Count</th></tr></thead><tbody id="entBody"></tbody></table>
+      </div>
+    </section>
+
+    <section id="levelSec">
+      <h2>Levels</h2>
+      <div class="tablewrap">
+        <table><thead><tr><th>Level</th><th>Entities</th></tr></thead><tbody id="levBody"></tbody></table>
+      </div>
+      <p class="hint">Creo maps layers onto IGES levels when "Map numeric layer names to layer IDs" is on. A route kept on its own layer can be filtered by level.</p>
+    </section>
+  </div>
+
+  <footer>Everything runs in this page. Nothing is uploaded.</footer>
+</div>
+<script src="js/iges.js"></script>
+<script src="js/step.js"></script>
+<script>
+(function(){
+"use strict";
+const $=id=>document.getElementById(id);
+let state=null, selGroup=null, asPts=false;
+
+/* ---------- loading ---------- */
+const drop=$("drop"), fileEl=$("file");
+$("pick").onclick=()=>fileEl.click();
+fileEl.onchange=e=>{ if(e.target.files[0]) read(e.target.files[0]); };
+["dragenter","dragover"].forEach(t=>drop.addEventListener(t,e=>{e.preventDefault();drop.classList.add("over");}));
+["dragleave","drop"].forEach(t=>drop.addEventListener(t,e=>{e.preventDefault();drop.classList.remove("over");}));
+drop.addEventListener("drop",e=>{ const f=e.dataTransfer.files[0]; if(f) read(f); });
+document.addEventListener("dragover",e=>e.preventDefault());
+document.addEventListener("drop",e=>e.preventDefault());
+
+function read(file){
+  const r=new FileReader();
+  r.onload=()=>{ try{ show(file.name, String(r.result)); }
+                 catch(err){ fail(file.name, err.message); } };
+  r.onerror=()=>fail(file.name,"The file could not be read.");
+  r.readAsText(file);
+}
+function fail(name,msg){
+  state=null; $("out").hidden=false;
+  $("stats").innerHTML=stat(name,"file");
+  $("datumSec").hidden=true; $("exportSec").hidden=true; $("levelSec").hidden=true;
+  $("entBody").innerHTML=""; 
+  const v=$("verdict"); v.className="note";
+  v.innerHTML="<h3>Could not read this file</h3><p>"+esc(msg)+"</p>";
+}
+const esc=s=>String(s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+const stat=(v,l)=>'<div class="stat"><b>'+esc(v)+'</b><span>'+esc(l)+'</span></div>';
+const fmt=n=>Number(n).toLocaleString();
+
+/* ---------- display ---------- */
+function show(name, text){
+  const isStep=/^\s*ISO-10303/.test(text) || /\bDATA;/.test(text) && /AXIS2_PLACEMENT_3D|CARTESIAN_POINT/.test(text);
+  state = isStep ? loadStep(name,text) : loadIges(name,text);
+  selGroup=Object.keys(state.groups)[0]||null;
+  render();
+}
+
+function loadIges(name,text){
+  const r=IGES.parse(text);
+  const rows=r.points.map(p=>({name:p.name||"(unnamed)",x:p.x,y:p.y,z:p.z,extra:p.level}));
+  return {name, format:"IGES", summary:{
+      entities:r.summary.entities, units:r.summary.units||"?",
+      maxCoord:r.summary.maxCoord, product:r.summary.product, version:r.summary.version},
+    rows, kind:"points", extraLabel:"Level",
+    counts:r.summary.counts.map(c=>({a:c.type,b:c.name,n:c.count})),
+    levels:r.summary.levels, groups:groupBy(rows), curves:r.curves.length,
+    solids:r.summary.counts.filter(c=>c.type===186||c.type===514).reduce((s,c)=>s+c.count,0), nCsys:0, nPts:rows.length};
+}
+function loadStep(name,text){
+  const r=STEPReader.parse(text);
+  const cs=r.csys.map(c=>({name:c.name,x:c.x,y:c.y,z:c.z,
+    extra:c.zAxis?c.zAxis.map(v=>v.toFixed(3)).join(", "):""}));
+  const pt=r.points.map(p=>({name:p.name,x:p.x,y:p.y,z:p.z,extra:""}));
+  const rows=cs.concat(pt);
+  return {name, format:"STEP", summary:{
+      entities:r.summary.entities, units:r.summary.units, maxCoord:null,
+      product:r.summary.schema, version:""},
+    rows, kind: cs.length?"coordinate systems":"points", extraLabel:"Z direction",
+    counts:r.summary.counts.slice(0,22).map(c=>({a:"",b:c.name,n:c.count})),
+    levels:[], groups:groupBy(rows), curves:0, nCsys:cs.length, nPts:pt.length,
+    solids:r.summary.counts.filter(c=>/MANIFOLD_SOLID_BREP|BREP_WITH_VOIDS/.test(c.name)).reduce((s,c)=>s+c.count,0)};
+}
+function groupBy(rows){
+  const g={};
+  for(const r of rows){
+    const m=/^(.*?)[_-]?(\d+)$/.exec(r.name||"");
+    const k=(m&&m[1])?m[1]:(r.name||"unnamed");
+    (g[k]=g[k]||[]).push(r);
+  }
+
+  const o={};Object.keys(g).sort((a,b)=>g[b].length-g[a].length).forEach(k=>o[k]=g[k]);
+  return o;
+}
+
+function render(){
+  const s=state; $("out").hidden=false;
+  $("stats").innerHTML =
+    stat(s.name.length>26?s.name.slice(0,24)+"…":s.name,"file")
+  + stat(s.format,"format")
+  + stat(fmt(s.summary.entities),"entities")
+  + stat(s.summary.units,"units")
+  + (s.summary.maxCoord?stat(Math.round(s.summary.maxCoord)+" mm","max coordinate"):"")
+  + stat(fmt(s.nPts||0),"named points")
+  + stat(s.format==="STEP"?fmt(s.nCsys):"never","coordinate systems")
+  + stat(fmt(s.solids||0),"solids");
+  $("check").innerHTML=checks(s);
+
+  const v=$("verdict");
+  if(s.rows.length){
+    v.className="note good";
+    const parts=[];if(s.nCsys)parts.push(fmt(s.nCsys)+" coordinate system"+(s.nCsys>1?"s":""));if(s.nPts)parts.push(fmt(s.nPts)+" named point"+(s.nPts>1?"s":""));
+    v.innerHTML="<h3>"+parts.join(" and ")+" found</h3>"
+      +"<p>Names came through intact, so they carry straight into Route Studio. "
+      +"Rename them in Creo as <code>C1_01</code>, <code>C1_02</code>, <code>C2_01</code> "
+      +"to split several cables apart and fix the order along each.</p>";
+  } else {
+    v.className="note";
+    v.innerHTML="<h3>No named datums in this file</h3><p>Check these, in order:</p><ol>"
+      + (s.format==="IGES"
+        ? "<li><b>Datums</b> is ticked in the export profile's Include list.</li>"
+          +"<li>Datum points are <b>displayed</b> in the graphics window. Creo skips datums it is not drawing.</li>"
+          +"<li>The points are not on a blanked layer, with <b>Hidden entities</b> off.</li>"
+          +"<li>Coordinate systems never reach IGES at all. Export <b>STEP</b> for those, or put a datum point on each CSYS origin.</li>"
+        : "<li>The STEP export options include datum coordinate systems.</li>"
+          +"<li>The datums are displayed in the graphics window.</li>"
+          +"<li>Your coordinate systems are named in the model tree. Unnamed placements are skipped here because every B-rep face carries one.</li>")
+      + "</ol>";
+  }
+
+  const keys=Object.keys(s.groups);
+  $("datumSec").hidden=!s.rows.length;
+  $("exportSec").hidden=!s.rows.length;
+  if(s.rows.length){
+    $("datumHead").textContent=s.kind.charAt(0).toUpperCase()+s.kind.slice(1);
+    $("extraHead").textContent=s.extraLabel;
+    $("chips").innerHTML=keys.map(k=>
+      '<button class="chip" type="button" data-g="'+esc(k)+'" aria-pressed="'+(k===selGroup)+'">'
+      +esc(k)+' <span>'+s.groups[k].length+'</span></button>').join("");
+    $("chips").querySelectorAll(".chip").forEach(b=>b.onclick=()=>{selGroup=b.dataset.g;render();});
+    const rows=s.groups[selGroup]||s.rows;
+    $("datumBody").innerHTML=rows.map(r=>
+      '<tr><td class="name">'+esc(r.name)+'</td><td class="n">'+r.x.toFixed(3)
+      +'</td><td class="n">'+r.y.toFixed(3)+'</td><td class="n">'+r.z.toFixed(3)
+      +'</td><td class="n">'+esc(r.extra||"")+'</td></tr>').join("");
+    $("datumHint").textContent=keys.length>1
+      ? keys.length+" name groups in this file. Pick one to list and export it."
+      : "All of them share one name prefix.";
+    writeExport(rows);
+  }
+
+  $("entBody").innerHTML=s.counts.map(c=>
+    '<tr><td class="n">'+esc(c.a)+'</td><td>'+esc(c.b)+'</td><td class="n">'+fmt(c.n)+'</td></tr>').join("");
+  $("levelSec").hidden=!s.levels.length;
+  $("levBody").innerHTML=s.levels.slice(0,20).map(l=>
+    '<tr><td class="name">'+esc(l.level||"(none)")+'</td><td class="n">'+fmt(l.count)+'</td></tr>').join("");
+}
+
+function checks(s){
+  const g=Object.keys(s.groups),big=g.map(k=>s.groups[k].length).sort((a,b)=>b-a)[0]||0;
+  const L=[
+    [s.rows.length>0,"Named datums present",s.rows.length?fmt(s.rows.length)+" found":"none, see the checklist above"],
+    [big>=3,"Enough points to route",big>=3?"largest group has "+big:"need at least 3 in one name group"],
+    [!g.length?false:g.some(k=>/^(PNT|CS|ACS|APNT|unnamed)$/i.test(k))?"warn":true,"Names tell cables apart",g.length?g.join(", ")+(g.some(k=>/^(PNT|CS|ACS|APNT|unnamed)$/i.test(k))?" (Creo default names)":""):"no names"],
+    [s.format==="STEP"?(s.nCsys>0||"warn"):"warn","Coordinate systems",s.format==="STEP"?(s.nCsys?fmt(s.nCsys)+" with origin and axes":"none named"):"IGES cannot carry them, export STEP"],
+    [s.solids?"warn":true,"Datums-only file",s.solids?fmt(s.solids)+" solids included; fine, but a datums-only export is far smaller":"no solid geometry"]];
+  return L.map(([ok,t,d])=>'<tr><td><span class="dot" data-ok="'+ok+'"></span>'+esc(t)+'</td><td>'+esc(d)+'</td></tr>').join("");}
+function writeExport(rows){
+  if(asPts){
+    const f=v=>v.toFixed(3).padStart(15);
+    $("outtxt").value=["!","!       DATUM POINT ARRAY DATA FILE","!",
+      "! "+rows.length+" points from "+state.name,"!",
+      "! Enter values with respect to datum arrays' coordinate system:","!",
+      "!CARTESIAN coordinates:","!        X                Y                Z","!"]
+      .concat(rows.map(r=>f(r.x)+f(r.y)+f(r.z))).join("\n")+"\n";
+  } else {
+    $("outtxt").value=rows.map(r=>
+      r.x.toFixed(3).padStart(12)+r.y.toFixed(3).padStart(13)+r.z.toFixed(3).padStart(13)
+      +"   ! "+r.name).join("\n")+"\n";
+  }
+}
+$("fmtPts").onclick=()=>{ asPts=!asPts;
+  $("fmtPts").textContent=asPts?"plain + names":".pts format";
+  if(state) writeExport(state.groups[selGroup]||state.rows); };
+$("copy").onclick=async()=>{
+  const t=$("outtxt"); if(!t.value) return;
+  try{ await navigator.clipboard.writeText(t.value); $("copy").textContent="Copied"; }
+  catch(e){ t.select(); $("copy").textContent="Press Ctrl+C"; }
+  setTimeout(()=>$("copy").textContent="Copy",1800);
+};
+})();
+</script>
+
+</body></html>

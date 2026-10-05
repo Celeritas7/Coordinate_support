@@ -62,7 +62,20 @@ Refine tab in the dock. Pick a point (field, Points table row, or an issue), set
 - Pass/fail on bend, ramp bend, unreachable gap (P-numbers listed), exact-gap deviation; length change vs original
 - Locked points by P-number; mode "exact" replaces "const"
 
+## Phase 7 — CAD import (done)
+- STEP / IGES readers: named datum points and coordinate systems, file order kept
+- Name-group chips, Frame select, STEP export of any run in the same frame
+- File inspector (inspector.html)
+- Solver: per-segment gradient (~40x faster), Stop button
+
+## Planned — move to Vite
+Stay on plain HTML + scripts until one of these happens, then migrate (about a day: ES modules, no monkey-patching, solver in a Web Worker; users still get a static folder from `dist/`):
+- The Environment phase starts (STL meshes need three.js and likely a mesh-intersection library)
+- More than one person is developing it
+- Regression tests are wanted for the STEP/IGES readers and the solver
+
 ## Open
+- Environment phase: STL mesh obstacles (waiting on assembly rep size)
 - Re-fits take 10–60 s on long spans; speed up the span optimiser
 - Multi-cable routing portal: per-cable start/end, constraint waypoints, radius + bend + no-tangle
 

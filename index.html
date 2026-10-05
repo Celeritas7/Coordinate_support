@@ -25,13 +25,17 @@
   <section id="panBend">
     <label for="pts">Target points <span class="unit">(X Y Z per line)</span></label>
     <textarea id="pts" rows="7" spellcheck="false" wrap="off"></textarea>
-    <div class="presets"><span class="unit">Load:</span><button type="button" data-preset="target">example route</button></div>
+    <div class="presets"><span class="unit">Load:</span><button type="button" data-cad="pts">.pts / .stp / .igs file</button><button type="button" data-preset="target">example route</button><a href="inspector.html" target="_blank">check a CAD file</a></div>
+    <div class="cadpick" id="cadpick_pts" hidden></div>
+    <input type="file" id="cadfile" accept=".pts,.txt,.csv,.ibl,.igs,.iges,.stp,.step" hidden>
     <div class="fields c3">
       <div><label for="r">Min radius <span class="unit">mm</span></label><input id="r" type="number" value="65" min="1" step="1" inputmode="decimal"></div>
       <div><label for="sf">Safety factor</label><input id="sf" type="number" value="1.5" min="1" step="0.1" inputmode="decimal"></div>
       <div><label for="sp">Spacing <span class="unit">mm</span></label><input id="sp" type="number" value="85" min="10" step="5" inputmode="decimal"></div>
     </div>
     <label class="chk"><input type="checkbox" id="adapt" checked>Closer points in tight bends</label>
+    <div class="fields c2"><label class="chk" style="align-self:end"><input type="checkbox" id="thin" checked>Fewest points</label><div><label for="thinTol">Max shift <span class="unit">mm</span></label><input id="thinTol" type="number" value="1" min="0.1" step="0.5" inputmode="decimal"></div></div>
+    <p class="hint">Fewest points: after routing, drops every point the curve doesn't need. The radius still holds and the curve moves at most Max shift. Target points are always kept.</p>
     <details>
       <summary>Fix end directions</summary>
       <div class="fields c2">
@@ -50,7 +54,8 @@
     <textarea id="mpts" rows="5" spellcheck="false" wrap="off"></textarea>
     <label for="spts" style="margin-top:10px">Slave route <span class="unit">(gets moved)</span></label>
     <textarea id="spts" rows="5" spellcheck="false" wrap="off"></textarea>
-    <div class="presets"><span class="unit">Load:</span><button type="button" data-preset="pair">example pair</button></div>
+    <div class="presets"><span class="unit">Load:</span><button type="button" data-cad="mpts">master from file</button><button type="button" data-cad="spts">slave from file</button><button type="button" data-preset="pair">example pair</button></div>
+    <div class="cadpick" id="cadpick_mpts" hidden></div><div class="cadpick" id="cadpick_spts" hidden></div>
     <div class="fields c2">
       <div><label for="cStart">Slave start <span class="unit">x y z</span></label><input id="cStart" placeholder="slave's first point" spellcheck="false"></div>
       <div><label for="cEnd">Slave end <span class="unit">x y z</span></label><input id="cEnd" placeholder="slave's last point" spellcheck="false"></div>
@@ -101,8 +106,8 @@
   <section id="panAnalyse" hidden>
     <label for="acab">Cables to check <span class="unit">(# name, then X Y Z)</span></label>
     <textarea id="acab" rows="7" spellcheck="false" wrap="off"></textarea>
-    <div class="presets"><span class="unit">Load:</span><button type="button" id="aOpen">.pts files</button><button type="button" id="aExample">example, 3 edited cables</button></div>
-    <input type="file" id="afile" multiple accept=".pts,.txt,.csv,.ibl" hidden>
+    <div class="presets"><span class="unit">Load:</span><button type="button" id="aOpen">.pts / .stp / .igs files</button><button type="button" id="aExample">example, 3 edited cables</button></div>
+    <input type="file" id="afile" multiple accept=".pts,.txt,.csv,.ibl,.igs,.iges,.stp,.step" hidden>
     <label for="aprop" style="margin-top:10px">Cable properties <span class="unit">(id  d  min R  gap)</span></label>
     <textarea id="aprop" rows="3" spellcheck="false" wrap="off"></textarea>
     <div class="fields c3">
@@ -116,7 +121,7 @@
     <label for="aref" style="margin-top:10px">Earlier version <span class="unit">(optional)</span></label>
     <textarea id="aref" rows="3" spellcheck="false" wrap="off"></textarea>
     <div class="presets"><span class="unit">Load:</span><button type="button" id="aOpenRef">.pts files</button></div>
-    <input type="file" id="areffile" multiple accept=".pts,.txt,.csv,.ibl" hidden>
+    <input type="file" id="areffile" multiple accept=".pts,.txt,.csv,.ibl,.igs,.iges,.stp,.step" hidden>
     <details>
       <summary>Check limits</summary>
       <div class="fields c3">
@@ -132,7 +137,7 @@
       <p class="hint">Kink: turn at one point. Spacing ratio: longer gap over shorter gap either side of a point. Moved: flag points further than this from the earlier version.</p>
     </details>
     <button class="go" id="runAnalyse" type="button">Analyse, then add to comparison</button>
-    <p class="hint">Points are checked exactly as loaded; nothing is re-routed or smoothed. Opening or dropping files replaces the list. Earlier versions match by cable name.</p>
+    <p class="hint">Points are checked exactly as loaded; nothing is re-routed or smoothed. Opening or dropping files replaces the list. Earlier versions match by cable name. STEP and IGES files become one cable per datum name prefix (C1_01, C1_02 → C1).</p>
     <div class="status" id="statusAnalyse"></div>
   </section>
 
@@ -156,7 +161,7 @@
       </div>
     </div>
     <div class="legend" id="legend"></div>
-    <div class="help">Drag to rotate, shift-drag to pan, scroll to zoom</div>
+    <div class="help">Drag to rotate, shift-drag to pan, scroll to zoom, double-click to reset view</div>
     <div id="tags"></div>
   </div>
   <div class="dock">
@@ -197,7 +202,7 @@
       </div></div>
       <div class="pane" id="panePts"><div class="pts">
         <div class="ptshead"><span class="lbl" id="ptsname">Points</span>
-          <span class="right"><button type="button" id="copy">Copy</button><button type="button" id="dl">Download .pts</button><button type="button" id="dlzip" hidden>Download all cables .zip</button></span></div>
+          <span class="right"><button type="button" id="copy">Copy</button><button type="button" id="dl">Download .pts</button><button type="button" id="dlstp" title="Named datum points (RP001…) in a STEP file Creo can import">Download .stp</button><button type="button" id="dlzip" hidden>Download all cables .zip</button></span></div>
         <p class="hint" style="margin:0 0 6px">Hover a row to mark it in the 3D view, click to zoom there.</p>
         <div id="ptstable"></div>
         <textarea id="outtxt" readonly spellcheck="false" wrap="off" hidden></textarea>
@@ -211,5 +216,8 @@
 <script src="js/analysis.js"></script>
 <script src="js/refine.js"></script>
 <script src="js/clearance.js"></script>
+<script src="js/iges.js"></script>
+<script src="js/step.js"></script>
+<script src="js/cad-io.js"></script>
 </body>
 </html>
