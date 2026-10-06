@@ -19,7 +19,7 @@ const RF_CTRLS=['rfDel','rfPt','rfSpan','rfR','rfAdd','rfSp','rfDx','rfDy','rfDz
 // points to add to span a..b: the typed count, or enough for the typed spacing, whichever is more
 function rfAddCount(r,a,b){const ua=Math.max(0,Math.round(+$('rfAdd').value||0)),sp=+$('rfSp').value;if(!(sp>0))return ua;
   return Math.min(Math.max(ua,Math.max(1,Math.round(pathLength(r.Q.slice(a,b+1))/sp))-(b-a)),Math.max(ua,10-(b-a-1)));}
-function rfLock(on){rfBusy=on;RF_CTRLS.forEach(k=>$(k).disabled=on||!selected());$('rfUndo').disabled=on||!rfStack.length;
+function rfLock(on){rfBusy=on;RF_CTRLS.forEach(k=>$(k).disabled=on||!selected()||selected().kind==='arc');$('rfUndo').disabled=on||!rfStack.length;
   document.querySelectorAll('#iss .fixbtn,#issFixAll,#issStep').forEach(b=>b.disabled=on);}
 
 // ---- re-fit one span; resolves with a candidate, never applies it ----
@@ -187,7 +187,7 @@ const RF_AX={x:[1,0,0],y:[0,1,0],z:[0,0,1]},RF_AXC={x:'#e0605a',y:'#4fb572',z:'#
 const rfDragSt={r:null};
 function rfDragMode(){return dock==='ref'&&!rfBusy?$('rfDrag').value:'';}
 function rfScreenPt(q,rc){const v=new THREE.Vector3(...q).project(camera);return v.z>1?null:[(v.x+1)/2*rc.width+rc.left,(1-v.y)/2*rc.height+rc.top];}
-function rfHitPoint(e){const r=selected();if(!r||!r.visible)return-1;const rc=$('gl').getBoundingClientRect();let bi=-1,bd=14;
+function rfHitPoint(e){const r=selected();if(!r||!r.visible||r.kind==='arc')return-1;const rc=$('gl').getBoundingClientRect();let bi=-1,bd=14;
   r.Q.forEach((q,i)=>{const s=rfScreenPt(q,rc);if(!s)return;const d=Math.hypot(s[0]-e.clientX,s[1]-e.clientY);if(d<bd){bd=d;bi=i;}});return bi;}
 function rfDragPos(e){const{o,mode}=rfDragSt,rc=$('gl').getBoundingClientRect(),rc2=new THREE.Raycaster();
   rc2.setFromCamera(new THREE.Vector2((e.clientX-rc.left)/rc.width*2-1,1-(e.clientY-rc.top)/rc.height*2),camera);
@@ -228,7 +228,7 @@ function rfZoom(){const r=selected();if(!r)return;const{a,b}=r.lastSpan||rfSpanO
   orbit.target.set(...c);orbit.dist=Math.max(pathLength(P)*1.8,r.params.R*6);zoomed=true;$('zoom').textContent='Show whole route';draw();}
 function renderRefine(){const r=selected();
   $('refname').textContent=r?`Refine · ${r.name}`:'Refine';
-  if(!rfBusy){RF_CTRLS.forEach(k=>$(k).disabled=!r);$('rfUndo').disabled=!rfStack.length;}
+  if(!rfBusy){RF_CTRLS.forEach(k=>$(k).disabled=!r||r.kind==='arc');if(r&&r.kind==='arc')rfSt('Lines + arcs runs are changed by solving again on the Bend tab; Refine works on spline and imported routes.');$('rfUndo').disabled=!rfStack.length;}
   const n=r?rfOpen(r).length:0;$('rfFixAll').textContent=n?`Fix all (${waAll().filter(waFixable).length})`:'Fix all';
   if(r){$('rfPt').max=r.Q.length;if(+$('rfPt').value>r.Q.length)$('rfPt').value=r.Q.length;$('rfR').placeholder=r.params.R;}}
 function rfPick(i){$('rfPt').value=i+1;if(rfBusy)return;const r=selected();if(r)rfSt(`Point ${i+1} of ${r.Q.length} selected. Set the span and re-fit.`);}

@@ -20,6 +20,7 @@
     <button role="tab" id="tabClear" aria-selected="false">Clearance</button>
     <button role="tab" id="tabBundle" aria-selected="false">Bundle</button>
     <button role="tab" id="tabAnalyse" aria-selected="false">Analyse</button>
+    <button role="tab" id="tabTable" aria-selected="false">Table → .pts</button>
   </div>
 
   <section id="panBend">
@@ -28,14 +29,21 @@
     <div class="presets"><span class="unit">Load:</span><button type="button" data-cad="pts">.pts / .stp / .igs file</button><button type="button" data-preset="target">example route</button><a href="inspector.html" target="_blank">check a CAD file</a></div>
     <div class="cadpick" id="cadpick_pts" hidden></div>
     <input type="file" id="cadfile" accept=".pts,.txt,.csv,.ibl,.igs,.iges,.stp,.step" hidden>
+    <div class="fields c2">
+      <div><label for="shape">Route shape</label><select id="shape"><option value="spline">Spline, many points</option><option value="arc">Lines + arcs, corner points only</option></select></div>
+      <div id="arcTolBox" hidden><label for="arcTol">Station tolerance <span class="unit">mm</span></label><input id="arcTol" type="number" value="0.05" min="0.001" step="0.01" inputmode="decimal"></div>
+    </div>
     <div class="fields c3">
       <div><label for="r">Min radius <span class="unit">mm</span></label><input id="r" type="number" value="65" min="1" step="1" inputmode="decimal"></div>
       <div><label for="sf">Safety factor</label><input id="sf" type="number" value="1.5" min="1" step="0.1" inputmode="decimal"></div>
-      <div><label for="sp">Spacing <span class="unit">mm</span></label><input id="sp" type="number" value="85" min="10" step="5" inputmode="decimal"></div>
+      <div id="spBox"><label for="sp">Spacing <span class="unit">mm</span></label><input id="sp" type="number" value="85" min="10" step="5" inputmode="decimal"></div>
     </div>
+    <div id="splineOpts">
     <label class="chk"><input type="checkbox" id="adapt" checked>Closer points in tight bends</label>
     <div class="fields c2"><label class="chk" style="align-self:end"><input type="checkbox" id="thin" checked>Fewest points</label><div><label for="thinTol">Max shift <span class="unit">mm</span></label><input id="thinTol" type="number" value="1" min="0.1" step="0.5" inputmode="decimal"></div></div>
     <p class="hint">Fewest points: after routing, drops every point the curve doesn't need. The radius still holds and the curve moves at most Max shift. Target points are always kept.</p>
+    </div>
+    <p class="hint" id="arcHint" hidden>Lines + arcs: the .pts file holds only the corner points of a polyline. In Creo, build the curve with Curve through points, Single radius, and type the radius from the file header. The corners are moved until every arc and straight passes through your points; the radius is pushed from Min radius up toward Min radius × Safety factor.</p>
     <details>
       <summary>Fix end directions</summary>
       <div class="fields c2">
@@ -103,10 +111,52 @@
     <button class="linkish" id="nudge" type="button" hidden style="margin-top:6px;font-size:12.5px"></button>
   </section>
 
+  <section id="panTable" hidden>
+    <label for="tin">Pipe points from a drawing table <span class="unit">(paste)</span></label>
+    <textarea id="tin" rows="9" spellcheck="false" wrap="off" placeholder="X&#10;2370.0&#10;2215.0&#10;...&#10;&#10;Y&#10;-550.0&#10;...&#10;&#10;Z&#10;1040.0&#10;..."></textarea>
+    <div class="presets"><span class="unit">Load:</span><button type="button" id="tExample">example</button><button type="button" id="tClear">clear</button></div>
+    <p class="hint">Paste an X block, a Y block and a Z block (each a heading, then one value per line), or rows of X Y Z copied from a table or Excel. A leading point number on a row is ignored.</p>
+    <div class="fields c3">
+      <div><label for="tname">File name</label><input id="tname" value="pipe_route" spellcheck="false"></div>
+      <div><label for="tdec">Decimals</label><input id="tdec" type="number" value="3" min="0" max="6" step="1" inputmode="numeric"></div>
+      <div><label for="tbr">Bend R <span class="unit">mm</span></label><input id="tbr" type="number" min="0" step="1" placeholder="optional" inputmode="decimal"></div>
+    </div>
+    <div class="status" id="statusTable"></div>
+    <div id="tcheck"></div>
+    <label for="tout" style="margin-top:10px">.pts file</label>
+    <textarea id="tout" rows="9" spellcheck="false" wrap="off" readonly></textarea>
+    <div class="tbtns">
+      <button class="go" id="tCopy" type="button" disabled>Copy .pts</button>
+      <button class="go ghost" id="tDl" type="button" disabled>Download .pts</button>
+    </div>
+    <div class="presets"><button type="button" id="tToBend" disabled>Use these points on the Bend radius tab</button></div>
+  </section>
+
   <section id="panAnalyse" hidden>
     <label for="acab">Cables to check <span class="unit">(# name, then X Y Z)</span></label>
     <textarea id="acab" rows="7" spellcheck="false" wrap="off"></textarea>
-    <div class="presets"><span class="unit">Load:</span><button type="button" id="aOpen">.pts / .stp / .igs files</button><button type="button" id="aExample">example, 3 edited cables</button></div>
+    <div class="presets"><span class="unit">Load:</span><button type="button" id="aOpen">.pts / .stp / .igs files</button><button type="button" id="aAsm" title="Creo assembly export: parts, coordinate systems and the centreline of each swept pipe">assembly .stp (parts + pipes)</button><button type="button" id="aExample">example, 3 edited cables</button></div>
+    <input type="file" id="asmfile" accept=".stp,.step" hidden>
+    <div id="thBox" class="thbox" hidden>
+      <label>Route a pipe through clamps</label>
+      <div class="fields c2">
+        <div><label for="thPipe">Pipe</label><select id="thPipe"></select></div>
+        <div><label for="thFrame">.pts frame</label><select id="thFrame"></select></div>
+      </div>
+      <div id="thClamps"></div>
+      <div class="fields c3">
+        <div><label for="thR">Bend R <span class="unit">mm</span></label><input id="thR" type="number" min="1" step="0.5" inputmode="decimal"></div>
+        <div><label for="thMin">Min straight <span class="unit">mm</span></label><input id="thMin" type="number" value="30" min="0" step="5" inputmode="decimal"></div>
+        <div><label for="thMargin">Margin <span class="unit">mm</span></label><input id="thMargin" type="number" value="2" min="0" step="1" inputmode="decimal"></div>
+      </div>
+      <p class="hint">The pipe is re-routed so a straight runs along each ticked bore, covering it plus Margin at both sides. Both ends and end directions stay; existing corners move as little as possible, a corner is added only when needed. Min straight applies between bends.</p>
+      <button class="go" id="thRun" type="button">Route through ticked clamps</button>
+      <div class="status" id="statusThrough"></div>
+      <div id="thOut"></div>
+      <label for="thPts" style="margin-top:10px">.pts file</label>
+      <textarea id="thPts" rows="7" spellcheck="false" wrap="off" readonly></textarea>
+      <div class="tbtns"><button class="go" id="thCopy" type="button" disabled>Copy .pts</button><button class="go ghost" id="thDl" type="button" disabled>Download .pts</button></div>
+    </div>
     <input type="file" id="afile" multiple accept=".pts,.txt,.csv,.ibl,.igs,.iges,.stp,.step" hidden>
     <label for="aprop" style="margin-top:10px">Cable properties <span class="unit">(id  d  min R  gap)</span></label>
     <textarea id="aprop" rows="3" spellcheck="false" wrap="off"></textarea>
@@ -212,6 +262,9 @@
 </main>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="js/arcroute.js"></script>
+<script src="js/step-asm.js"></script>
+<script src="js/through.js"></script>
 <script src="js/route-studio.js"></script>
 <script src="js/analysis.js"></script>
 <script src="js/refine.js"></script>
@@ -219,5 +272,8 @@
 <script src="js/iges.js"></script>
 <script src="js/step.js"></script>
 <script src="js/cad-io.js"></script>
+<script src="js/arc-ui.js"></script>
+<script src="js/pts-table.js"></script>
+<script src="js/asm-ui.js"></script>
 </body>
 </html>

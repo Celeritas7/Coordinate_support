@@ -319,7 +319,7 @@ K2   -800  -600  -100    1   0.15  0.05
 K3   -350  -450   -20    1   0.6   0.1`,
 bob:`! id   Xmin  Ymin  Zmin    Xmax  Ymax  Zmax
 O1  -1050  -560  -160    -950  -420  -40`};
-const PALETTE=['#2B6CB0','#C8323C','#2F8F63','#8A5BD6','#D08A1E','#0E7C86'];
+const PALETTE=['#2B6CB0','#8A5BD6','#2F8F63','#B5527A','#0E7C86','#7A6A2B'];
 const $=id=>document.getElementById(id);
 const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
 const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
@@ -419,6 +419,16 @@ function rebuild(refit){
     const pm=new THREE.MeshLambertMaterial({color:new THREE.Color(r.color)});
     r.Q.forEach((q,i)=>{const isT=!r.tidx||r.tidx.includes(i);const s=new THREE.Mesh(sg,pm);
       s.scale.setScalar(isT?tr*1.9:tr*1.15);s.position.set(...q);content.add(s);});
+    if(r.kind==='arc'||r.kind==='pipe'){content.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(r.Q.map(q=>new THREE.Vector3(...q))),new THREE.LineDashedMaterial({color:new THREE.Color(r.color),dashSize:tr*3,gapSize:tr*2})).computeLineDistances());
+      const sm=new THREE.MeshLambertMaterial({color:new THREE.Color(css('--ink'))});
+      (r.stations||[]).forEach(st=>{const s=new THREE.Mesh(sg,sm);s.scale.setScalar(tr*1.7);s.position.set(...st.p);content.add(s);});}
+    if(r.parts&&r.id===(sel&&sel.id)){const bc=new THREE.Color(css('--muted'));
+      r.parts.forEach(b=>content.add(new THREE.Box3Helper(new THREE.Box3(new THREE.Vector3(...b.min),new THREE.Vector3(...b.max)),bc)));}
+    if(r.clamps&&r.id===(sel&&sel.id))r.clamps.forEach(k=>{const a=k.d,u=V.norm(Math.abs(a[0])<0.9?V.cross(a,[1,0,0]):V.cross(a,[0,1,0])),w=V.cross(a,u);
+      const col=css(k.ok?'--ok':k.on?'--bad':'--muted');
+      [-1,1].forEach(s=>content.add(circle(V.add(k.c,V.mul(a,s*k.length/2)),u,w,k.r,col,false)));
+      content.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(...V.add(k.c,V.mul(a,-k.length))),new THREE.Vector3(...V.add(k.c,V.mul(a,k.length)))]),new THREE.LineBasicMaterial({color:col})));
+      addTag(V.add(k.c,V.mul(u,k.r*1.6)),k.name+(k.ok?'':k.on?' (pipe misses it)':''),'t');});
     if(r.master&&!masters.has(r.master)){masters.add(r.master);
       const mp=r.master.map(p=>new THREE.Vector3(...p));
       const ml=new THREE.Line(new THREE.BufferGeometry().setFromPoints(mp),new THREE.LineBasicMaterial({color:css('--muted')}));
@@ -442,7 +452,8 @@ function rebuild(refit){
       if(rw<diag*2)content.add(circle(V.add(p,V.mul(N,rw)),V.mul(N,-1),T,rw,cc,false));
       content.add(circle(V.add(p,V.mul(N,R)),V.mul(N,-1),T,R,css('--ink'),true));
       addTag(V.add(p,V.mul(N,-tubeR*3)),`tightest bend R ${fmt(rw)} mm`);}
-    sel.Q.forEach((q,i)=>{if(!sel.tidx||sel.tidx.includes(i))addTag(q,'P'+((sel.tidx?sel.tidx.indexOf(i):i)+1),'t');});
+    if(sel.stations)sel.stations.forEach(st=>addTag(st.p,st.name,'t'));
+    else sel.Q.forEach((q,i)=>{if(!sel.tidx||sel.tidx.includes(i))addTag(q,'P'+((sel.tidx?sel.tidx.indexOf(i):i)+1),'t');});
   }
   marker=new THREE.Mesh(sg,new THREE.MeshBasicMaterial({color:css('--ink')}));
   marker.scale.setScalar(tubeR*2.6);marker.visible=false;content.add(marker);
@@ -574,10 +585,12 @@ function renderRuns(){
 }
 function loadSettings(r){
   const p=r.params;
+  if(r.kind==='pipe'){showPanel('analyse');return;}
   if(r.kind==='bundle'){showPanel('bundle');$('bsf').value=p.SF;if(p.spacing)$('bsp').value=p.spacing;}
   else if(r.kind==='clear'){showPanel('clear');$('gap').value=p.gap;$('mode').value=p.mode;$('plane').value=p.plane;
     $('smooth').value=p.smooth;$('blend').value=p.blend;$('cr').value=p.R;$('lock').value=p.lock||'';}
-  else{showPanel('bend');$('r').value=p.R;$('sf').value=p.SF;if(p.spacing)$('sp').value=p.spacing;}
+  else{showPanel('bend');$('r').value=p.R;$('sf').value=p.SF;if(p.spacing)$('sp').value=p.spacing;
+    if($('shape')&&(r.kind==='bend'||r.kind==='arc')){$('shape').value=r.kind==='arc'?'arc':'spline';$('shape').dispatchEvent(new Event('change'));}}
 }
 function renderCmp(){
   const box=$('cmp');
@@ -604,7 +617,7 @@ function renderPts(){
   const Rat=q=>{let bi=0,bd=Infinity;r.d.pts.forEach((p,i)=>{const d=V.len(V.sub(p,q));if(d<bd){bd=d;bi=i;}});return 1/r.d.k[bi];};
   box.innerHTML=`<table><thead><tr><th>#</th><th>X</th><th>Y</th><th>Z</th><th>Bend R, mm</th><th></th></tr></thead><tbody>${r.Q.map((q,i)=>{
     const isT=!r.tidx||r.tidx.includes(i),rr=Rat(q),col=rr<R?'--bad':rr<R*SF?'--warn':'--ok';
-    return `<tr data-i="${i}"><td class="metric">${i+1}</td><td>${q[0].toFixed(2)}</td><td>${q[1].toFixed(2)}</td><td>${q[2].toFixed(2)}</td><td style="color:var(${col})">${rr>1e4?'straight':fmt(rr)}</td><td class="metric">${isT&&r.tidx?'P'+(r.tidx.indexOf(i)+1):''}</td></tr>`;}).join('')}</tbody></table>`;
+    return `<tr data-i="${i}"><td class="metric">${i+1}</td><td>${q[0].toFixed(2)}</td><td>${q[1].toFixed(2)}</td><td>${q[2].toFixed(2)}</td><td style="color:var(${col})">${rr>1e4?'straight':fmt(rr)}</td><td class="metric">${r.qLabel?r.qLabel[i]:isT&&r.tidx?'P'+(r.tidx.indexOf(i)+1):''}</td></tr>`;}).join('')}</tbody></table>`;
   box.querySelectorAll('tr[data-i]').forEach(tr=>{const q=r.Q[+tr.dataset.i];
     tr.onpointerenter=()=>{if(marker){marker.position.set(...q);marker.visible=true;draw();}};
     tr.onpointerleave=()=>{if(marker){marker.visible=false;draw();}};
