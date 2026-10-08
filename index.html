@@ -137,6 +137,8 @@
     <textarea id="acab" rows="7" spellcheck="false" wrap="off"></textarea>
     <div class="presets"><span class="unit">Load:</span><button type="button" id="aOpen">.pts / .stp / .igs files</button><button type="button" id="aAsm" title="Creo assembly export: parts, coordinate systems and the centreline of each swept pipe">assembly .stp (parts + pipes)</button><button type="button" id="aExample">example, 3 edited cables</button></div>
     <input type="file" id="asmfile" accept=".stp,.step" hidden>
+    <div id="asmProg" class="asmprog" hidden><progress max="1" value="0"></progress><span class="unit"></span></div>
+    <details id="asmParts" class="asmparts" hidden><summary></summary><div class="asmtbl"></div></details>
     <div id="thBox" class="thbox" hidden>
       <label>Route a pipe through clamps</label>
       <div class="fields c2">

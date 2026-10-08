@@ -64,3 +64,13 @@ Both routes must come from the file; the example pair is only replaced per texta
 5. Copy .pts / Download .pts: header names the clamp, single radius 40, frame MAIN.
 6. `piping3_practice_asm.stp`, pipe 111: three clamps listed, all "pipe passes through it"; routing keeps 23 points and re-centres the pipe in the 22402156 clamps (moves ≤ 0.17 mm).
 7. `node tests/through.test.js` prints only `ok` lines (18 checks).
+
+## 8. Assembly reader, hose module Phase A (parts + edge cloud)
+
+1. Put `u107338_fy26_test_frame_asm.stp` in `samples/` (4.5 MB, about 86 000 entities).
+2. Analyse tab → **assembly .stp (parts + pipes)** → that file. A progress bar under the Load line runs through *Reading entities*, *Decoding entities*, *Placing parts*; the page stays responsive.
+3. Status: 50 products, 63 placed part instances, the number of edge points and the read time. No swept pipe is expected: the hose is made of B-spline faces and is read in Phase B.
+4. Open **Parts**: one row per placed instance, with edges, points and the world box. `FY26_TEST_FRAME__2` ≈ X −1515…544, Y 1000…1300, Z −10985…−1710. The `991640` instance near CS33: X −441.7…−387.7, Y 1047.9…1072.1, Z −5760.5…−5739.5.
+5. Also works with index.html opened straight from disk (the worker is built in the page).
+6. `node tests/asm-cloud.test.js` prints only `ok` lines; without the sample it prints one `skip` line for the acceptance part.
+

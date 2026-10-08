@@ -48,19 +48,31 @@ function asmTexts(){const F=asmFrame();
   runs.filter(r=>r.kind==='pipe'&&r.asm&&ASM&&r.asm.file===ASM.name).forEach(r=>{r.text=asmPtsText(r.hdr,r.Q,F,r.hdrExtra);});
   if(TH.last)$('thPts').value=TH.last.run.text;renderPts();}
 
+// placed parts with their world box and edge cloud (Phase A of the hose module)
+function asmPartsList(r){const box=$('asmParts');if(!box)return;
+  const rows=r.instances.filter(i=>i.cloud||i.solids),by=new Map();rows.forEach(i=>{if(!by.has(i.name))by.set(i.name,[]);by.get(i.name).push(i);});
+  const b=i=>i.bbox?`${i.bbox.min.map(v=>v.toFixed(1)).join(' ')} … ${i.bbox.max.map(v=>v.toFixed(1)).join(' ')}`:'--';
+  box.querySelector('summary').textContent=`Parts: ${by.size} part${by.size===1?'':'s'}, ${rows.length} placed instances, ${r.summary.cloudPoints.toLocaleString()} edge points`;
+  box.querySelector('.asmtbl').innerHTML=`<table><thead><tr><th>Part</th><th>edges</th><th>points</th><th>box X Y Z min … max (mm)</th></tr></thead><tbody>${
+    rows.map(i=>`<tr title="${esc(i.label)}"><td>${esc(i.name)}</td><td class="n">${i.edges||0}</td><td class="n">${i.cloud?i.cloud.length/3:0}</td><td>${b(i)}</td></tr>`).join('')}</tbody></table>`;
+  box.hidden=!rows.length;}
+
 function asmLoad(file){
   cadSay('statusAnalyse',`Reading ${file.name}...`);
-  file.text().then(text=>{
-    let r;const t0=performance.now();
-    try{r=StepAsm.parse(text);}catch(e){return cadSay('statusAnalyse',`${file.name}: ${e.message}`,true);}
-    ASM={name:file.name,r};TH.pick={};TH.last=null;const ms=Math.round(performance.now()-t0),s=r.summary,parts=s.instances-1;
-    const tree=`${parts} part${parts===1?'':'s'} (${s.solids} solids), ${s.csys} coordinate systems`;
-    thSetup();
-    if(!r.pipes.length)return cadSay('statusAnalyse',`${file.name}: ${tree}. No swept pipe or hose found: a pipe is a solid made of cylinders and tori of one radius, at least 100 mm long.`,true);
+  const prog=$('asmProg'),bar=prog&&prog.querySelector('progress'),lab=prog&&prog.querySelector('span');
+  const show=(stage,f)=>{if(!prog)return;prog.hidden=false;bar.value=f;lab.textContent=`${stage} ${Math.round(f*100)}%`;};
+  $('aAsm').disabled=true;show('Opening file',0);
+  file.text().then(text=>{const t0=performance.now();
+    return StepAsm.parseAsync(text,{progress:show}).then(r=>{
+    ASM={name:file.name,r};TH.pick={};TH.last=null;const ms=Math.round(performance.now()-t0),s=r.summary;
+    const tree=`${s.parts} products, ${s.placed} placed part instances (${s.solids} solids, ${s.cloudPoints.toLocaleString()} edge points), ${s.csys} coordinate systems, read in ${(ms/1000).toFixed(1)} s`;
+    asmPartsList(r);thSetup();
+    if(!r.pipes.length)return cadSay('statusAnalyse',`${file.name}: ${tree}. No swept pipe found (cylinders and tori of one radius); a hose made of B-spline faces is read in the next step.`,!s.placed);
     r.pipes.forEach((p,pi)=>{r.clampsFor(pi).forEach(c=>{if(c.use)TH.pick[pi+':'+c.i]=true;});});
     r.pipes.forEach((p,pi)=>addRun(asmRun(p,pi)));asmTexts();thRender();
-    cadSay('statusAnalyse',`${file.name}: ${tree}; ${r.pipes.length} pipe${r.pipes.length===1?'':'s'}: ${r.pipes.map(p=>`${p.name} Ø${fmt(p.OD,1)} R ${isFinite(p.R)?fmt(p.R,1):'--'}, ${p.bends.length} bends, ${Math.round(p.length)} mm`).join('; ')}. Read in ${ms} ms.`);
-  });
+    cadSay('statusAnalyse',`${file.name}: ${tree}; ${r.pipes.length} pipe${r.pipes.length===1?'':'s'}: ${r.pipes.map(p=>`${p.name} Ø${fmt(p.OD,1)} R ${isFinite(p.R)?fmt(p.R,1):'--'}, ${p.bends.length} bends, ${Math.round(p.length)} mm`).join('; ')}.`);
+  });}).catch(e=>cadSay('statusAnalyse',`${file.name}: ${e.message}`,true))
+  .finally(()=>{$('aAsm').disabled=false;if(prog)prog.hidden=true;});
 }
 
 // ---- route through clamps panel ----

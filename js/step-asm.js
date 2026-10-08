@@ -4,7 +4,7 @@
  * cross-checked against the part's datum curves when Creo exported them.
  * No DOM. Browser: window.StepAsm. Node: require('./step-asm.js').
  */
-(function (root) {
+(function factory(root) {
 "use strict";
 const sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]],add=(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]],mul=(a,s)=>[a[0]*s,a[1]*s,a[2]*s],
 dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2],cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],
@@ -23,9 +23,10 @@ const F={
 };
 
 // ---------- tokenizer ----------
-function tokenize(text){
-  const ents=new Map(),s=String(text),n=s.length;let i=s.indexOf('DATA;');if(i<0)i=0;
+function tokenize(text,progress){
+  const ents=new Map(),s=String(text),n=s.length;let i=s.indexOf('DATA;');if(i<0)i=0;let next=1<<20;
   for(;;){
+    if(progress&&i>next){progress('Reading entities',i/n);next=i+(1<<20);}
     const h=s.indexOf('#',i);if(h<0)break;
     let j=h+1,id=0,any=false;
     while(j<n){const c=s.charCodeAt(j);if(c>=48&&c<=57){id=id*10+(c-48);any=true;j++;}else break;}
@@ -56,6 +57,8 @@ function decode(e){
 const ref=a=>{const m=/^#(\d+)$/.exec((a||'').trim());return m?+m[1]:null;};
 const refs=a=>(a||'').replace(/^\(|\)$/g,'').split(',').map(x=>ref(x)).filter(x=>x!=null);
 const str=a=>a&&a[0]==="'"?a.slice(1,-1):'';
+// every #id in an entity, quoted strings removed first: names like 'Placement #0' are not references
+const rawRefs=raw=>{const out=[],t=raw.replace(/'(?:[^']|'')*'/g,"''"),re=/#(\d+)/g;let m;while((m=re.exec(t)))out.push(+m[1]);return out;};
 const nums=a=>(a||'').replace(/^\(|\)$/g,'').split(',').map(parseFloat);
 
 // ---------- pieces: lines and arcs with end tangents ----------
@@ -161,10 +164,14 @@ function nearest(ch,p){let bd=Infinity,bq=null;
 }
 
 // ---------- main ----------
-function parse(text){
-  const E=tokenize(text);const get=id=>{const e=E.get(id);return e?decode(e):null;};
+// opts.progress(stage, fraction 0..1); opts.cloudStep: edge sample spacing in mm (default 5)
+function parse(text,opts){
+  opts=opts||{};const progress=opts.progress||null,STEP=opts.cloudStep>0?opts.cloudStep:5;
+  const E=tokenize(text,progress);const get=id=>{const e=E.get(id);return e?decode(e):null;};
   const has=(e,k)=>!!e&&e.kinds.includes(k),A=(e,k)=>e.argsOf[k]||e.args;
-  const byKind=new Map();for(const [id,e] of E){decode(e);for(const k of e.kinds){if(!byKind.has(k))byKind.set(k,[]);byKind.get(k).push(id);}}
+  const byKind=new Map();let nd=0;
+  for(const [id,e] of E){decode(e);for(const k of e.kinds){if(!byKind.has(k))byKind.set(k,[]);byKind.get(k).push(id);}
+    if(progress&&++nd%20000===0)progress('Decoding entities',nd/E.size);}
   const list=k=>byKind.get(k)||[];
   let unitScale=1,units='MM';
   for(const id of list('CONVERSION_BASED_UNIT')){if(/INCH/i.test(get(id).raw)){unitScale=25.4;units='INCH';}}
@@ -209,6 +216,50 @@ function parse(text){
       for(const c of ext)for(let k=0;k<3;k++){const s=c.r*Math.sqrt(Math.max(0,1-c.n[k]*c.n[k]));grow(k,c.c[k]-s);grow(k,c.c[k]+s);}}
     return{id,name:str(e.args[0]),faces,types,bbox,nVerts:verts.length};}
 
+
+  // ---------- edge cloud: every EDGE_CURVE of a part sampled about every STEP mm ----------
+  // Lines, trimmed circles and ellipses, B-spline curves (rational too). Enough for clearance; faces are not meshed.
+  const DESCEND=new Set(['MANIFOLD_SOLID_BREP','BREP_WITH_VOIDS','SHELL_BASED_SURFACE_MODEL','FACE_BASED_SURFACE_MODEL','CLOSED_SHELL','OPEN_SHELL',
+    'ORIENTED_CLOSED_SHELL','ORIENTED_OPEN_SHELL','CONNECTED_FACE_SET','ADVANCED_FACE','FACE_SURFACE','FACE_OUTER_BOUND','FACE_BOUND','EDGE_LOOP','ORIENTED_EDGE']);
+  function edgeIds(roots){const out=new Set(),seen=new Set(),st=roots.slice();
+    while(st.length){const id=st.pop();if(seen.has(id))continue;seen.add(id);const e=get(id);if(!e)continue;
+      if(has(e,'EDGE_CURVE')){out.add(id);continue;}
+      if(!e.kinds.some(k=>DESCEND.has(k)))continue;
+      for(const r of rawRefs(e.raw))if(!seen.has(r))st.push(r);}
+    return out;}
+  // SURFACE_CURVE / SEAM_CURVE wrap the 3D curve
+  const curveOf=id=>{let c=get(id);for(let n=0;n<4&&c;n++){const w=c.kinds.find(k=>k==='SURFACE_CURVE'||k==='SEAM_CURVE'||k==='INTERSECTION_CURVE');if(!w)break;c=get(ref(c.argsOf[w][1]));}return c;};
+  function bsplinePts(c){
+    const W=c.argsOf.B_SPLINE_CURVE_WITH_KNOTS,base=c.argsOf.B_SPLINE_CURVE;let deg,cps,mults,knots,w=null;
+    if(base&&W){deg=+base[0];cps=refs(base[1]);mults=nums(W[0]);knots=nums(W[1]);const R=c.argsOf.RATIONAL_B_SPLINE_CURVE;if(R)w=nums(R[0]);}
+    else if(W){deg=+W[1];cps=refs(W[2]);mults=nums(W[6]);knots=nums(W[7]);}else return null;
+    const P=cps.map(point);if(!(deg>=1)||P.length<2||P.some(p=>!p))return null;
+    const U=[];mults.forEach((m,i)=>{for(let k=0;k<m;k++)U.push(knots[i]);});
+    const n=P.length-1,p=deg;if(U.length!==n+p+2||(w&&w.length!==P.length))return null;
+    const at=t=>{let k=p;while(k<n&&U[k+1]<=t)k++;const d=[];
+      for(let j=0;j<=p;j++){const q=P[k-p+j],ww=w?w[k-p+j]:1;d.push([q[0]*ww,q[1]*ww,q[2]*ww,ww]);}
+      for(let r=1;r<=p;r++)for(let j=p;j>=r;j--){const i=k-p+j,den=U[i+p-r+1]-U[i],a=den?(t-U[i])/den:0;for(let m=0;m<4;m++)d[j][m]=(1-a)*d[j-1][m]+a*d[j][m];}
+      const h=d[p];return[h[0]/h[3],h[1]/h[3],h[2]/h[3]];};
+    let L=0;for(let i=1;i<P.length;i++)L+=len(sub(P[i],P[i-1]));
+    const N=Math.min(400,Math.max(8,Math.ceil(L/STEP))),t0=U[p],t1=U[n+1],o=[];for(let i=0;i<=N;i++)o.push(at(t0+(t1-t0)*i/N));return o;}
+  function sampleEdge(id){const a=get(id).args,v1=vertex(ref(a[1])),v2=vertex(ref(a[2])),same=!/\.F\./.test(a[4]||''),c=curveOf(ref(a[3]));
+    const seg=(p,q)=>{const N=Math.min(400,Math.max(1,Math.ceil(len(sub(q,p))/STEP))),o=[];for(let i=0;i<=N;i++)o.push(add(p,mul(sub(q,p),i/N)));return o;};
+    const straight=()=>v1&&v2?seg(v1,v2):v1?[v1]:[];
+    if(!c||has(c,'LINE'))return straight();
+    if(has(c,'CIRCLE')||has(c,'ELLIPSE')){const k=has(c,'CIRCLE')?'CIRCLE':'ELLIPSE',ca=A(c,k),ax=axis(ref(ca[1]));if(!ax)return straight();
+      const ra=parseFloat(ca[2])*unitScale,rb=k==='ELLIPSE'?parseFloat(ca[3])*unitScale:ra;if(!(ra>0&&rb>0))return straight();
+      const ang=q=>{const d=sub(q,ax.o);return Math.atan2(dot(d,ax.y)/rb,dot(d,ax.x)/ra);};
+      // the curve runs counter-clockwise about its axis; a reversed edge (same_sense .F.) covers v2 -> v1
+      let a0=v1?ang(v1):0,th=TAU;if(v1&&v2&&len(sub(v1,v2))>1e-6){const s=same?v1:v2,e=same?v2:v1;a0=ang(s);th=mod(ang(e)-a0);if(th<1e-9)th=TAU;}
+      const N=Math.min(400,Math.max(8,Math.ceil(th*Math.max(ra,rb)/STEP))),o=[];
+      for(let i=0;i<=N;i++){const f=a0+th*i/N;o.push(add(ax.o,add(mul(ax.x,ra*Math.cos(f)),mul(ax.y,rb*Math.sin(f)))));}return o;}
+    if(has(c,'B_SPLINE_CURVE_WITH_KNOTS')){const P=bsplinePts(c);if(!P)return straight();
+      if(v1&&v2&&len(sub(v1,v2))>1e-6){const near=v=>{let bi=0,bd=Infinity;P.forEach((q,i)=>{const d=len(sub(q,v));if(d<bd){bd=d;bi=i;}});return bi;};
+        const i1=near(v1),i2=near(v2);return[v1].concat(P.slice(Math.min(i1,i2)+1,Math.max(i1,i2)),[v2]);}
+      return P;}
+    return straight();}
+  function partCloud(roots){const ids=edgeIds(roots),arr=[];for(const id of ids)for(const p of sampleEdge(id))arr.push(p[0],p[1],p[2]);return{cloud:Float64Array.from(arr),edges:ids.size};}
+
   // skin pieces of a swept solid: lines from cylinders, arcs from tori. The pipe radius is the one carrying the
   // most length (end beads, bosses and the bore carry less); the bore is the next radius with comparable length
   function solidPieces(sol){
@@ -242,14 +293,16 @@ function parse(text){
   const partCache=new Map();
   function part(pd){if(partCache.has(pd))return partCache.get(pd);const P=products.get(pd);
     const items=[];for(const r of P.reps){const e=get(r);if(!e)continue;const k=e.kinds.find(k=>/REPRESENTATION$/.test(k));if(!k)continue;const a=e.argsOf[k];if(a&&a[1]&&a[1][0]==='(')items.push(...refs(a[1]));}
-    const g={name:P.name,pd,csys:[],points:[],curves:[],solids:[]},seen=new Set();
+    const g={name:P.name,pd,csys:[],points:[],curves:[],solids:[]},seen=new Set(),shells=[];
     const take=id=>{if(seen.has(id))return;seen.add(id);const e=get(id);if(!e)return;
       if(has(e,'AXIS2_PLACEMENT_3D')){const ax=axis(id);if(ax&&ax.name)g.csys.push(ax);}
       else if(has(e,'CARTESIAN_POINT')){const nm=str(e.args[0]);const p=point(id);if(nm&&p)g.points.push({name:nm,p});}
       else if(has(e,'GEOMETRIC_SET')||has(e,'GEOMETRIC_CURVE_SET'))refs(A(e,e.kinds.find(k=>/GEOMETRIC/.test(k)))[1]).forEach(take);
       else if(has(e,'TRIMMED_CURVE')){const c=trimmed(id);if(c)g.curves.push(c);}
-      else if(has(e,'MANIFOLD_SOLID_BREP')||has(e,'BREP_WITH_VOIDS')){const s=solid(id);if(s)g.solids.push(s);}};
+      else if(has(e,'MANIFOLD_SOLID_BREP')||has(e,'BREP_WITH_VOIDS')){const s=solid(id);if(s)g.solids.push(s);shells.push(id);}
+      else if(has(e,'SHELL_BASED_SURFACE_MODEL')||has(e,'FACE_BASED_SURFACE_MODEL'))shells.push(id);};
     items.forEach(take);
+    const pc=partCloud(shells);g.cloud=pc.cloud;g.edges=pc.edges;
     g.pipe=pipeOf(g);partCache.set(pd,g);return g;}
 
   // the swept solid: longest recoverable centreline, cylinders + tori (+ end planes) only scores best
@@ -285,10 +338,16 @@ function parse(text){
   const csys=[],points=[],pipes=[];
   const bboxWorld=(M,b)=>{const o={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
     for(let i=0;i<8;i++){const p=F.pt(M,[i&1?b.max[0]:b.min[0],i&2?b.max[1]:b.min[1],i&4?b.max[2]:b.min[2]]);for(let k=0;k<3;k++){o.min[k]=Math.min(o.min[k],p[k]);o.max[k]=Math.max(o.max[k],p[k]);}}return o;};
-  instances.forEach((inst,idx)=>{const g=part(inst.pd);inst.part=g;inst.label=inst.path.slice(1).join(' / ')||g.name;
+  instances.forEach((inst,idx)=>{if(progress)progress('Placing parts',idx/instances.length);const g=part(inst.pd);inst.part=g;inst.label=inst.path.slice(1).join(' / ')||g.name;
     inst.csys=g.csys.map(c=>({name:c.name,o:F.pt(inst.M,c.o),x:F.vec(inst.M,c.x),y:F.vec(inst.M,c.y),z:F.vec(inst.M,c.z),inst:idx}));
     inst.points=g.points.map(p=>({name:p.name,p:F.pt(inst.M,p.p),inst:idx}));
     inst.solids=g.solids.length;inst.bbox=null;g.solids.forEach(s=>{if(!s.bbox)return;const w=bboxWorld(inst.M,s.bbox);if(!inst.bbox)inst.bbox=w;else for(let k=0;k<3;k++){inst.bbox.min[k]=Math.min(inst.bbox.min[k],w.min[k]);inst.bbox.max[k]=Math.max(inst.bbox.max[k],w.max[k]);}});
+    // edge cloud in world coordinates; its box is exact for the edges (a box of the rotated local box is not)
+    inst.cloud=null;inst.edges=g.edges;
+    if(g.cloud.length){const c=g.cloud,w=new Float32Array(c.length),M=inst.M,b={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
+      for(let i=0;i<c.length;i+=3){const x=c[i],y=c[i+1],z=c[i+2];
+        for(let k=0;k<3;k++){const v=M.o[k]+M.x[k]*x+M.y[k]*y+M.z[k]*z;w[i+k]=v;if(v<b.min[k])b.min[k]=v;if(v>b.max[k])b.max[k]=v;}}
+      inst.cloud=w;inst.bbox=b;}
     csys.push(...inst.csys);points.push(...inst.points);
     if(g.pipe){const ch={pieces:g.pipe.chain.pieces.map(p=>xformPiece(inst.M,p)),length:g.pipe.chain.length,leftover:g.pipe.chain.leftover},info=describe(ch);
       pipes.push({inst:idx,name:g.name,label:inst.label,OD:g.pipe.OD,ID:g.pipe.ID,R:info.R,chain:ch,info,Q:info.Q,bends:info.bends,length:info.length,
@@ -311,29 +370,67 @@ function parse(text){
         if(!on.length)continue;
         fixings.push({inst:idx,name:inst.name,label:inst.label,csys:on[0].name,c,d:g.d,r:rmin,D:2*rmin,length:L});}});});
 
+  if(progress)progress('Done',1);
+  // the parts' local clouds have been placed; the world clouds are kept per instance
+  for(const P of partCache.values())P.cloud=null;
+  const placed=instances.filter(i=>i.cloud||i.solids);
+  return attach({product,units,degrees,entities:E.size,products:[...products.values()].map(P=>({pd:P.pd,name:P.name,pid:P.pid})),instances,csys,points,pipes,fixings,
+    debug:{solidPieces,part},
+    summary:{parts:products.size,instances:instances.length,placed:placed.length,solids:instances.reduce((s,i)=>s+i.solids,0),
+      cloudPoints:instances.reduce((s,i)=>s+(i.cloud?i.cloud.length/3:0),0),pipes:pipes.length,fixings:fixings.length,csys:csys.length,points:points.length}});
+}
+
+// methods on a parse result. Kept outside parse() so a result made in a Web Worker (plain data) gets them back.
+function attach(r){
+  const{csys,pipes,fixings}=r;
   // which named frame a .pts file is written in: the one that lands its points on the centreline or its corners
-  function matchFrame(pts,pipe){let best=null;
+  r.matchFrame=function(pts,pipe){let best=null;
     const cands=[{name:'file origin',M:F.id()}].concat(csys.map(c=>({name:c.name,M:{o:c.o,x:c.x,y:c.y,z:c.z}})));
     const distQ=p=>Math.min(...pipe.Q.map(q=>len(sub(q,p))));
     for(const c of cands){const errs=pts.map(p=>{const w=F.pt(c.M,p);return Math.min(nearest(pipe.chain,w).d,distQ(w));}).sort((a,b)=>a-b);
       const err=errs[Math.floor((errs.length-1)/2)];if(!best||err<best.err)best={frame:c.name,M:c.M,err,errs};}
-    return best;}
-
+    return best;};
   // the clamps that matter for one pipe: bore fits its OD (±1.5 mm), not its own end fitting, not holding another pipe
-  function clampsFor(pi){const p=pipes[pi];if(!p)return[];
+  r.clampsFor=function(pi){const p=pipes[pi];if(!p)return[];
     const through=(q,x)=>{const v=nearest(q.chain,x.c);return v.d<=0.5;};
     return fixings.map((x,i)=>{const dist=nearest(p.chain,x.c).d,fits=Math.abs(x.D-p.OD)<=1.5,passes=dist<=0.5;
       const end=passes&&Math.min(len(sub(x.c,p.info.start)),len(sub(x.c,p.info.end)))<x.length/2+p.OD;
       const other=pipes.find((q,j)=>j!==pi&&through(q,x));
       return{i,fix:x,dist,fits,passes,end,holds:other?other.name:null,use:fits&&!end&&!other};})
-      .filter(c=>c.fits).sort((a,b)=>(b.use-a.use)||(a.dist-b.dist));}
-
-  return{product,units,degrees,entities:E.size,products:[...products.values()].map(P=>({pd:P.pd,name:P.name,pid:P.pid})),instances,csys,points,pipes,fixings,clampsFor,
-    matchFrame,toFrame:F.toLocal,fromFrame:F.pt,nearest,debug:{solidPieces,part},
-    summary:{parts:products.size,instances:instances.length,solids:instances.reduce((s,i)=>s+i.solids,0),pipes:pipes.length,fixings:fixings.length,csys:csys.length,points:points.length}};
+      .filter(c=>c.fits).sort((a,b)=>(b.use-a.use)||(a.dist-b.dist));};
+  r.toFrame=F.toLocal;r.fromFrame=F.pt;r.nearest=nearest;
+  return r;
 }
 
-const API={parse,chain,describe,sample,nearest,F};
+// ---------- parse in a Web Worker, with progress ----------
+// The worker is built from this file's own source (a Blob URL), so it also runs when index.html is opened from disk.
+// Without Worker support it falls back to parsing on the page.
+const WORKER_MAIN=`self.onmessage=function(ev){try{
+  const r=StepAsm.parse(ev.data.text,{cloudStep:ev.data.cloudStep,progress:function(stage,f){self.postMessage({type:'progress',stage:stage,f:f});}});
+  const out={},tr=[];for(const k in r)if(typeof r[k]!=='function'&&k!=='debug')out[k]=r[k];
+  r.instances.forEach(function(i){if(i.cloud)tr.push(i.cloud.buffer);});
+  self.postMessage({type:'done',r:out},tr);
+}catch(e){self.postMessage({type:'error',message:String(e&&e.message||e)});}};`;
+let workerURL=null;
+function parseAsync(text,opts){opts=opts||{};const progress=opts.progress||null;
+  return new Promise((resolve,reject)=>{
+    const onPage=()=>setTimeout(()=>{try{resolve(parse(text,opts));}catch(e){reject(e);}},20);
+    let w=null;
+    try{if(typeof Worker!=='undefined'&&typeof Blob!=='undefined'&&typeof URL!=='undefined'){
+      if(!workerURL)workerURL=URL.createObjectURL(new Blob(['('+factory.toString()+')(self);\n'+WORKER_MAIN],{type:'text/javascript'}));
+      w=new Worker(workerURL);}}catch(e){w=null;}
+    if(!w)return onPage();
+    let heard=false;
+    w.onmessage=ev=>{const m=ev.data;heard=true;
+      if(m.type==='progress'){if(progress)progress(m.stage,m.f);}
+      else if(m.type==='done'){w.terminate();resolve(attach(m.r));}
+      else{w.terminate();reject(new Error(m.message));}};
+    w.onerror=ev=>{if(ev&&ev.preventDefault)ev.preventDefault();w.terminate();if(heard)reject(new Error((ev&&ev.message)||'STEP worker failed'));else onPage();};
+    w.postMessage({text:String(text),cloudStep:opts.cloudStep});
+  });
+}
+
+const API={parse,parseAsync,attach,chain,describe,sample,nearest,F};
 if(typeof module!=="undefined"&&module.exports)module.exports=API;
 root.StepAsm=API;
 })(typeof globalThis!=="undefined"?globalThis:this);

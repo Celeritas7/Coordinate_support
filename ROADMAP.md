@@ -125,6 +125,17 @@ Next:
 - Hose case: sweep along a spline (B-spline surface skins) — recover the trajectory from the datum curve or the skin
 - .pts loaded with the assembly: frame detected, repeated points dropped and noted, out-of-order tail points reported, corners compared (piping2: one corner 4 mm off; piping3_21: pipe runs 89 mm past the first point)
 
+## Hose module, Phase A — assembly reader: parts and edge cloud (done, acceptance pending the sample)
+Brief: `claude_code_prompt.md` (2026-10-08), Python prototype `step_assembly.py` / `part_edge_cloud.py`. Built on the Phase 12 reader.
+- Product tree and placements as in Phase 12; quoted strings are skipped when collecting `#123` references (names like `'Placement #0'`)
+- Per part: every EDGE_CURVE of its solids and surface models sampled about every 5 mm: lines, trimmed circles and ellipses (edge sense respected), B-spline curves (rational too, SURFACE_CURVE / SEAM_CURVE unwrapped). Shared edges sampled once
+- Per placed instance: the cloud in assembly coordinates (Float32) and a world box taken from it (exact for the edges; the old box of the rotated local box was too big on rotated parts). Faces are not triangulated yet
+- Parsing in a Web Worker with a progress bar (reading, decoding, placing parts). The worker is built from `js/step-asm.js` itself as a Blob, so it also runs from `file://`; without Worker support it parses on the page
+- Analyse tab → assembly .stp: products, placed instances, edge points, read time; a **Parts** list (name, edges, points, world box per instance)
+- Test: `node tests/asm-cloud.test.js` (built-in nested/rotated assembly, then the acceptance checks when `samples/u107338_fy26_test_frame_asm.stp` is present)
+- Acceptance (to run on the sample): 50 products, 63 placed instances; `FY26_TEST_FRAME__2` box ≈ X −1515…544, Y 1000…1300, Z −10985…−1710; `991640` near CS33 box X −441.7…−387.7, Y 1047.9…1072.1, Z −5760.5…−5739.5
+- Speed: a synthetic 50 000-entity file with 12.5 M edge points reads in about 1.8 s
+
 ## Phase 12b — Pipe through a clamp (done)
 - Clamps found automatically (`StepAsm`): a hole (cylinder face facing its axis) with a named CSYS origin on the axis, inside the hole. Bore Ø, axis and length from the hole faces; coaxial faces merged; the CSYS axes are not used (piping2 `990224`: CS0 Z along X, bore along Y)
 - Per pipe the list shows only bores of its size (±1.5 mm); bolt holes, its own end fittings and clamps holding another pipe are left out. Pre-ticked; the pipe's status per clamp: passes / misses by N mm
