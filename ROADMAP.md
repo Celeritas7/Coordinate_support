@@ -164,6 +164,14 @@ Brief: `claude_code_prompt.md` (2026-10-08), Python prototype `step_assembly.py`
 - Issues list reads as a checklist: where (station span), what, value vs limit, which part. Click → 3D zoom, point coloured
 - Problem report: Copy / Download (.md and .csv)
 
+## Clamp placement on a mounting plate (requirement, 2026-10-08)
+From the engineer: a clamp is not free in space. The **mounting plate** offers a set of possible positions (holes, slots, mounting options), and the hose / pipe can be held at different points along its route.
+- A fix that moves a clamp picks one of the plate's **allowed positions**, never an arbitrary offset
+- The clamp body must not interfere with the plate, the frame or other parts, and must sit properly on the hose (straight lead-in / lead-out, hose centred in the bore)
+- **Ease of clamping counts**: the fitter must be able to reach the clamp and the bolt with hand and tool (access zone free, sensible bolt direction, not hidden behind the frame or another part). A position that only passes geometry but is hard to fit ranks lower
+- Ranking of candidate positions: hose checks pass (bend R, gap) → no interference → access / comfort score → least change
+- Feeds Phase C (clip moves become a search over allowed positions) and Phase D (shared bracket, rules file)
+
 ## Phase 15 — Fixes
 - Suggested actions per issue: move a station or clip by Δ along an axis (only what can move — clamps and clips are frame-fixed unless the user frees them), step the route around a part with corner points, re-route a span with lines + arcs at single radius
 - Apply → re-check → accept or undo; fixes listed in the report as Creo instructions ("move clip CS31/32 −10 mm in Y")
