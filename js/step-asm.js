@@ -57,6 +57,38 @@ const ref=a=>{const m=/^#(\d+)$/.exec((a||'').trim());return m?+m[1]:null;};
 const refs=a=>(a||'').replace(/^\(|\)$/g,'').split(',').map(x=>ref(x)).filter(x=>x!=null);
 const str=a=>a&&a[0]==="'"?a.slice(1,-1):'';
 const nums=a=>(a||'').replace(/^\(|\)$/g,'').split(',').map(parseFloat);
+const lerp=(a,b,t)=>a+(b-a)*t;
+
+// ---------- NURBS (B_SPLINE_CURVE / SURFACE _WITH_KNOTS, rational or not) ----------
+function knotVec(m,k){const U=[];m.forEach((c,i)=>{for(let j=0;j<c;j++)U.push(k[i]);});return U;}
+function findSpan(U,p,n,u){if(u>=U[n+1])return n;if(u<=U[p])return p;let lo=p,hi=n+1,mid=(lo+hi)>>1;while(u<U[mid]||u>=U[mid+1]){if(u<U[mid])hi=mid;else lo=mid;mid=(lo+hi)>>1;}return mid;}
+function basisFuns(U,p,i,u){const N=[1],L=[],Rr=[];for(let j=1;j<=p;j++){L[j]=u-U[i+1-j];Rr[j]=U[i+j]-u;let s=0;for(let r=0;r<j;r++){const d=Rr[r+1]+L[j-r],t=d?N[r]/d:0;N[r]=s+Rr[r+1]*t;s=L[j-r]*t;}N[j]=s;}return N;}
+function curveEval(c,u){const n=c.P.length-1,sp=findSpan(c.U,c.p,n,u),N=basisFuns(c.U,c.p,sp,u);let x=0,y=0,z=0,w=0;
+  for(let j=0;j<=c.p;j++){const k=sp-c.p+j,b=N[j]*(c.W?c.W[k]:1);x+=b*c.P[k][0];y+=b*c.P[k][1];z+=b*c.P[k][2];w+=b;}return[x/w,y/w,z/w];}
+function surfEval(s,u,v){const nu=s.P.length-1,nv=s.P[0].length-1,su=findSpan(s.U,s.pu,nu,u),sv=findSpan(s.V,s.pv,nv,v),Nu=basisFuns(s.U,s.pu,su,u),Nv=basisFuns(s.V,s.pv,sv,v);let x=0,y=0,z=0,w=0;
+  for(let a=0;a<=s.pu;a++)for(let b=0;b<=s.pv;b++){const i=su-s.pu+a,j=sv-s.pv+b,f=Nu[a]*Nv[b]*(s.W?s.W[i][j]:1),P=s.P[i][j];x+=f*P[0];y+=f*P[1];z+=f*P[2];w+=f;}return[x/w,y/w,z/w];}
+// circle through three points
+function circ3(a,b,c){const ab=sub(b,a),ac=sub(c,a),n=cross(ab,ac),nn=dot(n,n);if(nn<1e-18*Math.max(1,dot(ab,ab)*dot(ac,ac)))return null;
+  const o=add(a,mul(add(mul(cross(n,ab),dot(ac,ac)),mul(cross(ac,n),dot(ab,ab))),1/(2*nn)));return{c:o,r:len(sub(a,o)),n:norm(n)};}
+// centreline of a tube-shaped spline face: one parameter direction runs round a circle of constant radius.
+// Returns {r, pts (centres, ~step mm apart), cov (angle the face covers round the tube)} or null
+function tubeOfSurface(s,step){
+  const u0=s.U[s.pu],u1=s.U[s.P.length],v0=s.V[s.pv],v1=s.V[s.P[0].length];
+  const at=(round,t,g)=>round==='u'?surfEval(s,lerp(u0,u1,g),lerp(v0,v1,t)):surfEval(s,lerp(u0,u1,t),lerp(v0,v1,g));
+  const sec=(round,t)=>circ3(at(round,t,0.02),at(round,t,0.5),at(round,t,0.98));
+  const test=round=>{const rs=[];let err=0;
+    for(const t of[0,0.15,0.3,0.5,0.7,0.85,1]){const c=sec(round,t);if(!c||!(c.r<1e4))return null;rs.push(c.r);
+      for(const g of[0,0.25,0.75,1])err=Math.max(err,Math.abs(len(sub(at(round,t,g),c.c))-c.r));}
+    const r=rs.reduce((a,b)=>a+b,0)/rs.length;return{round,r,err:Math.max(err,Math.max(...rs)-Math.min(...rs))};};
+  const T=[test('u'),test('v')].filter(x=>x&&x.err<=Math.max(0.01,0.002*x.r)).sort((a,b)=>a.err-b.err)[0];if(!T)return null;
+  const coarse=[];for(let i=0;i<=12;i++){const c=sec(T.round,i/12);if(!c)return null;coarse.push(c.c);}
+  let L=0;for(let i=1;i<coarse.length;i++)L+=len(sub(coarse[i],coarse[i-1]));if(L<1e-6)return null;
+  const N=Math.max(8,Math.min(1500,Math.ceil(L/(step||1)))),pts=[];
+  for(let i=0;i<=N;i++){const c=sec(T.round,i/N);if(!c)return null;pts.push(c.c);}
+  const m=sec(T.round,0.5),pa=at(T.round,0.5,0),pb=at(T.round,0.5,1),pm=at(T.round,0.5,0.5);
+  const ang=(p,q)=>Math.acos(Math.max(-1,Math.min(1,dot(norm(sub(p,m.c)),norm(sub(q,m.c))))));
+  const cov=len(sub(pa,pb))<1e-6?TAU:ang(pa,pm)+ang(pm,pb);
+  return{r:T.r,pts,cov,err:T.err};}
 
 // ---------- pieces: lines and arcs with end tangents ----------
 function mkLine(a,b,name){const t=norm(sub(b,a));return{type:'line',a,b,ta:t,tb:t,len:len(sub(b,a)),name:name||''};}
@@ -64,10 +96,24 @@ function mkLine(a,b,name){const t=norm(sub(b,a));return{type:'line',a,b,ta:t,tb:
 function mkArc(c,n,R,a,th,name){const u=sub(a,c),w=cross(n,u);
   const b=add(c,add(mul(u,Math.cos(th)),mul(w,Math.sin(th))));
   return{type:'arc',c,n,R,a,b,th,ta:norm(w),tb:norm(cross(n,sub(b,c))),len:R*th,name:name||''};}
-function reverse(p){return p.type==='line'?{...p,a:p.b,b:p.a,ta:mul(p.tb,-1),tb:mul(p.ta,-1)}:{...p,a:p.b,b:p.a,n:mul(p.n,-1),ta:mul(p.tb,-1),tb:mul(p.ta,-1)};}
-function xformPiece(M,p){const o={...p,a:F.pt(M,p.a),b:F.pt(M,p.b),ta:F.vec(M,p.ta),tb:F.vec(M,p.tb)};if(p.type==='arc'){o.c=F.pt(M,p.c);o.n=F.vec(M,p.n);}return o;}
+// spline centreline (hose sweep or datum curve) as a sampled polyline; k = curvature over an ~4 mm chord, kv points at the centre
+function mkPoly(pts,name,cov){
+  const P=[pts[0]];for(let i=1;i<pts.length;i++)if(len(sub(pts[i],P[P.length-1]))>1e-6)P.push(pts[i]);
+  if(P.length<2)return null;const cum=[0];for(let i=1;i<P.length;i++)cum.push(cum[i-1]+len(sub(P[i],P[i-1])));const L=cum[cum.length-1];
+  const k=[],kv=[],h=Math.min(4,L/4);
+  for(let i=0;i<P.length;i++){let a=i,b=i;while(a>0&&cum[i]-cum[a]<h)a--;while(b<P.length-1&&cum[b]-cum[i]<h)b++;
+    if(a===i||b===i){k.push(null);kv.push([0,0,0]);continue;}const c=circ3(P[a],P[i],P[b]);
+    if(!c||c.r>1e6){k.push(1e-9);kv.push([0,0,0]);}else{k.push(1/c.r);kv.push(mul(norm(sub(c.c,P[i])),1/c.r));}}
+  for(let i=0;i<k.length;i++)if(k[i]==null){const j=i===0?k.findIndex(x=>x!=null):(()=>{let j=i;while(j>0&&k[j]==null)j--;return j;})();k[i]=j>=0&&k[j]!=null?k[j]:1e-9;kv[i]=j>=0?kv[j]:[0,0,0];}
+  const n=P.length;return{type:'poly',pts:P,cum,k,kv,a:P[0],b:P[n-1],ta:norm(sub(P[1],P[0])),tb:norm(sub(P[n-1],P[n-2])),len:L,name:name||'',cov:cov==null?TAU:cov,
+    kmax:Math.max(...k.slice(1,-1).concat([1e-9]))};}
+function reverse(p){if(p.type==='poly'){const pts=p.pts.slice().reverse(),cum=p.cum.map(c=>p.len-c).reverse();return{...p,pts,cum,k:p.k.slice().reverse(),kv:p.kv.slice().reverse(),a:p.b,b:p.a,ta:mul(p.tb,-1),tb:mul(p.ta,-1)};}
+  return p.type==='line'?{...p,a:p.b,b:p.a,ta:mul(p.tb,-1),tb:mul(p.ta,-1)}:{...p,a:p.b,b:p.a,n:mul(p.n,-1),ta:mul(p.tb,-1),tb:mul(p.ta,-1)};}
+function xformPiece(M,p){const o={...p,a:F.pt(M,p.a),b:F.pt(M,p.b),ta:F.vec(M,p.ta),tb:F.vec(M,p.tb)};if(p.type==='arc'){o.c=F.pt(M,p.c);o.n=F.vec(M,p.n);}
+  if(p.type==='poly'){o.pts=p.pts.map(q=>F.pt(M,q));o.kv=p.kv.map(v=>F.vec(M,v));}return o;}
 function dedupe(pieces,tol){const out=[];
-  for(const p of pieces){if(out.some(q=>q.type===p.type&&((len(sub(q.a,p.a))<=tol&&len(sub(q.b,p.b))<=tol)||(len(sub(q.a,p.b))<=tol&&len(sub(q.b,p.a))<=tol))))continue;out.push(p);}
+  for(const p of pieces){const q=out.find(q=>q.type===p.type&&((len(sub(q.a,p.a))<=tol&&len(sub(q.b,p.b))<=tol)||(len(sub(q.a,p.b))<=tol&&len(sub(q.b,p.a))<=tol)));
+    if(q){if(q.cov!=null&&p.cov!=null)q.cov=Math.min(TAU,q.cov+p.cov);continue;}out.push({...p});}
   return out;}
 // faces get split by features: join coaxial arcs on one centre circle and collinear lines on one axis
 function merge(pieces){
@@ -83,8 +129,9 @@ function merge(pieces){
   lines.forEach((L,i)=>{if(usedL.has(i))return;usedL.add(i);const d=L.ta,o=L.a,t=p=>dot(sub(p,o),d),ivs=[[0,L.len]];
     lines.forEach((M,j)=>{if(usedL.has(j)||Math.abs(dot(M.ta,d))<0.99999)return;const r=sub(M.a,o);if(len(sub(r,mul(d,dot(r,d))))>0.05)return;usedL.add(j);const ta=t(M.a),tb=t(M.b);ivs.push([Math.min(ta,tb),Math.max(ta,tb)]);});
     ivs.sort((a,b)=>a[0]-b[0]);const m=[];for(const iv of ivs){const P=m[m.length-1];if(P&&iv[0]<=P[1]+30)P[1]=Math.max(P[1],iv[1]);else m.push(iv.slice());}
-    for(const [s,e] of m)if(e-s>1e-6)out.push(mkLine(add(o,mul(d,s)),add(o,mul(d,e)),L.name));});
-  return out;}
+    const same=[L].concat(lines.filter((M,j)=>j!==i&&Math.abs(dot(M.ta,d))>=0.99999&&len(sub(sub(M.a,o),mul(d,dot(sub(M.a,o),d))))<=0.05)),cov=Math.max(...same.map(x=>x.cov==null?TAU:x.cov));
+    for(const [s,e] of m)if(e-s>1e-6){const ln=mkLine(add(o,mul(d,s)),add(o,mul(d,e)),L.name);ln.cov=cov;out.push(ln);}});
+  return out.concat(pieces.filter(p=>p.type==='poly'));}
 
 // chain pieces into one route: endpoints joined within tol, tangent-continuous where possible.
 // dropCorners: remove pairs of non-collinear lines meeting alone at a node (Creo's bend construction lines)
@@ -133,9 +180,11 @@ function describe(ch){
     bends.push({corner,R:pc.R,deg:pc.th*DEG,before,after,piece:i});
     Q.push(corner);});
   Q.push(P[P.length-1].b);
-  const inner=P.slice(1,-1).filter(p=>p.type==='line').map(p=>p.len);
+  const inner=P.slice(1,-1).filter(p=>p.type==='line').map(p=>p.len),polys=P.filter(p=>p.type==='poly');
+  const polyR=polys.length?1/Math.max(...polys.map(p=>p.kmax)):Infinity,arcR=bends.length?Math.min(...bends.map(b=>b.R)):Infinity;
   return{Q,bends,start:P[0].a,end:P[P.length-1].b,startDir:P[0].ta,endDir:P[P.length-1].tb,length:ch.length,
-    R:bends.length?Math.min(...bends.map(b=>b.R)):Infinity,minStraight:inner.length?Math.min(...inner):Infinity,straights:P.filter(p=>p.type==='line').length};
+    R:Math.min(arcR,polyR),arcR,polyR,kind:polys.length?'hose':'pipe',splineLen:polys.reduce((s,p)=>s+p.len,0),
+    minStraight:inner.length?Math.min(...inner):Infinity,straights:P.filter(p=>p.type==='line').length};
 }
 // dense samples in route-studio's run shape {pts,k,s,d1s,d2s}: exact curvature
 function sample(ch,step){
@@ -143,25 +192,32 @@ function sample(ch,step){
   const push=(p,kk,d1,d2)=>{pts.push(p);k.push(kk);d1s.push(d1);d2s.push(d2);};
   ch.pieces.forEach((pc,j)=>{
     if(pc.type==='line'){const N=Math.max(1,Math.ceil(pc.len/step)),d=sub(pc.b,pc.a);for(let i=j?1:0;i<=N;i++)push(add(pc.a,mul(d,i/N)),STRAIGHT,pc.ta,[0,0,0]);}
+    else if(pc.type==='poly'){let last=-Infinity;const n=pc.pts.length;
+      for(let i=j?1:0;i<n;i++){if(i<n-1&&pc.cum[i]-last<Math.min(step,2))continue;last=pc.cum[i];const i0=Math.max(0,i-1),i1=Math.min(n-1,i+1);
+        push(pc.pts[i],Math.max(pc.k[i],STRAIGHT),norm(sub(pc.pts[i1],pc.pts[i0])),pc.kv[i]);}}
     else{const N=Math.max(2,Math.ceil(pc.th*DEG/3)),u=sub(pc.a,pc.c),w=cross(pc.n,u);
       for(let i=j?1:0;i<=N;i++){const f=pc.th*i/N,p=add(pc.c,add(mul(u,Math.cos(f)),mul(w,Math.sin(f))));
         push(p,1/pc.R,norm(add(mul(u,-Math.sin(f)),mul(w,Math.cos(f)))),mul(norm(sub(pc.c,p)),1/pc.R));}}});
   const s=[0];for(let i=1;i<pts.length;i++)s.push(s[i-1]+len(sub(pts[i],pts[i-1])));
   return{pts,k,s,d1s,d2s};
 }
-// nearest point on the centreline to p
-function nearest(ch,p){let bd=Infinity,bq=null;
-  for(const pc of ch.pieces){let q;
-    if(pc.type==='line'){const d=sub(pc.b,pc.a),L2=dot(d,d),t=L2?Math.max(0,Math.min(1,dot(sub(p,pc.a),d)/L2)):0;q=add(pc.a,mul(d,t));}
+// nearest point on the centreline to p; s = distance along the centreline from its start
+function nearest(ch,p){let bd=Infinity,bq=null,bs=0,s0=0;
+  for(const pc of ch.pieces){let q,s;
+    if(pc.type==='line'){const d=sub(pc.b,pc.a),L2=dot(d,d),t=L2?Math.max(0,Math.min(1,dot(sub(p,pc.a),d)/L2)):0;q=add(pc.a,mul(d,t));s=s0+t*pc.len;}
+    else if(pc.type==='poly'){let dd=Infinity;for(let i=1;i<pc.pts.length;i++){const a=pc.pts[i-1],d=sub(pc.pts[i],a),L2=dot(d,d),t=L2?Math.max(0,Math.min(1,dot(sub(p,a),d)/L2)):0,qq=add(a,mul(d,t)),e=len(sub(p,qq));
+        if(e<dd){dd=e;q=qq;s=s0+pc.cum[i-1]+t*(pc.cum[i]-pc.cum[i-1]);}}}
     else{const u=norm(sub(pc.a,pc.c)),w=cross(pc.n,u),r=sub(p,pc.c),rp=sub(r,mul(pc.n,dot(r,pc.n)));
       let f=len(rp)<1e-9?0:mod(Math.atan2(dot(rp,w),dot(rp,u)));if(f>pc.th)f=(f-pc.th<(TAU-pc.th)/2)?pc.th:0;
-      q=add(pc.c,add(mul(u,pc.R*Math.cos(f)),mul(w,pc.R*Math.sin(f))));}
-    const d=len(sub(p,q));if(d<bd){bd=d;bq=q;}}
-  return{q:bq,d:bd};
+      q=add(pc.c,add(mul(u,pc.R*Math.cos(f)),mul(w,pc.R*Math.sin(f))));s=s0+f*pc.R;}
+    const d=len(sub(p,q));if(d<bd){bd=d;bq=q;bs=s;}s0+=pc.len;}
+  return{q:bq,d:bd,s:bs};
 }
 
 // ---------- main ----------
-function parse(text){
+// opts.pipe: {partName: true|false} — user override of pipe detection (true = this is the pipe, false = not a pipe)
+function parse(text,opts){
+  opts=opts||{};const force=opts.pipe||{};
   const E=tokenize(text);const get=id=>{const e=E.get(id);return e?decode(e):null;};
   const has=(e,k)=>!!e&&e.kinds.includes(k),A=(e,k)=>e.argsOf[k]||e.args;
   const byKind=new Map();for(const [id,e] of E){decode(e);for(const k of e.kinds){if(!byKind.has(k))byKind.set(k,[]);byKind.get(k).push(id);}}
@@ -178,6 +234,18 @@ function parse(text){
     const o=point(ref(a[1]))||[0,0,0],z=norm(dir(ref(a[2]))||[0,0,1]);let x=dir(ref(a[3]))||(Math.abs(z[0])<0.9?[1,0,0]:[0,1,0]);
     x=norm(sub(x,mul(z,dot(x,z))));return{name:str(a[0]),o,x,y:cross(z,x),z,id};};
   const vertex=id=>{const v=get(id);if(!v)return null;if(has(v,'VERTEX_POINT'))return point(ref(v.args[1]));if(has(v,'CARTESIAN_POINT'))return point(id);return null;};
+  // B-spline readers: plain and complex (rational) entity forms
+  const grid=a=>splitArgs((a||'').trim().slice(1,-1)).map(row=>refs(row).map(point));
+  function bsCurve(e){const K=e.argsOf.B_SPLINE_CURVE_WITH_KNOTS,B=e.argsOf.B_SPLINE_CURVE,RW=e.argsOf.RATIONAL_B_SPLINE_CURVE;if(!K)return null;
+    let p,P,m,k;if(B){p=+B[0];P=refs(B[1]).map(point);m=nums(K[0]);k=nums(K[1]);}else{p=+K[1];P=refs(K[2]).map(point);m=nums(K[6]);k=nums(K[7]);}
+    if(!(p>=1)||P.some(x=>!x)||P.length<p+1)return null;const U=knotVec(m,k);if(U.length!==P.length+p+1)return null;
+    return{p,P,U,W:RW?nums(RW[0]):null};}
+  function bsSurf(e){const K=e.argsOf.B_SPLINE_SURFACE_WITH_KNOTS,B=e.argsOf.B_SPLINE_SURFACE,RW=e.argsOf.RATIONAL_B_SPLINE_SURFACE;if(!K)return null;
+    let pu,pv,P,um,vm,uk,vk;if(B){pu=+B[0];pv=+B[1];P=grid(B[2]);[um,vm,uk,vk]=[K[0],K[1],K[2],K[3]].map(nums);}else{pu=+K[1];pv=+K[2];P=grid(K[3]);[um,vm,uk,vk]=[K[8],K[9],K[10],K[11]].map(nums);}
+    if(!P.length||P.some(r=>r.some(x=>!x)||r.length!==P[0].length))return null;const U=knotVec(um,uk),Vk=knotVec(vm,vk);
+    if(U.length!==P.length+pu+1||Vk.length!==P[0].length+pv+1)return null;
+    return{pu,pv,P,U,V:Vk,W:RW?splitArgs(RW[0].trim().slice(1,-1)).map(nums):null};}
+  const bsSample=(c,n)=>{const a=c.U[c.p],b=c.U[c.P.length],o=[];for(let i=0;i<=n;i++)o.push(curveEval(c,lerp(a,b,i/n)));return o;};
 
   function trimmed(id){const e=get(id),a=e.args,name=str(a[0]),c=get(ref(a[1]));if(!c)return null;
     const t1=a[2],t2=a[3],sense=!/\.F\./.test(a[4]||'');
@@ -189,11 +257,23 @@ function parse(text){
       const a0=ang(t1),a1=ang(t2);if(a0==null||a1==null)return null;
       let th=mod(sense?a1-a0:a0-a1);if(th<1e-9)th=TAU;
       return mkArc(ax.o,sense?ax.z:mul(ax.z,-1),R,add(ax.o,add(mul(ax.x,R*Math.cos(a0)),mul(ax.y,R*Math.sin(a0)))),th,name);}
+    if(has(c,'B_SPLINE_CURVE_WITH_KNOTS')){const bc=bsCurve(c);if(!bc)return null;let pts=bsSample(bc,400);
+      const cut=t=>{const p=pref(t);if(p){let bi=0,bd=Infinity;pts.forEach((q,i)=>{const d=len(sub(q,p));if(d<bd){bd=d;bi=i;}});return bi;}const v=pval(t);if(v==null)return null;
+        const a=bc.U[bc.p],b=bc.U[bc.P.length];return Math.round(Math.max(0,Math.min(1,(v-a)/(b-a)))*400);};
+      let i0=cut(t1),i1=cut(t2);if(i0==null)i0=0;if(i1==null)i1=400;if(i0>i1)[i0,i1]=[i1,i0];pts=pts.slice(i0,i1+1);if(!sense)pts.reverse();
+      return mkPoly(pts,name);}
     return null;}
+  function curveItem(id,name){const e=get(id);if(!e)return[];
+    if(has(e,'TRIMMED_CURVE')){const c=trimmed(id);return c?[c]:[];}
+    if(has(e,'B_SPLINE_CURVE_WITH_KNOTS')){const bc=bsCurve(e);if(!bc)return[];const n=Math.max(60,Math.min(1500,bc.P.length*30));const pl=mkPoly(bsSample(bc,n),name||str(A(e,e.kinds.find(k=>/REPRESENTATION_ITEM/.test(k))||e.kind)[0]));return pl?[pl]:[];}
+    if(has(e,'COMPOSITE_CURVE')){const a=A(e,'COMPOSITE_CURVE');return refs(a[1]).flatMap(sid=>{const s=get(sid);if(!s)return[];const sa=s.args;const out=curveItem(ref(sa[2]),str(a[0]));
+      return /\.F\./.test(sa[1]||'')?out.map(reverse).reverse():out;});}
+    return[];}
 
   function solid(id){const e=get(id),sh=get(ref(e.args[1]));if(!sh)return null;const faces=[],types={},verts=[],ext=[];
     for(const fid of refs(sh.args[1])){const f=get(fid);if(!f||!(has(f,'ADVANCED_FACE')||has(f,'FACE_SURFACE')))continue;const fa=f.args,S=get(ref(fa[2]));if(!S)continue;
-      const kind=S.kind.replace(/_SURFACE.*$/,'').toLowerCase().replace(/^b_spline.*/,'bspline');const face={kind,verts:[],edges:[],sense:!/\.F\./.test(fa[3]||'')};
+      const kind=has(S,'B_SPLINE_SURFACE_WITH_KNOTS')?'bspline':S.kind.replace(/_SURFACE.*$/,'').toLowerCase().replace(/^b_spline.*/,'bspline');const face={kind,verts:[],edges:[],sense:!/\.F\./.test(fa[3]||'')};
+      if(kind==='bspline')face.S=S;
       if(S.args[1]&&ref(S.args[1])!=null&&!/BOUNDED|B_SPLINE|OFFSET|REVOLUTION|EXTRUSION/.test(S.kind))face.ax=axis(ref(S.args[1]));
       if(has(S,'CYLINDRICAL_SURFACE')||has(S,'SPHERICAL_SURFACE')||has(S,'CONICAL_SURFACE'))face.r=parseFloat(S.args[2])*unitScale;
       if(has(S,'TOROIDAL_SURFACE')){face.R=parseFloat(S.args[2])*unitScale;face.r=parseFloat(S.args[3])*unitScale;}
@@ -212,22 +292,29 @@ function parse(text){
   // skin pieces of a swept solid: lines from cylinders, arcs from tori. The pipe radius is the one carrying the
   // most length (end beads, bosses and the bore carry less); the bore is the next radius with comparable length
   function solidPieces(sol){
-    const groups=new Map();
-    for(const f of sol.faces){if(!f.ax||!(f.r>0))continue;let pc=null;
+    const groups=new Map(),keyOf=r=>{for(const k of groups.keys())if(Math.abs(k-r)<=Math.max(0.01,0.001*r))return k;return +r.toFixed(3);};
+    const span=(f)=>{if(f.edges.some(e=>e.v1&&e.v2&&len(sub(e.v1,e.v2))<1e-6))return TAU;const c=f.ax.o,u=f.ax.x,v=f.ax.y;
+      const as=f.verts.map(p=>{const d=sub(p,c);return mod(Math.atan2(dot(d,v),dot(d,u)));}).sort((a,b)=>a-b);if(as.length<2)return TAU;
+      let gap=TAU-as[as.length-1]+as[0];for(let i=1;i<as.length;i++)gap=Math.max(gap,as[i]-as[i-1]);return TAU-gap;};
+    let splineFaces=0;
+    for(const f of sol.faces){let pc=null,r=f.r;
+      if(f.kind==='bspline'&&f.S){const s=bsSurf(f.S);const tb=s&&tubeOfSurface(s,1);if(!tb)continue;r=tb.r;pc=mkPoly(tb.pts,'',tb.cov);if(pc)splineFaces++;}
+      else{if(!f.ax||!(f.r>0))continue;
       if(f.kind==='cylindrical'){const c=f.ax.o,n=f.ax.z;let t0=Infinity,t1=-Infinity;for(const v of f.verts){const t=dot(sub(v,c),n);t0=Math.min(t0,t);t1=Math.max(t1,t);}
-        if(t1-t0>1e-6)pc=mkLine(add(c,mul(n,t0)),add(c,mul(n,t1)));}
+        if(t1-t0>1e-6){pc=mkLine(add(c,mul(n,t0)),add(c,mul(n,t1)));pc.cov=span(f);}}
       else if(f.kind==='toroidal'&&f.R>0){const c=f.ax.o,n=f.ax.z,u=f.ax.x,v=f.ax.y,ang=p=>{const d=sub(p,c);return Math.atan2(dot(d,v),dot(d,u));};
         let span=null;
         for(const ed of f.edges){if(!ed.v1||!ed.v2||Math.abs(dot(ed.ax.z,n))<0.999)continue;        // longitudinal arcs run around the bend
           const s=ed.same?ed.v1:ed.v2,t=ed.same?ed.v2:ed.v1,flip=dot(ed.ax.z,n)<0;
           const a0=ang(flip?t:s),th0=mod(ang(flip?s:t)-a0);span={a0,th:th0<1e-9?TAU:th0};break;}
         if(!span){const as=f.verts.map(ang);if(!as.length)continue;for(const a of as){const th=Math.max(...as.map(b=>mod(b-a)));if(!span||th<span.th)span={a0:a,th};}}
-        pc=mkArc(c,n,f.R,add(c,add(mul(u,f.R*Math.cos(span.a0)),mul(v,f.R*Math.sin(span.a0)))),span.th,'');}
-      if(!pc)continue;const key=+f.r.toFixed(3);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(pc);}
+        pc=mkArc(c,n,f.R,add(c,add(mul(u,f.R*Math.cos(span.a0)),mul(v,f.R*Math.sin(span.a0)))),span.th,'');}}
+      if(!pc)continue;const key=keyOf(r);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(pc);}
     if(!groups.size)return null;
-    const G=[...groups.entries()].map(([r,ps])=>{const pieces=merge(dedupe(ps,0.02));return{r,pieces,total:pieces.reduce((s,p)=>s+p.len,0)};}).sort((a,b)=>b.total-a.total);
+    const G=[...groups.entries()].map(([r,ps])=>{const pieces=merge(dedupe(ps,0.05));return{r,pieces,total:pieces.reduce((s,p)=>s+p.len,0)};}).sort((a,b)=>b.total-a.total);
     const big=G.filter(g=>g.total>=0.6*G[0].total).sort((a,b)=>b.r-a.r),main=big[0],bore=big[1];
-    return{ro:main.r,ri:bore?bore.r:0,pieces:main.pieces,radii:G.map(g=>({r:g.r,total:g.total}))};}
+    const cv=main.pieces.filter(p=>p.type!=='arc'),covLen=cv.reduce((s,p)=>s+p.len,0),cover=covLen?cv.reduce((s,p)=>s+p.len*(p.cov==null?TAU:p.cov),0)/covLen:TAU;
+    return{ro:main.r,ri:bore?bore.r:0,pieces:main.pieces,cover,splineFaces,radii:G.map(g=>({r:g.r,total:g.total}))};}
 
   // ---- products, shape reps ----
   const products=new Map();
@@ -247,24 +334,32 @@ function parse(text){
       if(has(e,'AXIS2_PLACEMENT_3D')){const ax=axis(id);if(ax&&ax.name)g.csys.push(ax);}
       else if(has(e,'CARTESIAN_POINT')){const nm=str(e.args[0]);const p=point(id);if(nm&&p)g.points.push({name:nm,p});}
       else if(has(e,'GEOMETRIC_SET')||has(e,'GEOMETRIC_CURVE_SET'))refs(A(e,e.kinds.find(k=>/GEOMETRIC/.test(k)))[1]).forEach(take);
-      else if(has(e,'TRIMMED_CURVE')){const c=trimmed(id);if(c)g.curves.push(c);}
+      else if(has(e,'TRIMMED_CURVE')||has(e,'B_SPLINE_CURVE_WITH_KNOTS')||has(e,'COMPOSITE_CURVE'))g.curves.push(...curveItem(id));
       else if(has(e,'MANIFOLD_SOLID_BREP')||has(e,'BREP_WITH_VOIDS')){const s=solid(id);if(s)g.solids.push(s);}};
     items.forEach(take);
-    g.pipe=pipeOf(g);partCache.set(pd,g);return g;}
+    const pr=pipeOf(g);g.pipe=pr.pipe;g.pipeWhy=pr.why;g.pipeForced=pr.forced;g.pipeBest=pr.best||null;partCache.set(pd,g);return g;}
 
-  // the swept solid: longest recoverable centreline, cylinders + tori (+ end planes) only scores best
-  function pipeOf(g){const cand=[];
+  // the swept solid: longest recoverable centreline; cylinders + tori (+ end planes), or tube-shaped spline faces for a hose.
+  // force[name]===true takes the best candidate whatever its size; false skips the part. why = reason it is (not) a pipe
+  function pipeOf(g){const cand=[],f=force[g.name];
+    if(f===false)return{pipe:null,why:'marked “not a pipe”',forced:false};
     for(const sol of g.solids){const sp=solidPieces(sol);if(!sp||!sp.pieces.length)continue;
-      const odd=Object.keys(sol.types).filter(k=>!['plane','cylindrical','toroidal'].includes(k));
+      const hose=sp.pieces.some(p=>p.type==='poly'),okTypes=['plane','cylindrical','toroidal'].concat(hose?['bspline']:[]);
+      const odd=Object.keys(sol.types).filter(k=>!okTypes.includes(k));
       const ch=chain(sp.pieces,0.05,false),d=describe(ch);if(!d)continue;
-      cand.push({sol,sp,ch,d,odd,score:d.length/(2*sp.ro)+(d.bends.length?20:0)-(odd.length?30:0)});}
+      cand.push({sol,sp,ch,d,odd,hose,score:d.length/(2*sp.ro)+(d.bends.length||hose?20:0)-(odd.length?30:0)});}
     cand.sort((a,b)=>b.score-a.score);const b=cand[0];
-    // a pipe: at least 3 mm across, 100 mm long and 8 diameters long; chamfers/threads (cones, splines) only on a clearly long or bent one
-    if(!b||b.sp.ro<1.5||b.d.length<100||b.d.length<16*b.sp.ro||(b.odd.length&&b.d.bends.length<2&&b.d.length<300))return null;
     let curve=null;
-    if(g.curves.length){const ch=chain(dedupe(g.curves.map(c=>({...c})),0.02),0.05,true),d=describe(ch);
-      if(d&&d.length>b.d.length*0.5){const err=Math.max(...d.Q.map(q=>Math.min(...b.d.Q.map(p=>len(sub(p,q))))));curve={chain:ch,info:d,maxErr:err};}}
-    return{solid:b.sol,OD:2*b.sp.ro,ID:2*b.sp.ri,chain:b.ch,info:b.d,curve,candidates:cand.length,odd:b.odd};}
+    if(g.curves.length){const ch=chain(dedupe(g.curves.map(c=>({...c})),0.02),0.05,true),d=describe(ch);if(d)curve={chain:ch,info:d};}
+    const why=!b?(g.solids.length?'no cylinder, torus or tube-shaped spline face':'no solid'):
+      b.sp.ro<1.5?`too thin (Ø${(2*b.sp.ro).toFixed(1)})`:b.d.length<100?`too short (${b.d.length.toFixed(0)} mm)`:b.d.length<16*b.sp.ro?`too stubby (${b.d.length.toFixed(0)} mm for Ø${(2*b.sp.ro).toFixed(1)})`:
+      b.sp.cover<0.75*Math.PI?`only part of a tube (${(b.sp.cover*DEG).toFixed(0)}° round, e.g. an edge round)`:(b.odd.length&&b.d.bends.length<2&&!b.hose&&b.d.length<300)?`fitting-like (has ${b.odd.join(', ')} faces)`:'';
+    if(!b){if(f===true&&curve)return{pipe:{solid:null,OD:0,ID:0,chain:curve.chain,info:curve.info,curve:null,candidates:0,odd:[],hose:curve.info.kind==='hose',fromCurve:true},why:'marked “pipe”: centreline from the datum curve (no tube faces)',forced:true};
+      return{pipe:null,why,forced:f};}
+    if(why&&f!==true)return{pipe:null,why,forced:f,best:{OD:2*b.sp.ro,length:b.d.length}};
+    if(curve){const S=sample(curve.chain,2).pts;curve.maxErr=Math.max(...S.map(q=>nearest(b.ch,q).d));}
+    return{pipe:{solid:b.sol,OD:2*b.sp.ro,ID:2*b.sp.ri,chain:b.ch,info:b.d,curve:curve&&curve.info.length>b.d.length*0.5?curve:null,candidates:cand.length,odd:b.odd,hose:b.hose,cover:b.sp.cover},
+      why:f===true?(why?`marked “pipe” (on its own: ${why})`:'marked “pipe”'):'',forced:f};}
 
   // ---- assembly tree ----
   const nauos=list('NEXT_ASSEMBLY_USAGE_OCCURRENCE').map(id=>{const a=get(id).args;return{id,name:str(a[1])||str(a[0]),parent:ref(a[3]),child:ref(a[4]),M:null};});
@@ -291,8 +386,9 @@ function parse(text){
     inst.solids=g.solids.length;inst.bbox=null;g.solids.forEach(s=>{if(!s.bbox)return;const w=bboxWorld(inst.M,s.bbox);if(!inst.bbox)inst.bbox=w;else for(let k=0;k<3;k++){inst.bbox.min[k]=Math.min(inst.bbox.min[k],w.min[k]);inst.bbox.max[k]=Math.max(inst.bbox.max[k],w.max[k]);}});
     csys.push(...inst.csys);points.push(...inst.points);
     if(g.pipe){const ch={pieces:g.pipe.chain.pieces.map(p=>xformPiece(inst.M,p)),length:g.pipe.chain.length,leftover:g.pipe.chain.leftover},info=describe(ch);
-      pipes.push({inst:idx,name:g.name,label:inst.label,OD:g.pipe.OD,ID:g.pipe.ID,R:info.R,chain:ch,info,Q:info.Q,bends:info.bends,length:info.length,
-        curveAgree:g.pipe.curve?g.pipe.curve.maxErr:null,candidates:g.pipe.candidates,odd:g.pipe.odd,samples:sample(ch,Math.max(2,g.pipe.OD/4))});}});
+      pipes.push({inst:idx,name:g.name,label:inst.label,OD:g.pipe.OD,ID:g.pipe.ID,R:info.R,chain:ch,info,Q:info.Q,bends:info.bends,length:info.length,kind:info.kind,
+        forced:g.pipeForced===true,fromCurve:!!g.pipe.fromCurve,
+        curveAgree:g.pipe.curve?g.pipe.curve.maxErr:null,candidates:g.pipe.candidates,odd:g.pipe.odd,samples:sample(ch,Math.max(2,g.pipe.OD/4||2))});}});
 
   // fixings: a hole (cylinder face whose normal points at its axis) with a named CSYS origin on the axis, inside the hole.
   // The bore axis and length come from the hole faces, never from the CSYS axes.

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Route Studio - hose routing checks for Creo</title>
+<title>Route Studio - hose, cable and pipe checks for Creo</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -12,10 +12,23 @@
 <body>
 <div class="app">
 <aside>
-  <h1>Route Studio</h1>
-  <p class="lede">Check hose routes before you build them in Creo: bend radius on a single route, clearance between two, a bundle of cables through shared clamps. Run several settings and compare them side by side.</p>
+  <header class="shell">
+    <div class="shrow"><h1>Route Studio</h1>
+      <div class="shact"><button type="button" id="shOpen" class="shbtn primary" title="Open .stp, .igs or .pts files (or drop them anywhere)">Open…</button><button type="button" id="shTable" class="shbtn" title="Paste X / Y / Z columns from a drawing table">Paste table…</button>
+        <details class="shmenu" id="shEx"><summary class="shbtn">Examples</summary><div class="menu">
+          <button type="button" data-preset="target" data-goto="hose:route">Route example, 16 stations</button>
+          <button type="button" id="aExample" data-goto="hose:check">Check example, 3 edited cables</button>
+          <button type="button" data-preset="pair" data-goto="hose:offset">Offset example, master + slave</button>
+          <button type="button" id="tExample" data-goto="pipe:table">Drawing-table example (pipe)</button>
+          <button type="button" data-preset="bundle" data-goto="bundle:bundle">Bundle example, 6 cables</button>
+        </div></details>
+        <a class="shbtn" href="inspector.html" target="_blank" title="Check what a Creo export contains">Inspector</a><button type="button" id="shTheme" class="shbtn" title="Switch light / dark">Dark</button></div></div>
+    <div class="modsw" role="tablist" aria-label="Module"><button type="button" role="tab" data-mod="hose">Hose / Cable</button><button type="button" role="tab" data-mod="pipe">Pipe</button><button type="button" role="tab" data-mod="bundle">Bundle</button></div>
+    <div class="shstatus" id="shStatus">Drop .stp, .igs or .pts files anywhere on the page.</div>
+    <input type="file" id="shFile" multiple accept=".pts,.txt,.csv,.ibl,.igs,.iges,.stp,.step" hidden>
+  </header>
 
-  <div class="tabs" role="tablist">
+  <div class="tabs" role="tablist" hidden>
     <button role="tab" id="tabBend" aria-selected="true">Bend radius</button>
     <button role="tab" id="tabClear" aria-selected="false">Clearance</button>
     <button role="tab" id="tabBundle" aria-selected="false">Bundle</button>
@@ -23,14 +36,16 @@
     <button role="tab" id="tabTable" aria-selected="false">Table → .pts</button>
   </div>
 
+  <div class="mod">
+  <nav class="tasks" id="tasks" aria-label="Tasks"></nav>
+  <div class="taskpane">
   <section id="panBend">
     <label for="pts">Target points <span class="unit">(X Y Z per line)</span></label>
     <textarea id="pts" rows="7" spellcheck="false" wrap="off"></textarea>
-    <div class="presets"><span class="unit">Load:</span><button type="button" data-cad="pts">.pts / .stp / .igs file</button><button type="button" data-preset="target">example route</button><a href="inspector.html" target="_blank">check a CAD file</a></div>
     <div class="cadpick" id="cadpick_pts" hidden></div>
     <input type="file" id="cadfile" accept=".pts,.txt,.csv,.ibl,.igs,.iges,.stp,.step" hidden>
     <div class="fields c2">
-      <div><label for="shape">Route shape</label><select id="shape"><option value="spline">Spline, many points</option><option value="arc">Lines + arcs, corner points only</option></select></div>
+      <div hidden><label for="shape">Route shape</label><select id="shape"><option value="spline">Spline, many points</option><option value="arc">Lines + arcs, corner points only</option></select></div>
       <div id="arcTolBox" hidden><label for="arcTol">Station tolerance <span class="unit">mm</span></label><input id="arcTol" type="number" value="0.05" min="0.001" step="0.01" inputmode="decimal"></div>
     </div>
     <div class="fields c3">
@@ -42,6 +57,21 @@
     <label class="chk"><input type="checkbox" id="adapt" checked>Closer points in tight bends</label>
     <div class="fields c2"><label class="chk" style="align-self:end"><input type="checkbox" id="thin" checked>Fewest points</label><div><label for="thinTol">Max shift <span class="unit">mm</span></label><input id="thinTol" type="number" value="1" min="0.1" step="0.5" inputmode="decimal"></div></div>
     <p class="hint">Fewest points: after routing, drops every point the curve doesn't need. The radius still holds and the curve moves at most Max shift. Target points are always kept.</p>
+    <label class="chk"><input type="checkbox" id="straight" checked>Straight where 3 or more stations line up <span class="unit">(within 1 mm)</span></label>
+    <details class="adv" id="cdBox"><summary>Keep clear of CAD parts (IGES / STEP solids)</summary>
+      <div class="presets"><button type="button" id="cdLoad">Load frame / parts file…</button><button type="button" id="cdClear" hidden>remove</button></div>
+      <input type="file" id="cdFile" accept=".igs,.iges,.stp,.step" hidden>
+      <div class="fields c3">
+        <div><label for="cdD">Hose Ø <span class="unit">mm</span></label><input id="cdD" type="number" value="8" min="0.1" step="0.5" inputmode="decimal"></div>
+        <div><label for="cdGap">Gap <span class="unit">mm</span></label><input id="cdGap" type="number" value="4" min="0" step="0.5" inputmode="decimal"></div>
+        <div><label for="cdReach">Look within <span class="unit">mm</span></label><input id="cdReach" type="number" value="60" min="10" step="10" inputmode="decimal"></div>
+      </div>
+      <label class="chk"><input type="checkbox" id="cdUse" checked>Check the gap to the ticked parts</label>
+      <label class="chk"><input type="checkbox" id="cdPush">Push the route away from them <span class="unit">(trial: pushes off face boxes; curved faces other than cylinders still get generous boxes and can force tight bends)</span></label>
+      <div class="status" id="statusCad"></div>
+      <div id="cdParts" class="cdparts"></div>
+      <p class="hint">Flat and cylindrical faces are read with their real outline and holes, so the gap to them is exact (a hose through a hole or past a plate edge sees that edge); other faces count as a box. Parts at a station, and small parts (80 mm or less) the station line runs through, are taken as clips and clamps and left unticked: the hose may touch them. Tick or untick any part. A 23 MB IGES takes about 10 s to read.</p>
+    </details>
     </div>
     <p class="hint" id="arcHint" hidden>Lines + arcs: the .pts file holds only the corner points of a polyline. In Creo, build the curve with Curve through points, Single radius, and type the radius from the file header. The corners are moved until every arc and straight passes through your points; the radius is pushed from Min radius up toward Min radius × Safety factor.</p>
     <details>
@@ -62,7 +92,7 @@
     <textarea id="mpts" rows="5" spellcheck="false" wrap="off"></textarea>
     <label for="spts" style="margin-top:10px">Slave route <span class="unit">(gets moved)</span></label>
     <textarea id="spts" rows="5" spellcheck="false" wrap="off"></textarea>
-    <div class="presets"><span class="unit">Load:</span><button type="button" data-cad="mpts">master from file</button><button type="button" data-cad="spts">slave from file</button><button type="button" data-preset="pair">example pair</button></div>
+    <div class="presets"><span class="unit">Load:</span><button type="button" data-cad="mpts">master from file</button><button type="button" data-cad="spts">slave from file</button></div>
     <div class="cadpick" id="cadpick_mpts" hidden></div><div class="cadpick" id="cadpick_spts" hidden></div>
     <div class="fields c2">
       <div><label for="cStart">Slave start <span class="unit">x y z</span></label><input id="cStart" placeholder="slave's first point" spellcheck="false"></div>
@@ -97,9 +127,11 @@
     <textarea id="brt" rows="5" spellcheck="false" wrap="off"></textarea>
     <label for="bcl" style="margin-top:10px">Clamps <span class="unit">(id  X Y Z  axis dX dY dZ)</span></label>
     <textarea id="bcl" rows="3" spellcheck="false" wrap="off"></textarea>
-    <label for="bob" style="margin-top:10px">Obstacles <span class="unit">(id  Xmin Ymin Zmin  Xmax Ymax Zmax)</span></label>
-    <textarea id="bob" rows="2" spellcheck="false" wrap="off"></textarea>
-    <div class="presets"><span class="unit">Load:</span><button type="button" data-preset="bundle">example bundle, 6 cables</button></div>
+    <details class="adv"><summary>Advanced: obstacle boxes typed by hand</summary>
+      <label for="bob" style="margin-top:8px">Obstacles <span class="unit">(id  Xmin Ymin Zmin  Xmax Ymax Zmax)</span></label>
+      <textarea id="bob" rows="2" spellcheck="false" wrap="off"></textarea>
+      <p class="hint">Fallback until parts come from the assembly (Phase 13).</p>
+    </details>
     <div class="fields c3">
       <div><label for="bsf">Safety factor</label><input id="bsf" type="number" value="1.5" min="1" step="0.1" inputmode="decimal"></div>
       <div><label for="bsp">Spacing <span class="unit">mm</span></label><input id="bsp" type="number" value="60" min="10" step="5" inputmode="decimal"></div>
@@ -114,7 +146,7 @@
   <section id="panTable" hidden>
     <label for="tin">Pipe points from a drawing table <span class="unit">(paste)</span></label>
     <textarea id="tin" rows="9" spellcheck="false" wrap="off" placeholder="X&#10;2370.0&#10;2215.0&#10;...&#10;&#10;Y&#10;-550.0&#10;...&#10;&#10;Z&#10;1040.0&#10;..."></textarea>
-    <div class="presets"><span class="unit">Load:</span><button type="button" id="tExample">example</button><button type="button" id="tClear">clear</button></div>
+    <div class="presets"><button type="button" id="tClear">clear</button></div>
     <p class="hint">Paste an X block, a Y block and a Z block (each a heading, then one value per line), or rows of X Y Z copied from a table or Excel. A leading point number on a row is ignored.</p>
     <div class="fields c3">
       <div><label for="tname">File name</label><input id="tname" value="pipe_route" spellcheck="false"></div>
@@ -129,34 +161,13 @@
       <button class="go" id="tCopy" type="button" disabled>Copy .pts</button>
       <button class="go ghost" id="tDl" type="button" disabled>Download .pts</button>
     </div>
-    <div class="presets"><button type="button" id="tToBend" disabled>Use these points on the Bend radius tab</button></div>
+    <div class="presets"><button type="button" id="tToBend" disabled>Route through these points (lines + arcs)</button></div>
   </section>
 
   <section id="panAnalyse" hidden>
     <label for="acab">Cables to check <span class="unit">(# name, then X Y Z)</span></label>
     <textarea id="acab" rows="7" spellcheck="false" wrap="off"></textarea>
-    <div class="presets"><span class="unit">Load:</span><button type="button" id="aOpen">.pts / .stp / .igs files</button><button type="button" id="aAsm" title="Creo assembly export: parts, coordinate systems and the centreline of each swept pipe">assembly .stp (parts + pipes)</button><button type="button" id="aExample">example, 3 edited cables</button></div>
-    <input type="file" id="asmfile" accept=".stp,.step" hidden>
-    <div id="thBox" class="thbox" hidden>
-      <label>Route a pipe through clamps</label>
-      <div class="fields c2">
-        <div><label for="thPipe">Pipe</label><select id="thPipe"></select></div>
-        <div><label for="thFrame">.pts frame</label><select id="thFrame"></select></div>
-      </div>
-      <div id="thClamps"></div>
-      <div class="fields c3">
-        <div><label for="thR">Bend R <span class="unit">mm</span></label><input id="thR" type="number" min="1" step="0.5" inputmode="decimal"></div>
-        <div><label for="thMin">Min straight <span class="unit">mm</span></label><input id="thMin" type="number" value="30" min="0" step="5" inputmode="decimal"></div>
-        <div><label for="thMargin">Margin <span class="unit">mm</span></label><input id="thMargin" type="number" value="2" min="0" step="1" inputmode="decimal"></div>
-      </div>
-      <p class="hint">The pipe is re-routed so a straight runs along each ticked bore, covering it plus Margin at both sides. Both ends and end directions stay; existing corners move as little as possible, a corner is added only when needed. Min straight applies between bends.</p>
-      <button class="go" id="thRun" type="button">Route through ticked clamps</button>
-      <div class="status" id="statusThrough"></div>
-      <div id="thOut"></div>
-      <label for="thPts" style="margin-top:10px">.pts file</label>
-      <textarea id="thPts" rows="7" spellcheck="false" wrap="off" readonly></textarea>
-      <div class="tbtns"><button class="go" id="thCopy" type="button" disabled>Copy .pts</button><button class="go ghost" id="thDl" type="button" disabled>Download .pts</button></div>
-    </div>
+    <div class="presets"><span class="unit">Load:</span><button type="button" id="aOpen">.pts / .stp / .igs files</button></div>
     <input type="file" id="afile" multiple accept=".pts,.txt,.csv,.ibl,.igs,.iges,.stp,.step" hidden>
     <label for="aprop" style="margin-top:10px">Cable properties <span class="unit">(id  d  min R  gap)</span></label>
     <textarea id="aprop" rows="3" spellcheck="false" wrap="off"></textarea>
@@ -165,9 +176,12 @@
       <div><label for="ar">Min R <span class="unit">mm</span></label><input id="ar" type="number" value="50" min="1" step="1" inputmode="decimal"></div>
       <div><label for="ag">Gap <span class="unit">mm</span></label><input id="ag" type="number" value="4" min="0" step="1" inputmode="decimal"></div>
     </div>
-    <label for="aobs">Obstacles <span class="unit">(id  Xmin Ymin Zmin  Xmax Ymax Zmax)</span></label>
-    <textarea id="aobs" rows="2" spellcheck="false" wrap="off"></textarea>
-    <div class="presets"><span class="unit">Load:</span><button type="button" id="aBundleObs">obstacles from Bundle tab</button></div>
+    <details class="adv"><summary>Advanced: obstacle boxes typed by hand</summary>
+      <label for="aobs" style="margin-top:8px">Obstacles <span class="unit">(id  Xmin Ymin Zmin  Xmax Ymax Zmax)</span></label>
+      <textarea id="aobs" rows="2" spellcheck="false" wrap="off"></textarea>
+      <div class="presets"><button type="button" id="aBundleObs">copy from Bundle</button></div>
+      <p class="hint">Fallback until parts come from the assembly (Phase 13).</p>
+    </details>
     <label for="aref" style="margin-top:10px">Earlier version <span class="unit">(optional)</span></label>
     <textarea id="aref" rows="3" spellcheck="false" wrap="off"></textarea>
     <div class="presets"><span class="unit">Load:</span><button type="button" id="aOpenRef">.pts files</button></div>
@@ -190,6 +204,52 @@
     <p class="hint">Points are checked exactly as loaded; nothing is re-routed or smoothed. Opening or dropping files replaces the list. Earlier versions match by cable name. STEP and IGES files become one cable per datum name prefix (C1_01, C1_02 → C1).</p>
     <div class="status" id="statusAnalyse"></div>
   </section>
+
+  <section id="panPipe" hidden>
+    <div class="presets"><button type="button" id="aAsm" title="Creo assembly export: parts, coordinate systems and the centreline of each pipe or hose">Open assembly .stp…</button></div>
+    <div class="status" id="statusPipe"></div>
+    <input type="file" id="asmfile" accept=".stp,.step" hidden>
+    <div id="thBox" class="thbox" hidden>
+      <details id="asmParts" class="asmparts"><summary>Parts <span id="asmPartsN"></span> · mark the pipe if the app picked wrong</summary>
+        <div id="asmTree" class="treewrap"></div>
+        <p class="hint">Pipe? <b>auto</b> lets the app decide; <b>pipe</b> takes the part even when it looks too short or thin; <b>not a pipe</b> skips it. Saved for this file name, here and in the <a href="inspector.html">Inspector</a>. Hover a row for faces, placement and CSYS.</p>
+      </details>
+      <div id="asmPipeUI">
+      <div class="fields c2">
+        <div><label for="thPipe">Pipe</label><select id="thPipe"></select></div>
+        <div><label for="thFrame">.pts frame</label><select id="thFrame"></select></div>
+      </div>
+<div id="pipeCmp">
+      <label style="margin-top:12px">Compare a .pts with this pipe</label>
+      <button class="go ghost" id="cmpOpen" type="button">Choose .pts file…</button>
+      <input type="file" id="cmpfile" accept=".pts,.txt,.csv" hidden>
+      <div class="status" id="statusCmp"></div>
+      <div id="cmpOut"></div>
+      <div class="tbtns" id="cmpBtns" hidden><button class="go ghost" id="cmpCopy" type="button">Copy reordered .pts</button><button class="go ghost" id="cmpDl" type="button">Download</button></div>
+      </div>
+<div id="pipeThrough">
+      <label style="margin-top:12px">Route a pipe through clamps</label>
+      <div id="thClamps"></div>
+      <div class="fields c3">
+        <div><label for="thR">Bend R <span class="unit">mm</span></label><input id="thR" type="number" min="1" step="0.5" inputmode="decimal"></div>
+        <div><label for="thMin">Min straight <span class="unit">mm</span></label><input id="thMin" type="number" value="30" min="0" step="5" inputmode="decimal"></div>
+        <div><label for="thMargin">Margin <span class="unit">mm</span></label><input id="thMargin" type="number" value="2" min="0" step="1" inputmode="decimal"></div>
+      </div>
+      <label class="chk" style="margin-top:-4px"><input type="checkbox" id="thDrop" checked>Drop detour corners <span class="unit">(bends over 120°, or a corner whose removal shortens the route by 15 % or more)</span></label>
+      <p class="hint">The pipe is re-routed so a straight runs along each ticked bore, covering it plus Margin at both sides. Both ends and end directions stay; existing corners move as little as possible, a corner is added only when needed. Min straight applies between bends. Other corners are kept: parts the pipe bends around are not read yet.</p>
+      <button class="go" id="thRun" type="button">Route through ticked clamps</button>
+      <div class="status" id="statusThrough"></div>
+      <div id="thOut"></div>
+      <label for="thPts" style="margin-top:10px">.pts file</label>
+      <textarea id="thPts" rows="7" spellcheck="false" wrap="off" readonly></textarea>
+      <div class="tbtns"><button class="go" id="thCopy" type="button" disabled>Copy .pts</button><button class="go ghost" id="thDl" type="button" disabled>Download .pts</button></div>
+      </div>
+      </div>
+    </div>
+    <p class="hint pipeempty" id="pipeEmpty">Open or drop a Creo assembly .stp. The app finds each pipe or hose (bend radius, bends, OD/ID), the clamp bores, and the frame your .pts files are written in.</p>
+  </section>
+  </div>
+  </div>
 
   <div class="runs">
     <div class="rh"><h2>Comparison runs</h2><button type="button" class="clr" id="clearAll" hidden>Clear all</button></div>
@@ -264,6 +324,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="js/arcroute.js"></script>
 <script src="js/step-asm.js"></script>
+<script src="js/pts-compare.js"></script>
+<script src="js/asm-tree.js"></script>
 <script src="js/through.js"></script>
 <script src="js/route-studio.js"></script>
 <script src="js/analysis.js"></script>
@@ -275,5 +337,8 @@
 <script src="js/arc-ui.js"></script>
 <script src="js/pts-table.js"></script>
 <script src="js/asm-ui.js"></script>
+<script src="js/cad-solids.js"></script>
+<script src="js/bend-cad.js"></script>
+<script src="js/shell.js"></script>
 </body>
 </html>

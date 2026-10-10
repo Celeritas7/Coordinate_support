@@ -14,7 +14,11 @@ Hose and cable routing checks for Creo: bend radius on one route, clearance betw
 - js/step.js, js/iges.js, js/cad-io.js - named datums from STEP / IGES, frames, STEP export
 - js/step-asm.js + js/asm-ui.js - assembly STEP: part tree with placements, world CSYS, pipe centrelines, clamp bores; route-through-clamps panel
 - js/through.js - re-route a pipe straight through clamp bores (ends, radius, min straight kept)
-- tests/ - `node tests/arcroute.test.js`, `node tests/step-asm.test.js`, `node tests/through.test.js`
+- js/asm-tree.js - part tree with the per-part pipe override (Route Studio + Inspector)
+- js/pts-compare.js - compare a .pts with a pipe / hose from the assembly
+- js/shell.js - header (Open, Paste table, Examples, theme), module switch Hose / Cable · Pipe · Bundle, task strip, drop-anywhere routing
+- UI_AUDIT.md - every control, which module it belongs to, and why
+- tests/ - `node tests/arcroute.test.js`, `node tests/step-asm.test.js`, `node tests/through.test.js`, `node tests/asm-extras.test.js`; `tests/make-hose-sample.js` builds the spline hose sample
 - samples/ - test files (see TESTING.md); DESIGN_BRIEF.md - what the app is for
 - Launch Route Studio.bat - double-click on Windows; serves the folder on localhost:8765 and opens the browser
 - ROADMAP.md - what is built and what is planned

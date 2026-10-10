@@ -80,12 +80,18 @@ textarea{width:100%;min-height:190px;font:13px/1.55 var(--mono);color:var(--ink)
 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:8px;background:var(--warn)}.dot[data-ok="true"]{background:var(--ok)}.dot[data-ok="false"]{background:var(--bad)}.dot[data-ok="null"]{background:var(--muted)}
 .hint{color:var(--muted);font-size:12.5px;margin:7px 0 0}
 a{color:var(--ok)}a:hover{color:var(--ink)}.back{margin:0 0 10px;font-size:13px}
+.asmtree{border-collapse:collapse;width:100%;font-size:13px}.asmtree th{position:sticky;top:0;background:var(--panel);font-weight:600;color:var(--muted);font-size:12px;text-align:left;padding:7px 10px;border-bottom:1px solid var(--rule)}
+.asmtree td{padding:6px 10px;border-bottom:1px solid var(--rule);vertical-align:top;white-space:normal}.asmtree td.nm{font-family:var(--mono);overflow-wrap:anywhere;min-width:180px}.asmtree td.n{font-family:var(--mono);text-align:right}
+.asmtree .x{color:var(--muted)}.asmtree tr.asm td.nm{color:var(--muted)}.asmtree tr.is-pipe td{background:color-mix(in oklab,var(--ok) 10%,transparent)}
+.asmtree select{font:13px var(--sans);color:var(--ink);background:var(--field);border:1px solid var(--rule);border-radius:4px;padding:3px 6px;margin:0 0 4px}
+.asmtree .st{display:block;color:var(--muted);font-size:12.5px}.asmtree .st b{color:var(--ok);font-weight:600}.asmtree .fx{color:var(--ink)}.asmtree .same{display:block;color:var(--muted);font-size:12px}
+#treeWrap{max-height:560px;overflow:auto}.asmfilter{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:0 0 9px;font-size:13px;color:var(--muted)}.asmfilter label{display:flex;gap:6px;align-items:center}
 footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--rule);color:var(--muted);font-size:12.5px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 <div class="wrap">
   <h1>File Inspector</h1><p class="back"><a href="index.html">Back to Route Studio</a></p>
-  <p class="lede">Drop a Creo IGES or STEP export here to check, before routing, whether the datum points and coordinate systems actually came out. When a file comes back empty, it tells you which export setting is missing.</p>
+  <p class="lede">Drop a Creo IGES or STEP export here to check, before routing, whether the datum points and coordinate systems actually came out. When a file comes back empty, it tells you which export setting is missing. For an assembly STEP it also lists the parts and which one is the pipe or hose, and lets you correct that.</p>
 
   <div class="drop" id="drop">
     <p>Drop an <b>.igs</b>, <b>.iges</b>, <b>.stp</b> or <b>.step</b> file here</p>
@@ -101,6 +107,14 @@ footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--rule);color:v
 
     <section id="verdictSec">
       <div class="note" id="verdict"></div>
+    </section>
+
+    <section id="asmSec" hidden>
+      <h2>Parts and pipes</h2>
+      <div class="stats" id="asmStats"></div>
+      <div class="asmfilter" style="margin-top:12px"><label><input type="checkbox" id="asmSolidOnly"> Only parts with solids</label><span id="asmOv"></span></div>
+      <div class="tablewrap" id="treeWrap"></div>
+      <p class="hint">Pipe? <b>auto</b>: the app decides (a pipe is a solid of cylinders and tori, or tube-shaped spline faces for a hose, at least 100 mm and 16 radii long, round all the way). <b>pipe</b> takes the part even when it fails those rules; <b>not a pipe</b> skips it. Your choice is saved for this file name and used by Route Studio when you load the same file there. Hover a row for placement, faces and CSYS names.</p>
     </section>
 
     <section>
@@ -151,6 +165,8 @@ footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--rule);color:v
 </div>
 <script src="js/iges.js"></script>
 <script src="js/step.js"></script>
+<script src="js/step-asm.js"></script>
+<script src="js/asm-tree.js"></script>
 <script>
 (function(){
 "use strict";
@@ -175,7 +191,7 @@ function read(file){
   r.readAsText(file);
 }
 function fail(name,msg){
-  state=null; $("out").hidden=false;
+  state=null; asm=null; $("asmSec").hidden=true; $("out").hidden=false;
   $("stats").innerHTML=stat(name,"file");
   $("datumSec").hidden=true; $("exportSec").hidden=true; $("levelSec").hidden=true;
   $("entBody").innerHTML=""; 
@@ -192,7 +208,30 @@ function show(name, text){
   state = isStep ? loadStep(name,text) : loadIges(name,text);
   selGroup=Object.keys(state.groups)[0]||null;
   render();
+  asm = isStep && /PRODUCT_DEFINITION\s*\(/.test(text) && /MANIFOLD_SOLID_BREP|BREP_WITH_VOIDS/.test(text) ? {name, text, ov:AsmTree.load(name), r:null} : null;
+  asmShow();
 }
+
+/* ---------- assembly: part tree, pipe override ---------- */
+let asm=null;
+function asmShow(note){
+  const sec=$("asmSec"); sec.hidden=!asm; if(!asm) return;
+  try{ asm.r=StepAsm.parse(asm.text,{pipe:asm.ov}); }
+  catch(e){ $("asmStats").innerHTML=""; $("treeWrap").innerHTML='<p style="padding:12px">'+esc(e.message)+'</p>'; return; }
+  const r=asm.r, s=r.summary, hoses=r.pipes.filter(p=>p.kind==="hose").length;
+  $("asmStats").innerHTML=stat(fmt(s.instances-1),"part instances")+stat(fmt(s.parts-1),"different parts")+stat(fmt(s.solids),"solids")
+    +stat(fmt(r.pipes.length-hoses),"pipes")+stat(fmt(hoses),"hoses")+stat(fmt(s.fixings),"clamp bores");
+  const n=Object.keys(asm.ov).length;
+  $("asmOv").innerHTML=(note?esc(note)+" ":"")+(n?n+" part"+(n>1?"s":"")+' marked by hand · <button class="btn" type="button" id="asmReset">Back to auto</button>':"");
+  if(n) $("asmReset").onclick=()=>{ asm.ov={}; AsmTree.save(asm.name,asm.ov); asmShow("All parts back to auto."); };
+  AsmTree.render($("treeWrap"), r, {overrides:asm.ov, onChange:(part,v)=>{
+    if(v==null) delete asm.ov[part]; else asm.ov[part]=v; AsmTree.save(asm.name,asm.ov);
+    asmShow(part+(v==null?" back to auto.":v?" marked as pipe.":" marked not a pipe.")); }});
+  asmFilter();
+}
+function asmFilter(){ const only=$("asmSolidOnly").checked;
+  $("treeWrap").querySelectorAll("tr.asm").forEach(tr=>tr.hidden=only); }
+$("asmSolidOnly").onchange=asmFilter;
 
 function loadIges(name,text){
   const r=IGES.parse(text);

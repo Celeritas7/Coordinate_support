@@ -87,8 +87,11 @@ function makeRoute(P,opts={}){
   function seg(x,i){const a=ptAt(x,i),b=ptAt(x,i+1),L=V.len(V.sub(b,a));return[a,b,V.mul(tanAt(x,i),L*x[3*n+2*i]),V.mul(tanAt(x,i+1),L*x[3*n+2*i+1])];}
   function segs(x){const out=[];for(let i=0;i<n-1;i++)out.push(seg(x,i));return out;}
   // one segment: length, curvature samples, local-radius samples, obstacle depth
+  // obstacles per segment: only boxes the segment can reach (it may bulge up to ~60 % of its chord)
+  const segB=(opts.obstacles&&opts.obstacles.length)?P.slice(0,-1).map((a,i)=>{const b=P[i+1],g=Math.min(V.len(V.sub(b,a))*0.6,150)+(opts.rad||0)+5;
+    return opts.obstacles.filter(o=>[0,1,2].every(k=>o.max[k]>=Math.min(a[k],b[k])-g&&o.min[k]<=Math.max(a[k],b[k])+g));}):null;
   function evalSeg(x,i,S){
-    const g=seg(x,i),rad=opts.rad||0,boxes=opts.obstacles||[],r0=loc[i]||0,r1=loc[i+1]||0;let len=0,kmax=0,obs=0,prev=null;const ks=[],rl=[];
+    const g=seg(x,i),rad=opts.rad||0,boxes=segB?segB[i]:(opts.obstacles||[]),r0=loc[i]||0,r1=loc[i+1]||0;let len=0,kmax=0,obs=0,prev=null;const ks=[],rl=[];
     for(let j=0;j<=S;j++){const u=j/S,r=hermite(g[0],g[1],g[2],g[3],u),k=curvOf(r.d1,r.d2);ks.push(k);rl.push(r0*(1-u)+r1*u);if(k>kmax)kmax=k;
       if(prev)len+=V.len(V.sub(r.p,prev));prev=r.p;
       for(const b of boxes){const d=boxDepth(r.p,b,rad);if(d>0)obs+=d*d;}
@@ -182,11 +185,14 @@ function frameAlong(Q){
 function pathLength(Q){let s=0;for(let i=1;i<Q.length;i++)s+=V.len(V.sub(Q[i],Q[i-1]));return s;}
 // drop points the spline doesn't need: a point goes if the spline through the rest still holds needR
 // and passes within tol mm of every dropped point. Kept: ends + target points. step(ms) runs for ~ms, returns done.
-function thinner(Q0,keepIdx,needR,tol){
+function thinner(Q0,keepIdx,needR,tol,obs){
   const keep=new Set(keepIdx);keep.add(0);keep.add(Q0.length-1);
   let ids=Q0.map((_,i)=>i),pos=1,pass=0,changed=false,best=analyse(Q0);
+  // CAD parts: a drop may not bring the route closer than the gap, or closer than it already was
+  const floor=obs?Math.min(obs.gap,CadSolids.clearance(best.d.pts,obs.ix,obs.d,obs.r).gap)-0.05:0;
   function tryDrop(j){const ids2=ids.slice(0,j).concat(ids.slice(j+1)),A=analyse(ids2.map(i=>Q0[i]));
     if(A.minR<needR)return null;
+    if(obs&&CadSolids.clearance(A.d.pts,obs.ix,obs.d,obs.r).gap<floor)return null;
     for(let o=ids2[Math.max(0,j-2)]+1;o<ids2[Math.min(ids2.length-1,j+1)];o++){if(ids2.includes(o))continue;if(closestOnPath(Q0[o],A.d.pts).d>tol)return null;}
     return{ids2,A};}
   function step(ms){const t0=performance.now();
@@ -411,10 +417,10 @@ function rebuild(refit){
   const masters=new Set();
   vis.forEach(r=>{
     const R=r.params.R,SF=r.params.SF||1.5;
-    const cols=colorMode==='radius'&&r.kind!=='master'
+    const isSel=r.id===(sel&&sel.id),cols=colorMode==='radius'&&r.kind!=='master'&&(isSel||vis.length===1)
       ? r.d.k.map(k=>radiusColor(1/k,R,SF,c))
       : r.d.k.map(()=>new THREE.Color(r.color));
-    const tr=r.cable?Math.max(r.cable.d/2,tubeR*0.4):(r.id===(sel&&sel.id)?tubeR:tubeR*0.8);
+    const tr=r.cable?Math.max(r.cable.d/2,tubeR*0.4):(isSel?tubeR:tubeR*0.6);
     content.add(tube(r.d.pts,cols,tr));
     const pm=new THREE.MeshLambertMaterial({color:new THREE.Color(r.color)});
     r.Q.forEach((q,i)=>{const isT=!r.tidx||r.tidx.includes(i);const s=new THREE.Mesh(sg,pm);
@@ -424,6 +430,9 @@ function rebuild(refit){
       (r.stations||[]).forEach(st=>{const s=new THREE.Mesh(sg,sm);s.scale.setScalar(tr*1.7);s.position.set(...st.p);content.add(s);});}
     if(r.parts&&r.id===(sel&&sel.id)){const bc=new THREE.Color(css('--muted'));
       r.parts.forEach(b=>content.add(new THREE.Box3Helper(new THREE.Box3(new THREE.Vector3(...b.min),new THREE.Vector3(...b.max)),bc)));}
+    if(r.marks&&isSel){const mk={};r.marks.forEach(m=>{const col=css(m.bad?'--bad':m.warn?'--warn':'--ok'),s=new THREE.Mesh(sg,mk[col]||(mk[col]=new THREE.MeshLambertMaterial({color:new THREE.Color(col)})));
+      s.scale.setScalar(tr*2.6);s.position.set(...m.p);content.add(s);addTag(m.p,m.text,m.bad?'bad':m.warn?'warn':'');});}
+    if(r.holes&&r.id===(sel&&sel.id))r.holes.forEach(h=>{const g=new THREE.BufferGeometry().setFromPoints(h.pts.map(q=>new THREE.Vector3(...q)));content.add(new THREE.LineLoop(g,new THREE.LineBasicMaterial({color:new THREE.Color(css(h.bad?'--bad':'--ok'))})));});
     if(r.clamps&&r.id===(sel&&sel.id))r.clamps.forEach(k=>{const a=k.d,u=V.norm(Math.abs(a[0])<0.9?V.cross(a,[1,0,0]):V.cross(a,[0,1,0])),w=V.cross(a,u);
       const col=css(k.ok?'--ok':k.on?'--bad':'--muted');
       [-1,1].forEach(s=>content.add(circle(V.add(k.c,V.mul(a,s*k.length/2)),u,w,k.r,col,false)));
@@ -436,6 +445,10 @@ function rebuild(refit){
       r.master.forEach(p=>{const s=new THREE.Mesh(sg,mm);s.scale.setScalar(tubeR*1.4);s.position.set(...p);content.add(s);});
       addTag(r.master[0],'master','t');}
   });
+  // a CAD part picked with “show” in the parts list: its faces in amber, with its name
+  if(typeof BC!=='undefined'&&BC.focus&&BC.sv){const p=BC.sv.parts.find(x=>x.sid===BC.focus);if(p){const fc=new THREE.Color(css('--warn'));
+    p.faces.forEach(f=>content.add(new THREE.Box3Helper(new THREE.Box3(new THREE.Vector3(...f.min),new THREE.Vector3(...f.max)),fc)));
+    const so=BC.cad.solids.find(x=>x.sid===p.sid);addTag(so.max,`${p.name} · ${p.dims.map(v=>Math.round(v)).join('×')} mm`,'');}}
   const shownB=new Set();
   vis.forEach(r=>{const B=r.bundle&&bundles[r.bundle];if(!B||shownB.has(B))return;shownB.add(B);
     Object.values(B.clamps).forEach(k=>{const f=B.frame[k.id];if(!f)return;
@@ -504,29 +517,30 @@ function drawChart(){
   const cv=$('ch'),dpr=window.devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;
   if(!W||!H)return;cv.width=W*dpr;cv.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,H);
   const vis=visible().filter(r=>dock!=='clr'||r.clearDense);
-  const sel=selected();if(!vis.length||!sel){chartGeom=null;return;}
+  let sel=selected();if(!vis.length||!sel){chartGeom=null;return;}
+  if(dock==='clr'&&!sel.clearDense)sel=vis[0];   // e.g. “As entered” selected: chart the run that has a gap profile
   const L={l:60,r:16,t:14,b:28},pw=W-L.l-L.r,ph=H-L.t-L.b;
   const maxLen=Math.max(...vis.map(r=>r.len));
   const X=s=>L.l+s/maxLen*pw;
   ctx.font='12px '+css('--sans');ctx.strokeStyle=css('--rule');ctx.lineWidth=1;
   const isRad=dock==='rad';
-  let Y,ticks;
+  let Y,ticks,lo=0;
   if(isRad){
     const R=sel.params.R,SF=sel.params.SF||1.5;
     const lo=Math.max(1,Math.pow(10,Math.floor(Math.log10(Math.min(R,...vis.map(r=>r.minR))*0.7)))),hi=Math.max(2000,R*SF*4);
     Y=v=>L.t+ph*(1-(Math.log10(Math.min(Math.max(v,lo),hi))-Math.log10(lo))/(Math.log10(hi)-Math.log10(lo)));
     ticks=[];for(let e=Math.log10(lo);e<=Math.log10(hi)+1e-9;e++)ticks.push(Math.pow(10,e));
   }else{
-    const all=vis.flatMap(r=>r.clearDense),gap=sel.clear?sel.clear.gap:0;
-    const hi=Math.max(gap*1.6,Math.max(...all)*1.05),lo=0;
+    const all=vis.flatMap(r=>r.clearDense),gap=sel.clear?sel.clear.gap:(sel.gapLimit||0);
+    const hi=Math.max(gap*1.6,Math.max(...all)*1.05);lo=Math.min(0,Math.min(...all)*1.1);   // below 0 = hose inside a part
     Y=v=>L.t+ph*(1-(Math.min(Math.max(v,lo),hi)-lo)/(hi-lo));
-    ticks=[];const raw=hi/5,p10=Math.pow(10,Math.floor(Math.log10(raw))),st=[1,2,2.5,5,10].find(m=>m*p10>=raw)*p10;for(let v=0;v<=hi;v+=st)ticks.push(v);
+    ticks=[];const raw=(hi-lo)/5,p10=Math.pow(10,Math.floor(Math.log10(raw))),st=[1,2,2.5,5,10].find(m=>m*p10>=raw)*p10;for(let v=Math.ceil(lo/st)*st;v<=hi;v+=st)ticks.push(v);
   }
   ctx.fillStyle=css('--muted');ctx.textAlign='right';
   ticks.forEach(v=>{const y=Y(v);ctx.beginPath();ctx.moveTo(L.l,y);ctx.lineTo(L.l+pw,y);ctx.stroke();
-    ctx.fillText(v>=1000?(v/1000)+'k':String(Math.round(v)),L.l-8,y+4);});
+    ctx.fillText(v>=1000?(v/1000)+'k':String(Math.round(v*10)/10),L.l-8,y+4);});
   ctx.save();ctx.translate(15,L.t+ph/2);ctx.rotate(-Math.PI/2);ctx.textAlign='center';
-  ctx.fillText(isRad?'bend radius, mm':'clearance to master, mm',0,0);ctx.restore();
+  ctx.fillText(isRad?'bend radius, mm':sel.gapLimit?'gap to parts, mm (hose surface)':'clearance to master, mm',0,0);ctx.restore();
   const step=pw<520?(maxLen>2000?1000:500):(maxLen>2000?500:250);
   ctx.textAlign='center';for(let s=step;s<=maxLen;s+=step)ctx.fillText(s,X(s),H-9);
   ctx.textAlign='left';ctx.fillText('mm along route',L.l,H-9);
@@ -535,6 +549,15 @@ function drawChart(){
     ctx.fillStyle=css(cv2);ctx.textAlign='right';ctx.fillText(t,L.l+pw-4,Y(v)-4);};
   if(isRad){lim(sel.params.R,'--bad',`min ${sel.params.R}`);lim(sel.params.R*(sel.params.SF||1.5),'--warn',`x${sel.params.SF||1.5} margin`);}
   else if(sel.clear)lim(sel.clear.gap,'--bad',`gap ${sel.clear.gap}`);
+  else if(sel.gapLimit){lim(sel.gapLimit,'--bad',`gap ${sel.gapLimit}`);if(lo<0)lim(0,'--muted','0 = touching');}
+  // gap to parts: each too-close stretch shaded (red = into the part, amber = too close) and labelled at its worst point
+  if(!isRad&&sel.spots&&sel.spots.length){ctx.save();ctx.font='500 11.5px '+css('--sans');let lastX=-1e9,row=0;
+    sel.spots.forEach(sp=>{const x0=X(sel.d.s[sp.i0]),x1=Math.max(X(sel.d.s[sp.i1]),x0+3),c=css(sp.gap<0?'--bad':'--warn');
+      ctx.globalAlpha=0.16;ctx.fillStyle=c;ctx.fillRect(x0,L.t,x1-x0,ph);ctx.globalAlpha=1;
+      const x=X(sel.d.s[sp.i]),y=Y(sp.gap);ctx.fillStyle=c;ctx.beginPath();ctx.arc(x,y,4,0,7);ctx.fill();
+      row=x-lastX<150?(row+1)%3:0;lastX=x;const t=`${sp.span} · ${sp.name} · ${fmt(sp.gap,1)}`;
+      ctx.textAlign=x>L.l+pw-150?'right':'left';const tx=x+(x>L.l+pw-150?-6:6),ty=L.t+ph-8-row*14;ctx.fillText(t,tx,ty);});
+    ctx.restore();}
   ctx.lineWidth=2;
   vis.forEach(r=>{
     const vals=isRad?r.d.k.map(k=>1/k):r.clearDense;
@@ -545,21 +568,23 @@ function drawChart(){
     }else{ctx.strokeStyle=r.color;ctx.globalAlpha=r.id===sel.id?1:0.6;ctx.beginPath();
       vals.forEach((v,i)=>i?ctx.lineTo(X(r.d.s[i]),Y(v)):ctx.moveTo(X(r.d.s[0]),Y(v)));ctx.stroke();ctx.globalAlpha=1;}
   });
-  chartGeom={L,pw,maxLen,X,Y,isRad};
+  chartGeom={L,pw,maxLen,X,Y,isRad,ref:sel};
   if(hover!=null&&sel){const i=Math.min(hover,sel.d.pts.length-1);const x=X(sel.d.s[i]);
     ctx.strokeStyle=css('--ink');ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x,L.t);ctx.lineTo(x,L.t+ph);ctx.stroke();
-    const v=isRad?1/sel.d.k[i]:sel.clearDense[i];ctx.font='500 12px '+css('--sans');ctx.fillStyle=css('--ink');
+    const v=isRad?1/sel.d.k[i]:(sel.clearDense?sel.clearDense[i]:NaN);ctx.font='500 12px '+css('--sans');ctx.fillStyle=css('--ink');
     ctx.textAlign=x>W-170?'right':'left';
     ctx.fillText(`${isRad?'R':'gap'} ${v>=1e4?'inf':fmt(v)} mm at ${Math.round(sel.d.s[i])} mm`,x+(x>W-170?-6:6),Y(v)-8);}
 }
 function chartHover(e){
-  if(!chartGeom||dock==='cmp'||dock==='pts')return;const sel=selected();if(!sel)return;
+  if(!chartGeom||dock==='cmp'||dock==='pts')return;const sel=chartGeom.ref||selected();if(!sel)return;
   const rect=$('ch').getBoundingClientRect(),x=e.clientX-rect.left,{L,pw,maxLen}=chartGeom;
   if(x<L.l||x>L.l+pw){hover=null;if(marker)marker.visible=false;return draw();}
   const s=(x-L.l)/pw*maxLen;let i=0;while(i<sel.d.s.length-1&&sel.d.s[i]<s)i++;hover=i;
   if(marker){marker.position.set(...sel.d.pts[i]);marker.visible=true;}draw();
 }
 $('ch').addEventListener('pointermove',chartHover);$('ch').addEventListener('pointerdown',chartHover);
+$('ch').addEventListener('click',e=>{const sel=chartGeom&&chartGeom.ref;if(dock!=='clr'||!sel||!sel.gapLimit||hover==null)return;
+  const p=sel.d.pts[Math.min(hover,sel.d.pts.length-1)];orbit.target.set(...p);orbit.dist=Math.max(200,(sel.params.R||65)*4);zoomed=true;$('zoom').textContent='Show whole route';draw();});
 $('ch').addEventListener('pointerleave',()=>{hover=null;if(marker)marker.visible=false;draw();});
 
 // ---------------- runs list, compare table, points ----------------
@@ -585,7 +610,7 @@ function renderRuns(){
 }
 function loadSettings(r){
   const p=r.params;
-  if(r.kind==='pipe'){showPanel('analyse');return;}
+  if(r.kind==='pipe'){showPanel('pipe');return;}
   if(r.kind==='bundle'){showPanel('bundle');$('bsf').value=p.SF;if(p.spacing)$('bsp').value=p.spacing;}
   else if(r.kind==='clear'){showPanel('clear');$('gap').value=p.gap;$('mode').value=p.mode;$('plane').value=p.plane;
     $('smooth').value=p.smooth;$('blend').value=p.blend;$('cr').value=p.R;$('lock').value=p.lock||'';}
@@ -654,24 +679,27 @@ $('runBend').onclick=()=>{
   if(bendJob){bendJob=0;$('runBend').textContent=BEND_LABEL;$('statusBend').textContent='Stopped. The "as entered" run was kept; press Check to shape again.';return;}
   const P=parsePts($('pts').value);
   if(P.length<3)return $('statusBend').textContent='Paste at least three points.';
+  const X=typeof bendCad==='function'?bendCad(P):null;
   const R=+$('r').value||65,SF=+$('sf').value||1.5,SP=+$('sp').value||85;
   const asEntered=analyse(P),frameNote=(typeof CAD!=='undefined'&&CAD.frame&&$('cadpick_pts')&&!$('cadpick_pts').hidden)?`, in ${CAD.frame.name} frame`:'';
   addRun(Object.assign(asEntered,{name:`As entered R${R}`,kind:'bend',kindLabel:'bend radius, as entered',
     params:{R,SF},settings:`${P.length} points as entered${frameNote}`,text:toPts(P,{R,designR:R*SF,minR:asEntered.minR,len:asEntered.len,tidx:P.map((_,i)=>i)})}));
   store.set('rs.pts',$('pts').value);
-  const route=makeRoute(P,{startDir:parseDir($('sd').value),endDir:parseDir($('ed').value),localR:P.map(p=>p.loc||0)});
+  const route=makeRoute(P,{startDir:parseDir($('sd').value),endDir:parseDir($('ed').value),localR:P.map(p=>p.loc||0),
+    fixDirs:X&&X.fixDirs,obstacles:X&&X.boxes,rad:X&&X.rad});
   const nloc=P.filter(p=>p.loc).length;
   const o=optimiser(route,R*SF),job=++bendSeq;bendJob=job;$('runBend').textContent='Stop';
   const tick=()=>{if(bendJob!==job)return;const t0=performance.now();let r;do{r=o.step(6);}while(!r.done&&performance.now()-t0<30);$('statusBend').textContent=`Shaping the curve... tightest bend so far R ${fmt(r.minR)} mm (${P.length} points, step ${r.it} of up to 900)`;
     if(!r.done)return defer(tick);
     let sp=SP,res;for(let a=0;a<4;a++){const s=samplePoints(route,r.x,sp,$('adapt').checked,R*SF);const A=analyse(s.Q);res={A,s};if(A.minR>=R*1.15)break;sp*=0.7;}
     const finish=(A,tidx,thinNote)=>{A.tidx=tidx;if(bendJob!==job&&bendJob!==-job)return;bendJob=0;$('runBend').textContent=BEND_LABEL;
-      addRun(Object.assign(A,{name:`Generated R${R} x${SF}`,kind:'bend',kindLabel:'bend radius, generated',
-        params:{R,SF,spacing:SP},settings:`gap ${sp.toFixed(0)} mm between points${$('adapt').checked?', closer in bends':''}, x${SF} margin${nloc?`, ${nloc} local radius override${nloc>1?'s':''}`:''}${thinNote}${frameNote}`,
+      const cx=X?X.report(A):null;
+      addRun(Object.assign(A,{name:`Generated R${R} x${SF}`,kind:'bend',kindLabel:'bend radius, generated',parts:cx?cx.parts:undefined,holes:cx?cx.holes:undefined,marks:cx?cx.marks:undefined,clearDense:cx?cx.clearDense:undefined,gapLimit:cx?cx.gapLimit:undefined,spots:cx?cx.spots:undefined,
+        params:{R,SF,spacing:SP},settings:`gap ${sp.toFixed(0)} mm between points${$('adapt').checked?', closer in bends':''}, x${SF} margin${nloc?`, ${nloc} local radius override${nloc>1?'s':''}`:''}${thinNote}${cx?cx.note:''}${frameNote}`,
         text:toPts(A.Q,{R,designR:+(R*SF).toFixed(1),minR:A.minR,len:A.len,tidx})}));
-      $('statusBend').textContent=`Added. Generated route holds R ${fmt(A.minR)} mm over ${A.Q.length} points${thinNote?` (${res.s.Q.length} before removing unneeded points)`:''}.`;};
+      $('statusBend').style.whiteSpace='pre-line';$('statusBend').textContent=`Added. Generated route holds R ${fmt(A.minR)} mm over ${A.Q.length} points${thinNote?` (${res.s.Q.length} before removing unneeded points)`:''}.${cx&&cx.msg?'\n'+cx.msg:''}`;};
     if(!$('thin').checked)return finish(res.A,res.s.tidx,'');
-    const tol=Math.max(0.05,+$('thinTol').value||1),needR=Math.max(R,Math.min(R*SF,res.A.minR*0.97)),T=thinner(res.s.Q,res.s.tidx,needR,tol),n0=res.s.Q.length;
+    const tol=Math.max(0.05,+$('thinTol').value||1),needR=Math.max(R,Math.min(R*SF,res.A.minR*0.97)),T=thinner(res.s.Q,res.s.tidx,needR,tol,X&&X.thin),n0=res.s.Q.length;
     bendJob=-job;
     const thinTick=()=>{if(bendJob!==-job)return;const done=T.step(30);$('statusBend').textContent=`Removing points the curve doesn't need... ${n0} → ${T.n}`;
       if(!done)return defer(thinTick);
