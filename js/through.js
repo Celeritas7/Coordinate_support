@@ -118,9 +118,23 @@ function solve(W0,opt){
     if(!best){const near=tried.sort((a,b)=>a.bad.length-b.bad.length)[0];
       return{ok:false,reason:`no route through ${o.clamps[k].name}`+(near?`: ${near.bad.slice(0,3).join('; ')}`:''),steps,tried};}
     V=best.V;done.push(k);steps.push({clamp:o.clamps[k].name,how:best.cs.max<1e-3?best.how.replace(/moved onto/,'already on'):best.how,maxMove:best.cs.max,added:best.cs.added});}
+  if(o.dropDetours)V=dropDetours(V,o,done,steps);
   const W=V.map(v=>v.p.map(x=>Math.round(x*1000)/1000));
   return{ok:true,W,R:o.R,steps,report:report(W0,V,W,o)};
 }
+// "Drop detour corners": remove an original corner that turns over 120° or whose removal shortens the polyline by 15 % or more,
+// re-fit with every routed clamp held, keep the removal only if all checks still pass. Largest detour first, repeat.
+function dropDetours(V,o,done,steps){
+  for(let guard=0;guard<20;guard++){
+    const W=V.map(v=>v.p),G=AR.build(W,o.R),m=W.length-1;if(m<3)break;
+    const plen=W.reduce((s,p,i)=>i?s+len(sub(p,W[i-1])):s,0),c=[];
+    for(let j=1;j<m;j++){const v=V[j];if(v.kind!=='free'||v.ks.length)continue;
+      const th=G.corners[j]?G.corners[j].th*DEG:0,save=len(sub(W[j],W[j-1]))+len(sub(W[j+1],W[j]))-len(sub(W[j+1],W[j-1]));
+      if(th>120||save>=0.15*plen)c.push({j,th,save,score:th+save});}
+    c.sort((a,b)=>b.score-a.score);let took=null;
+    for(const d of c){const Vn=cloneV(V);Vn.splice(d.j,1);if(!fitActive(Vn,o,done).length){took={Vn,d};break;}}
+    if(!took)break;V=took.Vn;steps.push({how:`detour corner ${took.d.j+1} dropped (${took.d.th.toFixed(1)}° bend, ${Math.round(took.d.save)} mm shorter)`});}
+  return V;}
 // fit with only the clamps in `ks` active (renumbered so inactive clamps drop out)
 function fitActive(V,o,ks){const map=[],cl=[];o.clamps.forEach((c,i)=>{if(ks.includes(i)){map[i]=cl.length;cl.push(c);}});
   const Vm=V.map(v=>({...v,ks:v.ks.filter(k=>ks.includes(k)).map(k=>map[k])}));
