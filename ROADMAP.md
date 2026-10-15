@@ -150,6 +150,16 @@ Next:
 - Output re-fitted as corner points at the slave's single radius, so it goes straight back to Creo; gap checked along the whole length against the real centrelines
 - Test: piping3, pipe 211 offset from pipe 111 at a set gap; minimum surface gap reported equal to the gap ±0.1 mm
 
+## Phase 12d — Several clamps in order, pipe against parts (planned, waiting for the user's examples)
+Today (`js/through.js`): every ticked clamp is routed in one run, but clamps are taken in file order (ones the pipe already passes first), each is put on one of the 3 straights nearest its centre, and an earlier clamp's placement is never revisited. The order along the pipe is whatever the existing pipe gives; nothing checks it. The Pipe module reads no parts at all (Keep clear of CAD parts is Hose / Cable only).
+1. **Clamp order along the route**
+   - Order from the existing pipe (where each clamp projects along it), or set by the user (drag / number). Each clamp gets its own straight in that order
+   - Report clamps out of order, two clamps fighting for one straight, and coaxial clamps that can share one straight
+   - Backtrack: when clamp k has no valid placement, retry the earlier clamps with their next-best variant before failing
+2. **Clearance check on pipe runs**: load the frame / parts file (same loader and `cad-solids.js` gap code as Hose), smallest surface gap per straight and per bend (OD counted), part named, listed in Issues
+3. **Avoidance**: parts as a constraint in the Through clamps fit (corners move to clear them, clamps held on their axes); "Drop detour corners" keeps a corner that bends round a part
+- Tests with the user's multi-clamp examples; piping3 pipe 111 (3 clamps) must still pass unchanged
+
 ## Phase 13 — Parts in 3D and clearance to real parts
 First step (done, Route through stations):
 - `js/cad-solids.js`: IGES B-rep solids (186/514/510/508/504/502, arcs 100 with their 124 transform, B-splines 126) and STEP solids (via StepAsm) → one box per face. `u107338_fy26_test_frame_asm_111.igs`: 73 solids, 3682 faces, read in about 0.5 s in the browser
