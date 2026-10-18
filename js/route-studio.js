@@ -369,6 +369,7 @@ function fitAll(){const b=new THREE.Box3();let any=false;
     if(r.master)r.master.forEach(p=>b.expandByPoint(new THREE.Vector3(...p)));
     const B=r.bundle&&bundles[r.bundle];if(B){Object.values(B.clamps).forEach(k=>b.expandByPoint(new THREE.Vector3(...k.p)));
       B.obstacles.forEach(o=>{b.expandByPoint(new THREE.Vector3(...o.min));b.expandByPoint(new THREE.Vector3(...o.max));});}});
+  if(typeof ALT!=='undefined')ALT.cands.forEach(a=>a.Q.forEach(p=>{b.expandByPoint(new THREE.Vector3(...p));any=true;}));
   if(!any)return;b.getCenter(orbit.target);diag=Math.max(b.getSize(new THREE.Vector3()).length(),100);
   const asp=($('view').clientWidth||1)/($('view').clientHeight||1);
   orbit.dist=diag*1.35*Math.max(1,Math.pow(1/asp,0.8));tubeR=Math.max(diag*0.0042,1.5);
@@ -449,6 +450,8 @@ function rebuild(refit){
   if(typeof BC!=='undefined'&&BC.focus&&BC.sv){const p=BC.sv.parts.find(x=>x.sid===BC.focus);if(p){const fc=new THREE.Color(css('--warn'));
     p.faces.forEach(f=>content.add(new THREE.Box3Helper(new THREE.Box3(new THREE.Vector3(...f.min),new THREE.Vector3(...f.max)),fc)));
     const so=BC.cad.solids.find(x=>x.sid===p.sid);addTag(so.max,`${p.name} · ${p.dims.map(v=>Math.round(v)).join('×')} mm`,'');}}
+  // Alternatives: the top candidates over everything else, each in its own colour (alt-ui.js)
+  if(typeof altOverlay==='function')altOverlay(content,{tube,sg,addTag,tubeR});
   const shownB=new Set();
   vis.forEach(r=>{const B=r.bundle&&bundles[r.bundle];if(!B||shownB.has(B))return;shownB.add(B);
     Object.values(B.clamps).forEach(k=>{const f=B.frame[k.id];if(!f)return;

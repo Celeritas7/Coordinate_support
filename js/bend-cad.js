@@ -37,6 +37,9 @@ function straightRuns(P,tol){const runs=[],n=P.length,dot=(a,b)=>a[0]*b[0]+a[1]*
     if(best>0){runs.push([i,best]);i=best+1;}else i++;}
   return runs;}
 
+// face boxes of the ticked parts, for Alternatives (whether or not Push is on), and the hose radius + gap
+window.bendCadBoxes=function(){const o=opt(),sv=$('cdUse').checked?survey():null;
+  return{faces:sv?sv.parts.filter(keepClear).flatMap(p=>p.faces):[],rad:o.d/2+o.gap,parts:sv?sv.parts.filter(keepClear).length:0};};
 window.bendCad=function(P){
   const o=opt(),sv=$('cdUse').checked?survey():null;
   const faces=sv?sv.parts.filter(keepClear).flatMap(p=>p.faces):[],ix=faces.length?CadSolids.index(faces,50):null,rad=o.d/2+o.gap;

@@ -21,7 +21,7 @@
           <button type="button" data-preset="bundle" data-goto="bundle:bundle">Bundle example, 6 cables</button>
         </div></details>
         <a class="shbtn" href="inspector.html" target="_blank" title="Check what a Creo export contains">Inspector</a><button type="button" id="shTheme" class="shbtn" title="Switch light / dark">Dark</button></div></div>
-    <div class="modsw" role="tablist" aria-label="Module"><button type="button" role="tab" data-mod="hose">Hose / Cable</button><button type="button" role="tab" data-mod="pipe">Pipe</button><button type="button" role="tab" data-mod="bundle">Bundle</button></div>
+    <div class="modsw" role="tablist" aria-label="Module"><button type="button" role="tab" data-mod="hose">Hose / Cable</button><button type="button" role="tab" data-mod="pipe">Pipe</button><button type="button" role="tab" data-mod="bundle">Bundle</button><button type="button" role="tab" data-mod="library">Library</button></div>
     <div class="shstatus" id="shStatus">Drop .stp, .igs or .pts files anywhere on the page.</div>
     <input type="file" id="shFile" multiple accept=".pts,.txt,.csv,.ibl,.igs,.iges,.stp,.step" hidden>
   </header>
@@ -83,6 +83,16 @@
     <button class="go" id="runBend" type="button">Check, then add to comparison</button>
     <p class="hint" id="bendHint">Adds two runs: the spline through your points as entered, and a generated route that holds the radius. A 4th value on a point line raises the min radius near that point for a smoother loop there.</p>
     <div class="status" id="statusBend"></div>
+    <div id="altBox">
+      <button class="go ghost" id="runAlt" type="button">Alternatives</button>
+      <p class="hint">Other ways round the obstacles: each box the straight line between two stations hits can be passed on four sides; every mix of sides is shaped like the generated route, and the best 3 distinct ones are drawn in 3D. Obstacles: the ticked parts under “Keep clear of CAD parts” (hose Ø / 2 + gap there is the cable radius) and any boxes typed below.</p>
+      <details class="adv"><summary>Obstacle boxes typed by hand</summary>
+        <label for="altObs" style="margin-top:8px">Obstacles <span class="unit">(id  Xmin Ymin Zmin  Xmax Ymax Zmax)</span></label>
+        <textarea id="altObs" rows="2" spellcheck="false" wrap="off"></textarea>
+      </details>
+      <div class="status" id="statusAlt"></div>
+      <div id="altList" class="altlist"></div>
+    </div>
   </section>
 
   <section id="panClear" hidden>
@@ -242,9 +252,50 @@
       <textarea id="thPts" rows="7" spellcheck="false" wrap="off" readonly></textarea>
       <div class="tbtns"><button class="go" id="thCopy" type="button" disabled>Copy .pts</button><button class="go ghost" id="thDl" type="button" disabled>Download .pts</button></div>
       </div>
+<div id="pipeOffset" hidden>
+      <label style="margin-top:12px">Offset a pipe from another</label>
+      <p class="hint" id="ofNone" hidden></p>
+      <div id="ofUI">
+      <div class="fields c2" style="margin-top:6px">
+        <div><label for="ofFixed">Fixed pipe <span class="unit">(stays)</span></label><select id="ofFixed"></select></div>
+        <div><label for="ofFollow">Follower <span class="unit">(moves)</span></label><select id="ofFollow"></select></div>
+      </div>
+      <div class="presets"><button type="button" id="ofSwap">Swap fixed and follower</button><span class="unit">Saved for this file name.</span></div>
+      <div class="fields c3">
+        <div><label for="ofGap">Min gap <span class="unit">mm</span></label><input id="ofGap" type="number" value="30" min="0" step="1" inputmode="decimal" title="Surface to surface: both pipe ODs are counted"></div>
+        <div><label for="ofR">Bend R <span class="unit">mm</span></label><input id="ofR" type="number" min="1" step="0.5" inputmode="decimal"></div>
+        <div><label for="ofMin">Min straight <span class="unit">mm</span></label><input id="ofMin" type="number" value="30" min="0" step="5" inputmode="decimal"></div>
+      </div>
+      <div id="ofClips"></div>
+      <details class="adv" id="ofObsBox" open><summary>Obstacles (trial: boxes typed by hand)</summary>
+        <label for="ofObs" style="margin-top:8px">Boxes <span class="unit">(id  Xmin Ymin Zmin  Xmax Ymax Zmax, in the .pts frame)</span></label>
+        <textarea id="ofObs" rows="3" spellcheck="false" wrap="off" placeholder="T1  455 1285 -1663  495 1325 -1623"></textarea>
+        <div class="presets"><button type="button" id="ofObsAdd" title="A 30 mm cube where the follower would move to at its closest spot to the fixed pipe">Add a test box in the follower's way</button><button type="button" id="ofObsClear">clear</button></div>
+        <div class="fields c3"><div><label for="ofObsGap">Gap to boxes <span class="unit">mm</span></label><input id="ofObsGap" type="number" value="30" min="0" step="1" inputmode="decimal" title="Follower surface to the box"></div></div>
+        <p class="hint">Stand-ins for real parts until clearance to the assembly is read. The follower keeps Gap to boxes from every box, as well as Min gap from the fixed pipe; where both cannot hold, the report says so. Boxes show in 3D on the offset run.</p>
+      </details>
+      <p class="hint">Only the spots closer than Min gap move, measured surface to surface. Both ends and end directions stay; no straight gets shorter than Min straight (or than it already is). Corners move as little as the gap allows. Other parts are not checked yet.</p>
+      <button class="go" id="ofRun" type="button">Offset follower, then add to comparison</button>
+      <div class="status" id="statusOffset"></div>
+      <div id="ofOut"></div>
+      <label for="ofPts" style="margin-top:10px">.pts file</label>
+      <textarea id="ofPts" rows="7" spellcheck="false" wrap="off" readonly></textarea>
+      <div class="tbtns"><button class="go" id="ofCopy" type="button" disabled>Copy .pts</button><button class="go ghost" id="ofDl" type="button" disabled>Download .pts</button></div>
+      </div>
+      </div>
       </div>
     </div>
     <p class="hint pipeempty" id="pipeEmpty">Open or drop a Creo assembly .stp. The app finds each pipe or hose (bend radius, bends, OD/ID), the clamp bores, and the frame your .pts files are written in.</p>
+  </section>
+
+  <section id="panLib" hidden>
+    <span class="lbl">Clamps, clips and grommets</span>
+    <p class="hint">A part counts as a fixing when its name contains a pattern below (use * and ? to match the whole name). The bore range is a check: a bore outside it is still used, with a warning. Saved in this browser; Import merges by pattern.</p>
+    <div class="presets"><button type="button" id="libExport">Export JSON</button><button type="button" id="libImport">Import JSON</button></div>
+    <input type="file" id="libFile" accept=".json,application/json" hidden>
+    <div id="libUnknown"></div>
+    <div class="status" id="statusLib"></div>
+    <div id="libCards" class="libcards"></div>
   </section>
   </div>
   </div>
@@ -326,6 +377,7 @@
 <script src="js/asm-tree.js"></script>
 <script src="js/through.js"></script>
 <script src="js/route-studio.js"></script>
+<script src="js/multiroute.js"></script>
 <script src="js/analysis.js"></script>
 <script src="js/refine.js"></script>
 <script src="js/clearance.js"></script>
@@ -334,9 +386,14 @@
 <script src="js/cad-io.js"></script>
 <script src="js/arc-ui.js"></script>
 <script src="js/pts-table.js"></script>
+<script src="js/fixlib.js"></script>
 <script src="js/asm-ui.js"></script>
+<script src="js/lib-ui.js"></script>
+<script src="js/offset.js"></script>
+<script src="js/offset-ui.js"></script>
 <script src="js/cad-solids.js"></script>
 <script src="js/bend-cad.js"></script>
+<script src="js/alt-ui.js"></script>
 <script src="js/shell.js"></script>
 </body>
 </html>
