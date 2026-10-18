@@ -688,8 +688,10 @@ $('runBend').onclick=()=>{
   addRun(Object.assign(asEntered,{name:`As entered R${R}`,kind:'bend',kindLabel:'bend radius, as entered',
     params:{R,SF},settings:`${P.length} points as entered${frameNote}`,text:toPts(P,{R,designR:R*SF,minR:asEntered.minR,len:asEntered.len,tidx:P.map((_,i)=>i)})}));
   store.set('rs.pts',$('pts').value);
+  // optional bore directions per station (clamp-stations.js); null when none are given: start / end directions only
+  const SD=typeof clampStationDirs==='function'?clampStationDirs(P):null;
   const route=makeRoute(P,{startDir:parseDir($('sd').value),endDir:parseDir($('ed').value),localR:P.map(p=>p.loc||0),
-    fixDirs:X&&X.fixDirs,obstacles:X&&X.boxes,rad:X&&X.rad});
+    fixDirs:SD?SD.fixDirs(X&&X.fixDirs):X&&X.fixDirs,obstacles:X&&X.boxes,rad:X&&X.rad});
   const nloc=P.filter(p=>p.loc).length;
   const o=optimiser(route,R*SF),job=++bendSeq;bendJob=job;$('runBend').textContent='Stop';
   const tick=()=>{if(bendJob!==job)return;const t0=performance.now();let r;do{r=o.step(6);}while(!r.done&&performance.now()-t0<30);$('statusBend').textContent=`Shaping the curve... tightest bend so far R ${fmt(r.minR)} mm (${P.length} points, step ${r.it} of up to 900)`;
@@ -698,9 +700,9 @@ $('runBend').onclick=()=>{
     const finish=(A,tidx,thinNote)=>{A.tidx=tidx;if(bendJob!==job&&bendJob!==-job)return;bendJob=0;$('runBend').textContent=BEND_LABEL;
       const cx=X?X.report(A):null;
       addRun(Object.assign(A,{name:`Generated R${R} x${SF}`,kind:'bend',kindLabel:'bend radius, generated',parts:cx?cx.parts:undefined,holes:cx?cx.holes:undefined,marks:cx?cx.marks:undefined,clearDense:cx?cx.clearDense:undefined,gapLimit:cx?cx.gapLimit:undefined,spots:cx?cx.spots:undefined,
-        params:{R,SF,spacing:SP},settings:`gap ${sp.toFixed(0)} mm between points${$('adapt').checked?', closer in bends':''}, x${SF} margin${nloc?`, ${nloc} local radius override${nloc>1?'s':''}`:''}${thinNote}${cx?cx.note:''}${frameNote}`,
+        params:{R,SF,spacing:SP},settings:`gap ${sp.toFixed(0)} mm between points${$('adapt').checked?', closer in bends':''}, x${SF} margin${nloc?`, ${nloc} local radius override${nloc>1?'s':''}`:''}${thinNote}${cx?cx.note:''}${SD?SD.note:''}${frameNote}`,
         text:toPts(A.Q,{R,designR:+(R*SF).toFixed(1),minR:A.minR,len:A.len,tidx})}));
-      $('statusBend').style.whiteSpace='pre-line';$('statusBend').textContent=`Added. Generated route holds R ${fmt(A.minR)} mm over ${A.Q.length} points${thinNote?` (${res.s.Q.length} before removing unneeded points)`:''}.${cx&&cx.msg?'\n'+cx.msg:''}`;};
+      $('statusBend').style.whiteSpace='pre-line';$('statusBend').textContent=`Added. Generated route holds R ${fmt(A.minR)} mm over ${A.Q.length} points${thinNote?` (${res.s.Q.length} before removing unneeded points)`:''}.${cx&&cx.msg?'\n'+cx.msg:''}${SD&&SD.msg?'\n'+SD.msg:''}`;};
     if(!$('thin').checked)return finish(res.A,res.s.tidx,'');
     const tol=Math.max(0.05,+$('thinTol').value||1),needR=Math.max(R,Math.min(R*SF,res.A.minR*0.97)),T=thinner(res.s.Q,res.s.tidx,needR,tol,X&&X.thin),n0=res.s.Q.length;
     bendJob=-job;

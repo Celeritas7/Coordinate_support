@@ -42,6 +42,27 @@
     <textarea id="pts" rows="7" spellcheck="false" wrap="off"></textarea>
     <div class="cadpick" id="cadpick_pts" hidden></div>
     <input type="file" id="cadfile" accept=".pts,.txt,.csv,.ibl,.igs,.iges,.stp,.step" hidden>
+    <details class="adv" id="csBox"><summary>Stations from clamps (STEP assembly)</summary>
+      <div class="presets"><button type="button" id="csLoad">Load assembly .stp…</button><button type="button" id="csUseAsm" hidden>use the assembly open in Pipe</button></div>
+      <input type="file" id="csFile" accept=".stp,.step" hidden>
+      <div class="fields c2">
+        <div><label for="csD">Hose Ø <span class="unit">mm</span></label><input id="csD" type="number" value="8" min="0.1" step="0.5" inputmode="decimal"></div>
+        <div><label for="csTol">Bore fit ± <span class="unit">mm</span></label><input id="csTol" type="number" value="1.5" min="0" step="0.5" inputmode="decimal"></div>
+      </div>
+      <div class="status" id="statusCs"></div>
+      <div class="fields c2">
+        <div><label for="csStart">Start at</label><select id="csStart"></select></div>
+        <div><label for="csEnd">End at</label><select id="csEnd"></select></div>
+      </div>
+      <div id="csList" class="cdparts cslist"></div>
+      <div class="presets"><button type="button" id="csAuto" disabled>Auto order</button><button type="button" id="csUse" disabled>Use as stations</button><span class="unit" id="csLen"></span></div>
+      <div class="csask" id="csAsk" hidden role="alertdialog" aria-labelledby="csAskTxt"><span id="csAskTxt"></span> <span class="presets"><button type="button" id="csYes">Replace</button><button type="button" id="csNo">Keep</button></span></div>
+      <label class="chk" style="margin-top:10px"><input type="checkbox" id="csHold" checked>Hold the bore direction at each station when checking</label>
+      <label for="csDirs">Bore directions <span class="unit">(dX dY dZ per target point, - = free; optional)</span></label>
+      <textarea id="csDirs" rows="3" spellcheck="false" wrap="off"></textarea>
+      <div class="presets"><button type="button" id="csClearDirs">clear directions</button></div>
+      <p class="hint">A fixing is a hole with a coordinate system on its axis, inside the hole; listed when its bore is within Hose Ø ± fit. Auto order finds the shortest path (nearest neighbour, then 2-opt) from Start to End; drag rows to change it. Use as stations writes the ticked ones into Target points and their bore axes here. Check then runs the hose along each bore. With this list empty, Check uses the start / end directions only.</p>
+    </details>
     <div class="fields c2">
       <div hidden><label for="shape">Route shape</label><select id="shape"><option value="spline">Spline, many points</option><option value="arc">Lines + arcs, corner points only</option></select></div>
       <div id="arcTolBox" hidden><label for="arcTol">Station tolerance <span class="unit">mm</span></label><input id="arcTol" type="number" value="0.05" min="0.001" step="0.01" inputmode="decimal"></div>
@@ -393,6 +414,7 @@
 <script src="js/offset-ui.js"></script>
 <script src="js/cad-solids.js"></script>
 <script src="js/bend-cad.js"></script>
+<script src="js/clamp-stations.js"></script>
 <script src="js/alt-ui.js"></script>
 <script src="js/shell.js"></script>
 </body>
