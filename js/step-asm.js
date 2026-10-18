@@ -272,16 +272,24 @@ function parse(text,opts){
 
   function solid(id){const e=get(id),sh=get(ref(e.args[1]));if(!sh)return null;const faces=[],types={},verts=[],ext=[];
     for(const fid of refs(sh.args[1])){const f=get(fid);if(!f||!(has(f,'ADVANCED_FACE')||has(f,'FACE_SURFACE')))continue;const fa=f.args,S=get(ref(fa[2]));if(!S)continue;
-      const kind=has(S,'B_SPLINE_SURFACE_WITH_KNOTS')?'bspline':S.kind.replace(/_SURFACE.*$/,'').toLowerCase().replace(/^b_spline.*/,'bspline');const face={kind,verts:[],edges:[],sense:!/\.F\./.test(fa[3]||'')};
+      const kind=has(S,'B_SPLINE_SURFACE_WITH_KNOTS')?'bspline':S.kind.replace(/_SURFACE.*$/,'').toLowerCase().replace(/^b_spline.*/,'bspline');const face={kind,verts:[],edges:[],loops:[],sense:!/\.F\./.test(fa[3]||'')};
       if(kind==='bspline')face.S=S;
       if(S.args[1]&&ref(S.args[1])!=null&&!/BOUNDED|B_SPLINE|OFFSET|REVOLUTION|EXTRUSION/.test(S.kind))face.ax=axis(ref(S.args[1]));
       if(has(S,'CYLINDRICAL_SURFACE')||has(S,'SPHERICAL_SURFACE')||has(S,'CONICAL_SURFACE'))face.r=parseFloat(S.args[2])*unitScale;
       if(has(S,'TOROIDAL_SURFACE')){face.R=parseFloat(S.args[2])*unitScale;face.r=parseFloat(S.args[3])*unitScale;}
-      for(const bid of refs(fa[1])){const b=get(bid);if(!b)continue;const loop=get(ref(b.args[1]));if(!loop||!loop.args[1])continue;
+      for(const bid of refs(fa[1])){const b=get(bid);if(!b)continue;const loop=get(ref(b.args[1]));if(!loop||!loop.args[1])continue;const lp=[];
         for(const oid of refs(loop.args[1])){const oe=get(oid);if(!oe)continue;const ec=get(ref(oe.args[3]));if(!has(ec,'EDGE_CURVE'))continue;
-          const v1=vertex(ref(ec.args[1])),v2=vertex(ref(ec.args[2])),cv=get(ref(ec.args[3])),same=!/\.F\./.test(ec.args[4]||'');
+          const v1=vertex(ref(ec.args[1])),v2=vertex(ref(ec.args[2])),cv=get(ref(ec.args[3])),same=!/\.F\./.test(ec.args[4]||''),fwd=!/\.F\./.test(oe.args[4]||'');
           if(v1)face.verts.push(v1);if(v2)face.verts.push(v2);
-          if(has(cv,'CIRCLE')){const ax=axis(ref(A(cv,'CIRCLE')[1])),cr=parseFloat(A(cv,'CIRCLE')[2])*unitScale;if(ax){face.edges.push({ax,r:cr,v1,v2,same});ext.push({c:ax.o,n:ax.z,r:cr});}}}}
+          // the edge as points from v1 to v2 (for the shaded picture); arcs every ~10°, splines sampled
+          let ep=v1&&v2?[v1,v2]:[];
+          if(has(cv,'CIRCLE')){const ax=axis(ref(A(cv,'CIRCLE')[1])),cr=parseFloat(A(cv,'CIRCLE')[2])*unitScale;if(ax){face.edges.push({ax,r:cr,v1,v2,same});ext.push({c:ax.o,n:ax.z,r:cr});
+            if(v1&&v2){const ang=p=>{const d=sub(p,ax.o);return Math.atan2(dot(d,ax.y),dot(d,ax.x));},a0=ang(v1),a1=ang(v2);let th=mod(same?a1-a0:a0-a1);if(th<1e-6||len(sub(v1,v2))<1e-6)th=TAU;
+              const N=Math.max(2,Math.ceil(th*DEG/10));ep=[];for(let i=0;i<=N;i++){const a=a0+(same?1:-1)*th*i/N;ep.push(add(ax.o,add(mul(ax.x,cr*Math.cos(a)),mul(ax.y,cr*Math.sin(a)))));}}}}
+          else if(cv&&has(cv,'B_SPLINE_CURVE_WITH_KNOTS')&&v1&&v2){const bc=bsCurve(cv);if(bc){ep=bsSample(bc,12);if(!same)ep.reverse();}}
+          if(!fwd)ep=ep.slice().reverse();
+          ep.forEach((p,i)=>{if(i===0&&lp.length&&len(sub(lp[lp.length-1],p))<1e-6)return;lp.push(p);});}
+        if(lp.length>=3)face.loops.push(lp);}
       face.verts.forEach(v=>verts.push(v));types[kind]=(types[kind]||0)+1;faces.push(face);}
     // box from vertices plus the full extent of every circular edge (a round part's seam vertices sit on one side)
     let bbox=null;if(verts.length){bbox={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};const grow=(k,v)=>{bbox.min[k]=Math.min(bbox.min[k],v);bbox.max[k]=Math.max(bbox.max[k],v);};
@@ -392,7 +400,8 @@ function parse(text,opts){
 
   // fixings: a hole (cylinder face whose normal points at its axis) with a named CSYS origin on the axis, inside the hole.
   // The bore axis and length come from the hole faces, never from the CSYS axes.
-  const fixings=[];
+  // holes: every such hole, with or without a CSYS (csys null) — the library can name a clamp whose bore has no CSYS.
+  const fixings=[],holes=[];
   instances.forEach((inst,idx)=>{if(pipes.some(p=>p.inst===idx))return;
     inst.part.solids.forEach(sol=>{const groups=[];
       for(const f of sol.faces){if(f.kind!=='cylindrical'||!f.ax||f.sense||!(f.r>0)||!f.verts.length)continue;
@@ -404,8 +413,8 @@ function parse(text,opts){
       for(const g of groups){const rmin=Math.min(...g.faces.map(f=>f.r)),bore=g.faces.filter(f=>Math.abs(f.r-rmin)<1e-6);
         const t0=Math.min(...bore.map(f=>f.t0)),t1=Math.max(...bore.map(f=>f.t1)),c=add(g.c,mul(g.d,(t0+t1)/2)),L=t1-t0;
         const on=csys.filter(cs=>{const v=sub(cs.o,c),u=dot(v,g.d);return len(sub(v,mul(g.d,u)))<0.5&&Math.abs(u)<=L/2+1;}).sort((a,b)=>(b.inst===idx)-(a.inst===idx));
-        if(!on.length)continue;
-        fixings.push({inst:idx,name:inst.name,label:inst.label,csys:on[0].name,c,d:g.d,r:rmin,D:2*rmin,length:L});}});});
+        const h={inst:idx,name:inst.name,label:inst.label,csys:on.length?on[0].name:null,c,d:g.d,r:rmin,D:2*rmin,length:L};holes.push(h);
+        if(on.length)fixings.push(h);}});});
 
   // which named frame a .pts file is written in: the one that lands its points on the centreline or its corners
   function matchFrame(pts,pipe){let best=null;
@@ -424,7 +433,7 @@ function parse(text,opts){
       return{i,fix:x,dist,fits,passes,end,holds:other?other.name:null,use:fits&&!end&&!other};})
       .filter(c=>c.fits).sort((a,b)=>(b.use-a.use)||(a.dist-b.dist));}
 
-  return{product,units,degrees,entities:E.size,products:[...products.values()].map(P=>({pd:P.pd,name:P.name,pid:P.pid})),instances,csys,points,pipes,fixings,clampsFor,
+  return{product,units,degrees,entities:E.size,products:[...products.values()].map(P=>({pd:P.pd,name:P.name,pid:P.pid})),instances,csys,points,pipes,fixings,holes,clampsFor,
     matchFrame,toFrame:F.toLocal,fromFrame:F.pt,nearest,debug:{solidPieces,part},
     summary:{parts:products.size,instances:instances.length,solids:instances.reduce((s,i)=>s+i.solids,0),pipes:pipes.length,fixings:fixings.length,csys:csys.length,points:points.length}};
 }

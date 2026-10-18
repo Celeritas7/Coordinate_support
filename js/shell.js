@@ -5,11 +5,12 @@
 const TASKS={
   hose:[{id:'route',label:'Route through stations',panel:'bend',shape:'spline'},{id:'check',label:'Check as loaded',panel:'analyse'},{id:'offset',label:'Offset B from A',panel:'clear'}],
   pipe:[{id:'route',label:'Route through points',panel:'bend',shape:'arc'},{id:'asm',label:'Check .pts against pipe',panel:'pipe',sub:'cmp'},{id:'clamps',label:'Through clamps',panel:'pipe',sub:'through'},
-        {id:'table',label:'Table → .pts',panel:'table'},{id:'offset',label:'Offset from another pipe',soon:'coming (12c)'}],
-  bundle:[{id:'bundle',label:'Route bundle',panel:'bundle'}]};
-const NAMES={hose:'Hose / Cable',pipe:'Pipe',bundle:'Bundle'};
-const PANELS={bend:'panBend',clear:'panClear',bundle:'panBundle',analyse:'panAnalyse',table:'panTable',pipe:'panPipe'};
-let st={mod:'hose',task:{hose:'route',pipe:'asm',bundle:'bundle'}};
+        {id:'table',label:'Table → .pts',panel:'table'},{id:'offset',label:'Offset from another pipe',panel:'pipe',sub:'offset'}],
+  bundle:[{id:'bundle',label:'Route bundle',panel:'bundle'}],
+  library:[{id:'fix',label:'Clamps, clips, grommets',panel:'lib'}]};
+const NAMES={hose:'Hose / Cable',pipe:'Pipe',bundle:'Bundle',library:'Library'};
+const PANELS={bend:'panBend',clear:'panClear',bundle:'panBundle',analyse:'panAnalyse',table:'panTable',pipe:'panPipe',lib:'panLib'};
+let st={mod:'hose',task:{hose:'route',pipe:'asm',bundle:'bundle',library:'fix'}};
 try{const s=JSON.parse(store.get('rs.shell')||'null');if(s&&TASKS[s.mod])st={mod:s.mod,task:Object.assign(st.task,s.task||{})};}catch(e){}
 const save=()=>store.set('rs.shell',JSON.stringify(st));
 const T=(m,t)=>TASKS[m].find(x=>x.id===t&&!x.soon)||TASKS[m][0];
@@ -21,8 +22,8 @@ function nav(){
   $('tasks').innerHTML=TASKS[st.mod].map(t=>`<button type="button" data-task="${t.id}"${t.soon?' disabled':''} aria-current="${!t.soon&&t.id===st.task[st.mod]}">${t.label}${t.soon?`<small>${t.soon}</small>`:''}</button>`).join('');
   $('tasks').querySelectorAll('button[data-task]').forEach(b=>b.onclick=()=>go(st.mod,b.dataset.task));
 }
-const panels=which=>Object.entries(PANELS).forEach(([k,id])=>{$(id).hidden=k!==which;});
-const sub=which=>{$('pipeCmp').hidden=which!=='cmp';$('pipeThrough').hidden=which!=='through';};
+const panels=which=>{Object.entries(PANELS).forEach(([k,id])=>{$(id).hidden=k!==which;});if(which==='lib'&&typeof libRender==='function')libRender();};
+const sub=which=>{$('pipeCmp').hidden=which!=='cmp';$('pipeThrough').hidden=which!=='through';$('pipeOffset').hidden=which!=='offset';};
 function go(mod,task){
   const t=T(mod,task);st.mod=mod;st.task[mod]=t.id;save();
   if(t.shape&&$('shape').value!==t.shape){$('shape').value=t.shape;syncing=true;$('shape').dispatchEvent(new Event('change'));syncing=false;}
@@ -32,8 +33,8 @@ function go(mod,task){
 showPanel=function(which){
   panels(which);
   const hit=which==='bend'?($('shape').value==='arc'?['pipe','route']:['hose','route'])
-    :which==='pipe'?['pipe',st.task.pipe==='clamps'?'clamps':'asm']
-    :which==='analyse'?['hose','check']:which==='clear'?['hose','offset']:which==='table'?['pipe','table']:['bundle','bundle'];
+    :which==='pipe'?['pipe',st.task.pipe==='clamps'||st.task.pipe==='offset'?st.task.pipe:'asm']
+    :which==='analyse'?['hose','check']:which==='clear'?['hose','offset']:which==='table'?['pipe','table']:which==='lib'?['library','fix']:['bundle','bundle'];
   st.mod=hit[0];st.task[hit[0]]=hit[1];if(which==='pipe')sub(T('pipe',hit[1]).sub);save();nav();
 };
 $('shape').addEventListener('change',()=>{if(!syncing&&!$('panBend').hidden)showPanel('bend');});
@@ -59,7 +60,7 @@ async function open(list){
   const texts=await Promise.all(files.map(f=>f.text()));
   // assembly (product tree + solids) → Pipe
   const ai=files.findIndex((f,i)=>/\.(stp|step)$/i.test(f.name)&&isAsm(texts[i]));
-  if(ai>=0){const f=files[ai],rest=files.length-1;go('pipe',st.task.pipe==='clamps'?'clamps':'asm');asmLoad(f);
+  if(ai>=0){const f=files[ai],rest=files.length-1;go('pipe',st.task.pipe==='clamps'||st.task.pipe==='offset'?st.task.pipe:'asm');asmLoad(f);
     return say(`${f.name}: assembly → ${label('pipe',st.task.pipe)}.${rest?` ${rest} other file${rest>1?'s were':' was'} not opened; open ${rest>1?'them':'it'} once the assembly has loaded.`:''}`);}
   // a .pts whose points land on a pipe of the open assembly → Pipe · Check .pts
   if(files.length===1&&typeof ASM!=='undefined'&&ASM&&ASM.r&&ASM.r.pipes.length&&/\.(pts|txt|csv)$/i.test(files[0].name)){

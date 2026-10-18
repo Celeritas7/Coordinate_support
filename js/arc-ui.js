@@ -68,7 +68,7 @@ function arcRun(){
 
 {const spline=$('runBend').onclick,LABEL={spline:$('runBend').textContent,arc:'Solve lines + arcs, then add to comparison'};
   const sync=()=>{const arc=$('shape').value==='arc';
-    $('splineOpts').hidden=arc;$('spBox').hidden=arc;$('arcTolBox').hidden=!arc;$('arcHint').hidden=!arc;$('bendHint').hidden=arc;
+    $('splineOpts').hidden=arc;$('spBox').hidden=arc;$('arcTolBox').hidden=!arc;$('arcHint').hidden=!arc;$('bendHint').hidden=arc;$('altBox').hidden=arc;
     if(!bendJob)$('runBend').textContent=LABEL[arc?'arc':'spline'];store.set('rs.shape',$('shape').value);};
   $('shape').onchange=sync;
   if(store.get('rs.shape')==='arc')$('shape').value='arc';sync();
