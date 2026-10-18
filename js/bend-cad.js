@@ -6,15 +6,19 @@ const BC={cad:null,sv:null,key:'',user:new Map(),focus:0};
 const say=(m,bad)=>{const e=$('statusCad');e.textContent=m;e.style.color=bad?'var(--bad)':'';};
 const opt=()=>({d:Math.max(0.1,+$('cdD').value||8),gap:Math.max(0,+$('cdGap').value||0),reach:Math.max(10,+$('cdReach').value||60)});
 const stations=()=>parsePts($('pts').value).map(p=>[p[0],p[1],p[2]]);
-const roleTxt=p=>p.role==='station'?`clip at ${p.stations.map(i=>'P'+(i+1)).join(', ')}`:p.role==='clip'?'small part on the station line, no station (clip, or screw?)':'frame / part';
+const roleTxt=p=>p.role==='pipe'?`existing ${p.pipe.kind==='hose'?'hose':'pipe'}${p.pipe.name!==p.name?` ${esc(p.pipe.name)}`:''} Ø${fmt(p.pipe.OD,1)}`:p.role==='station'?`clip at ${p.stations.map(i=>'P'+(i+1)).join(', ')}`:p.role==='clip'?'small part on the station line, no station (clip, or screw?)':'frame / part';
 const keepClear=p=>BC.user.has(p.sid)?BC.user.get(p.sid):p.role==='obstacle';
+// list groups: ticked, unticked clips and parts, unticked existing pipes
+const group=p=>keepClear(p)?0:p.role==='pipe'?2:1,GROUP=['Gap checked (ticked)','Not checked (clips, or unticked)','Existing pipes (not checked)'];
+// parts the too-close list and the gap chart look at: ticked ones, and unticked ones away from any station except existing pipes
+const watched=p=>keepClear(p)||(p.role!=='station'&&p.role!=='pipe');
 function survey(){if(!BC.cad)return null;const P=stations();if(P.length<2)return null;const o=opt(),key=JSON.stringify([P,o]);
   if(BC.key!==key){BC.sv=CadSolids.survey(BC.cad,P,o);BC.key=key;render();}return BC.sv;}
 function render(){const sv=BC.sv,box=$('cdParts');if(!sv){box.innerHTML='';return;}
   const n=sv.parts.filter(keepClear).length;
-  box.innerHTML=`<div class="presets" style="margin:6px 0 2px"><button type="button" data-t="def" title="Clips unticked, frame and other parts ticked">Default ticks</button><button type="button" data-t="frame" title="Only the parts that are not clips">Frame only</button><button type="button" data-t="all">Tick all</button><button type="button" data-t="none">Untick all</button></div>
+  box.innerHTML=`<div class="presets" style="margin:6px 0 2px"><button type="button" data-t="def" title="Clips and existing pipes unticked, frame and other parts ticked">Default ticks</button><button type="button" data-t="frame" title="Only the parts that are not clips">Frame only</button><button type="button" data-t="all">Tick all</button><button type="button" data-t="none">Untick all</button></div>
     <p class="hint" style="margin:4px 0">${sv.parts.length} part${sv.parts.length===1?'':'s'} within ${fmt(sv.reach)} mm of the station line; gap checked to ${n} (ticked). Gap = hose surface to part. Press Check after changing ticks.</p>`+
-    sv.parts.slice().sort((a,b)=>(keepClear(b)-keepClear(a))||(a.dLine-b.dLine)).slice(0,60).map((p,i,arr)=>(i===0||keepClear(arr[i-1])!==keepClear(p)?`<div class="cdhead">${keepClear(p)?'Gap checked (ticked)':'Not checked (clips, or unticked)'}</div>`:'')+`<div class="cdrow${BC.focus===p.sid?' on':''}"><label class="chk cdp"><input type="checkbox" data-sid="${p.sid}" ${keepClear(p)?'checked':''}><span><b>${esc(p.name)}</b> <span class="unit">${p.dims.map(v=>Math.round(v)).join('×')} mm · ${roleTxt(p)} · line ${fmt(p.dLine,1)} mm away · centre ${centre(p).map(v=>Math.round(v)).join(', ')}</span></span></label><button type="button" class="cdshow" data-show="${p.sid}" aria-pressed="${BC.focus===p.sid}" title="Show this part in 3D, zoomed">show</button></div>`).join('');
+    sv.parts.slice().sort((a,b)=>(group(a)-group(b))||(a.dLine-b.dLine)).slice(0,60).map((p,i,arr)=>(i===0||group(arr[i-1])!==group(p)?`<div class="cdhead">${GROUP[group(p)]}</div>`:'')+`<div class="cdrow${BC.focus===p.sid?' on':''}"><label class="chk cdp"><input type="checkbox" data-sid="${p.sid}" ${keepClear(p)?'checked':''}><span><b>${esc(p.name)}</b> <span class="unit">${p.dims.map(v=>Math.round(v)).join('×')} mm · ${roleTxt(p)} · line ${fmt(p.dLine,1)} mm away · centre ${centre(p).map(v=>Math.round(v)).join(', ')}</span></span></label><button type="button" class="cdshow" data-show="${p.sid}" aria-pressed="${BC.focus===p.sid}" title="Show this part in 3D, zoomed">show</button></div>`).join('');
   box.querySelectorAll('input[data-sid]').forEach(el=>el.onchange=()=>{BC.user.set(+el.dataset.sid,el.checked);render();});
   box.querySelectorAll('button[data-show]').forEach(el=>el.onclick=()=>showPart(+el.dataset.show));
   box.querySelectorAll('button[data-t]').forEach(b=>b.onclick=()=>{const t=b.dataset.t;BC.user=new Map();
@@ -68,7 +72,7 @@ window.bendCad=function(P){
         msg+=spots.length?`\nToo close — below the ${fmt(o.gap)} mm gap (${spots.length} place${spots.length>1?'s':''}, marked in 3D: red = into the part, amber = too close; clips at stations not counted):`:`\nNowhere closer than the ${fmt(o.gap)} mm gap to the parts checked (clips at stations not counted).`;
         spots.forEach(x=>{msg+=`\n• ${x.msg}`;marks.push(x.mark);});
         // gap along the whole route, for the Clearance chart: to the same parts the spots use; capped where nothing is near
-        const ixAll=CadSolids.index(sv.parts.filter(p=>keepClear(p)||p.role!=='station').flatMap(p=>p.faces),50),cap=o.gap*5+o.d;
+        const ixAll=CadSolids.index(sv.parts.filter(watched).flatMap(p=>p.faces),50),cap=o.gap*5+o.d;
         out.spots=spots.map(x=>x.spot);out.clearDense=A.d.pts.map(q=>Math.min(cap,ixAll.nearest(q,cap+o.d/2).d-o.d/2));out.gapLimit=o.gap;
         if(spots.some(x=>!x.ticked))msg+=`\nUnticked parts were taken as clips without a CSYS. Press “show” in the list to see one; tick it if it is a screw, bolt or bracket.`;if(open.length)msg+=`\nPlate crossings (marked in 3D):`;open.forEach(x=>{msg+=`\n• ${x.msg}`;if(x.hole)holes.push(x.hole);marks.push(x.mark);});
         msg+=isFinite(w.gap)?`\nSmallest gap to the kept-clear parts: ${fmt(w.gap,1)} mm${p?` (${p.name})`:''} near point ${near.i+1}${w.gap<o.gap-0.05?` — below the ${fmt(o.gap)} mm gap`:''}.`:`\nNo kept-clear part within ${fmt(o.d/2+o.gap+40)} mm of the route.`;}
@@ -81,10 +85,10 @@ window.bendCad=function(P){
 function spanOf(A,P){const pts=A.d.pts,si=P.map(p=>{let bi=0,bd=Infinity;pts.forEach((q,i)=>{const d=V.len(V.sub(q,p));if(d<bd){bd=d;bi=i;}});return bi;});
   return i=>{let k=0;while(k<si.length-2&&si[k+1]<=i)k++;return`P${k+1}–P${k+2}`;};}
 // every stretch of the route closer than the gap to a part: ticked parts, and unticked parts away from any station
-// (clips at a station are left out unless ticked — the hose sits in them). One entry per part per stretch, with the
+// (clips at a station are left out unless ticked — the hose sits in them; so are existing pipes unless ticked). One entry per part per stretch, with the
 // smallest gap, its station span and how long the stretch is. Sorted along the route.
 function closeSpots(A,P,o,span){const sv=BC.sv,pts=A.d.pts,s=A.d.s,out=[];
-  sv.parts.filter(p=>keepClear(p)||p.role!=='station').forEach(p=>{const ix=CadSolids.index(p.faces,50);let run=null;
+  sv.parts.filter(watched).forEach(p=>{const ix=CadSolids.index(p.faces,50);let run=null;
     const close=()=>{if(run){out.push(run);run=null;}};
     pts.forEach((q,i)=>{const n=ix.nearest(q,o.d/2+o.gap+5),gap=n.d-o.d/2;
       if(gap<o.gap-0.05){if(!run)run={part:p,i0:i,i,gap,p:q,exact:!!(n.box&&n.box.shape)};if(gap<run.gap){run.gap=gap;run.i=i;run.p=q;run.exact=!!(n.box&&n.box.shape);}run.i1=i;}
@@ -114,11 +118,12 @@ function throughOpenings(A,P,faces,o){const pts=A.d.pts,s=A.d.s,sv=BC.sv,out=[],
 
 function load(f){say(`Reading ${f.name} (${(f.size/1e6).toFixed(1)} MB)...`);
   f.text().then(t=>setTimeout(()=>{const t0=performance.now();let cad;
-    try{cad=CadSolids.read(t,f.name);}catch(e){return say(`${f.name}: ${e.message}`,true);}
+    // STEP: the parts marked pipe / not a pipe in the part tree for this file name count as such here too
+    try{cad=CadSolids.read(t,f.name,{pipe:window.AsmTree?AsmTree.load(f.name):{}});}catch(e){return say(`${f.name}: ${e.message}`,true);}
     if(!cad.solids.length)return say(`${f.name}: no solids found. Export from Creo with solids (IGES: BREP / "Solid", or STEP AP214).`,true);
     BC.cad=cad;BC.key='';BC.user=new Map();$('cdClear').hidden=false;$('cdBox').open=true;survey();
-    const ex=cad.faces.filter(x=>x.shape).length;
-    say(`${f.name}: ${cad.solids.length} solids, ${cad.faces.length} faces (${cad.format}${ex?`; ${ex} flat or cylindrical, gap exact`:''}), read in ${((performance.now()-t0)/1000).toFixed(1)} s.${BC.sv?'':' Load the stations to see which parts are near.'}`);},30));}
+    const ex=cad.faces.filter(x=>x.shape).length,np=cad.solids.filter(x=>x.pipe).length;
+    say(`${f.name}: ${cad.solids.length} solids, ${cad.faces.length} faces (${cad.format}${ex?`; ${ex} flat or cylindrical, gap exact`:''}${np?`; ${np} solid${np>1?'s':''} of existing pipes, not checked`:''}), read in ${((performance.now()-t0)/1000).toFixed(1)} s.${BC.sv?'':' Load the stations to see which parts are near.'}`);},30));}
 $('cdLoad').onclick=()=>$('cdFile').click();
 window.bcLoad=f=>{$('cdBox').open=true;load(f);};
 $('cdFile').onchange=e=>{if(e.target.files[0])load(e.target.files[0]);e.target.value='';};

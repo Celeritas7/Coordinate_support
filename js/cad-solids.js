@@ -1,7 +1,8 @@
 /* cad-solids.js — read the solids of a CAD file as obstacle boxes, one box per face.
  * IGES: B-rep solids (186 → 514 shell → 510 faces → 508 loops → 504 edges / 502 vertices), arcs (100, with their 124
  * transform) and B-splines (126, control points) add their full extent, so round faces are covered.
- * STEP: via StepAsm (step-asm.js), face vertices + circle edges, in world coordinates.
+ * STEP: via StepAsm (step-asm.js), face vertices + circle edges, in world coordinates. Solids of the parts StepAsm takes
+ * for pipes (opts.pipe = the per-part "pipe?" overrides, as in AsmTree) carry solid.pipe = {name, OD, kind}.
  * One box per face follows a C-channel or an L-bracket far closer than one box per part.
  * Flat faces (128 bilinear / any planar 128, 190, 108) and cylinders (120 with a line parallel to its axis) also get
  * their exact shape: the boundary loops (lines, arcs 100 + 124, B-splines 126 sampled) in the face plane / on the
@@ -133,20 +134,22 @@ function iges(text){
   return{format:'IGES',solids,faces};
 }
 
-function step(text){
+function step(text,opts){
   const SA=root.StepAsm||(typeof require!=="undefined"?require("./step-asm.js"):null);if(!SA)throw new Error('StepAsm not loaded');
-  const r=SA.parse(text),F=SA.F,faces=[],solids=[];let sid=0;
-  r.instances.forEach(inst=>inst.part.solids.forEach(sol=>{sid++;const sb=newBox();let made=0;
+  const r=SA.parse(text,{pipe:(opts&&opts.pipe)||{}}),F=SA.F,faces=[],solids=[];let sid=0;
+  r.instances.forEach((inst,idx)=>{const pp=r.pipes.find(p=>p.inst===idx),pipe=pp?{name:pp.name,OD:pp.OD,kind:pp.kind}:null;
+    inst.part.solids.forEach(sol=>{sid++;const sb=newBox();let made=0;
     sol.faces.forEach(f=>{const b=newBox();f.verts.forEach(v=>grow(b,F.pt(inst.M,v)));
       f.edges.forEach(ed=>circle(b,F.pt(inst.M,ed.ax.o),F.vec(inst.M,ed.ax.z),ed.r));
       if(ok(b)){faces.push({sid,min:b.min,max:b.max});grow(sb,b.min);grow(sb,b.max);made++;}});
-    if(made)solids.push({sid,name:inst.label||inst.name||`solid ${sid}`,faces:made,min:sb.min,max:sb.max});}));
+    if(made)solids.push({sid,name:inst.label||inst.name||`solid ${sid}`,faces:made,min:sb.min,max:sb.max,...(pipe?{pipe}:{})});});});
   return{format:'STEP',solids,faces};
 }
 
-function read(text,name){
+// opts.pipe: STEP only, the "pipe?" overrides for this file ({partName: true|false})
+function read(text,name,opts){
   const s=String(text),isStep=/^\s*ISO-10303-21/.test(s)||/\.(stp|step)$/i.test(name||'');
-  const out=isStep?step(s):iges(s);out.name=name||'';return out;
+  const out=isStep?step(s,opts):iges(s);out.name=name||'';return out;
 }
 
 // distance from p to box b (0 inside)
@@ -155,8 +158,9 @@ function boxDist(p,b){let q=0;for(let k=0;k<3;k++){const e=Math.max(b.min[k]-p[k
 function along(P,step){const out=[];for(let i=0;i+1<P.length;i++){const a=P[i],b=P[i+1],L=Math.hypot(b[0]-a[0],b[1]-a[1],b[2]-a[2]),n=Math.max(1,Math.ceil(L/step));
   for(let k=i?1:0;k<=n;k++)out.push([a[0]+(b[0]-a[0])*k/n,a[1]+(b[1]-a[1])*k/n,a[2]+(b[2]-a[2])*k/n]);}return out;}
 
-// what each solid is to one route. role: 'station' = touches a station (its clip / clamp); 'clip' = small part
-// (≤ clipSize) the station line runs through or touches; 'obstacle' = anything else within `reach` of the line
+// what each solid is to one route. role: 'pipe' = an existing pipe (STEP, solid.pipe); 'station' = small part (≤ clipSize)
+// touching a station (its clip / clamp); 'clip' = small part the station line runs through or touches; 'obstacle' = anything
+// else within `reach` of the line — a part over clipSize in any direction is frame even where it touches a station
 function survey(cad,stations,o){
   const rad=o.d/2+o.gap,touch=rad+(o.touch??5),reach=Math.max(o.reach,touch),clipSize=o.clipSize??80;
   const S=along(stations,2),by=new Map();
@@ -169,8 +173,8 @@ function survey(cad,stations,o){
     stations.forEach((p,i)=>{if(boxDist(p,f)<=touch)s.st.add(i);});}
   const solid=new Map(cad.solids.map(x=>[x.sid,x]));
   const parts=[...by.values()].map(s=>{const so=solid.get(s.sid),size=Math.max(...so.max.map((v,k)=>v-so.min[k]));
-    const role=s.st.size?'station':(size<=clipSize&&s.dLine<=touch)?'clip':'obstacle';
-    return{sid:s.sid,name:so.name,size,dims:so.max.map((v,k)=>v-so.min[k]),dLine:s.dLine,stations:[...s.st].sort((a,b)=>a-b),role,faces:s.faces};}).sort((a,b)=>a.dLine-b.dLine);
+    const role=so.pipe?'pipe':size>clipSize?'obstacle':s.st.size?'station':s.dLine<=touch?'clip':'obstacle';
+    return{sid:s.sid,name:so.name,pipe:so.pipe||null,size,dims:so.max.map((v,k)=>v-so.min[k]),dLine:s.dLine,stations:[...s.st].sort((a,b)=>a-b),role,faces:s.faces};}).sort((a,b)=>a.dLine-b.dLine);
   return{rad,touch,reach,parts};
 }
 
