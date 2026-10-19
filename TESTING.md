@@ -99,3 +99,17 @@ Both routes must come from the file; the example pair is only replaced per texta
 6b. Below the crossings: “Unticked parts within the gap, away from any station” lists solid 49 at P8–P9 (the screw, about 0 mm clear on the straight run) plus small parts near P1–P4. Tick solid 49, press Check: it moves to the checked parts and the straight P8–P12 is either dropped (“left free to bend round it”) or the gap shows below 4 mm.
 7. Select the run: grey boxes of the plate are now as wide as the plate (116 / 71 mm), not 2 m.
 8. `node tests/cad-solids.test.js` prints only `ok` lines (16 checks).
+
+## 9. One clamp finder (Phase 1, `js/fixings.js`)
+
+1. Hose / Cable · Route through stations → Stations from clamps → Load assembly .stp… → `piping3_practice_asm.stp`, Hose Ø 8 (default).
+   Expect **1** station (60115970, the 78.5 mm sleeve, "not in the Library") and a fold "Other holes (25): bolt and plate holes, unticked".
+   Before Phase 1 all 26 were ticked.
+2. Hose Ø 12: 5 stations. S1 and S5 are the end fittings of PRACTICE_111 (blue "end fitting … start or end of the route") and are
+   picked as Start at / End at; CS16, CS17 "Library clip 22402156"; 25375330 "not in the Library" (amber). No "Other holes" fold.
+3. Untick until one row is left: Auto order / Use as stations go grey, the line under them says "Tick at least 2 stations to order them."
+4. Pipe · Through clamps on the same file, pipe 111: 3 ticked (CS17, CS16, 25375330 with "not in the Library · Add to library"),
+   2 end fittings listed and off. Route through ticked clamps: 23 points, moves ≤ 0.17 mm (same as §7.6).
+5. piping2: the Ø22.0 clamp 990224 is found for the Ø22.5 pipe (Pipe keeps ± 1.5 mm; a Hose needs bore ≥ Ø − 0.2).
+6. `node tests/fixings.test.js` prints only `ok` lines (20 checks). `node tests/ui-walk.js` clicks through the Hose and Pipe jobs and
+   prints step counts (needs Playwright + Chromium).

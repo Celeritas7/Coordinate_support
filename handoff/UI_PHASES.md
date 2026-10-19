@@ -16,14 +16,14 @@ Phases are ordered so each one is useful on its own and none needs a later one.
 
 ---
 
-## Phase 0 — Measure (Claude Code only, half a day)
+## Phase 0 — Measure (Claude Code only, half a day) — DONE 2026-10-19
 - `tests/ui-walk.js`: the Playwright walk-through used for the rating, made repeatable: loads the samples through the real
   buttons, counts steps, captures status text and screenshots into `handoff/shots/`. Runs locally with
   `node tests/ui-walk.js` (needs Chromium).
-- Force-add the samples to git so tests and the walk-through run anywhere.
+- ~~Force-add the samples to git~~: **not done, the repo is public** and the samples carry real part numbers. They stay local; every test skips cleanly without them.
 - **Done when:** the script prints the baseline numbers above.
 
-## Phase 1 — One clamp finder (Claude Code, 1–2 days; Claude Design reviews the row wording)
+## Phase 1 — One clamp finder (Claude Code, 1–2 days; Claude Design reviews the row wording) — BUILT 2026-10-19, awaiting design review
 Root cause of report issues 2, 3, 4 and of the 26-row list.
 - `StepAsm.fixingsFor(r, {D, fit, pipe?})` used by Hose · Stations from clamps, Pipe · Through clamps and `clampsFor`:
   library match first → any hole with a CSYS → flagged "not in library"; bore fit **−0.2 … +fit**; **min bore length 10 mm**;
@@ -34,6 +34,17 @@ Root cause of report issues 2, 3, 4 and of the 26-row list.
 - **Design review:** the row layout and the reason wording (one line, no run-together text), the "Other holes" collapse.
 - **Done when:** piping3 at Ø12 lists 3 ticked rows (CS16, CS17, 25375330) + "Other holes (2)"; Pipe · Through clamps shows the same
   3 for pipe 111; all tests green; `clamp-stations.test.js` extended for the reasons.
+- **Built (differs from the plan where the files said otherwise):**
+  - The two "other holes" at Ø12 are the **end fittings of pipe 111**: in Hose they are ticked and become Start / End (the report's
+    workflow ticks them by hand); in Pipe they are listed and off ("end fitting of this pipe").
+  - The −0.2 rule is **Hose only**. piping2's clamp has a Ø22.0 bore on a Ø22.5 pipe, so Pipe keeps ± 1.5 mm.
+  - A Library match counts only for bores inside the entry's range: the twin clip's Ø9 × 3 mounting holes are not "clip" bores.
+  - Results: Hose Ø8 on piping3 1 ticked (was 26); Ø12 5 (2 ends + 3 clamps); Pipe 111 3 ticked incl. 25375330 (was 2, it was
+    unticked as "not in the Library"); 7 rows → 5. `tests/fixings.test.js` 20 checks; all other tests unchanged and green.
+  - Also done: report issue 5 (the line under Auto order / Use as stations says "Tick at least 2 stations" when they are grey).
+- **For the design review:** row = **name · part · bore · position**, then one coloured reason line (blue = end fitting, amber =
+  not in the Library, grey = Library part); "Other holes (n)" fold; Pipe rows keep their existing one-line layout plus
+  "Add to library". Screenshots: `handoff/shots/P1-*.png`.
 
 ## Phase 2 — Load once (Claude Code, 1 day; Claude Design reviews the header)
 - One assembly per session, loaded from the top **Open…** or dropped anywhere. A header line shows what is loaded

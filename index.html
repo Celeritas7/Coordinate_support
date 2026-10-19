@@ -47,7 +47,7 @@
       <input type="file" id="csFile" accept=".stp,.step" hidden>
       <div class="fields c2">
         <div><label for="csD">Hose Ø <span class="unit">mm</span></label><input id="csD" type="number" value="8" min="0.1" step="0.5" inputmode="decimal"></div>
-        <div><label for="csTol">Bore fit ± <span class="unit">mm</span></label><input id="csTol" type="number" value="1.5" min="0" step="0.5" inputmode="decimal"></div>
+        <div><label for="csTol">Bore up to + <span class="unit">mm</span></label><input id="csTol" type="number" value="1.5" min="0" step="0.5" inputmode="decimal" title="A bore from Hose Ø − 0.2 to Hose Ø + this counts as fitting the hose (it cannot pass a smaller bore)."></div>
       </div>
       <div class="status" id="statusCs"></div>
       <div class="fields c2">
@@ -394,6 +394,7 @@
 <script src="js/vendor/three.min.js"></script>
 <script src="js/arcroute.js"></script>
 <script src="js/step-asm.js"></script>
+<script src="js/fixings.js"></script>
 <script src="js/pts-compare.js"></script>
 <script src="js/asm-tree.js"></script>
 <script src="js/through.js"></script>
