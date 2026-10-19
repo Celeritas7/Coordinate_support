@@ -60,7 +60,7 @@ Root cause of report issues 2, 3, 4 and of the 26-row list.
 - **For the design review:** the header line (wording, where it sits, whether it needs Change / Remove), the status sentence after
   Open… (long), and whether "holes with a coordinate system" should read "clamps for Ø…" once Hose Ø is known.
 
-## Phase 3 — Next-step guidance (Claude Design leads, Claude Code builds; 1–2 days)
+## Phase 3 — Next-step guidance (Claude Design leads, Claude Code builds; 1–2 days) — LOGIC BUILT 2026-10-19 with provisional wording; buttons-in-status and copy await design
 - After every action the status line offers the **next button**:
   - Use as stations → "[Check now]"
   - Check with a clash → "Route is 6.0 mm into 95651236 — [Push the route away] [Alternatives]"
@@ -72,10 +72,17 @@ Root cause of report issues 2, 3, 4 and of the 26-row list.
   the hose" (the `pasted-1145.pts` case).
 - **Design review:** the wording and placement of each next-step line (UX-copy pass), warning vs error colours.
 - **Done when:** the walk-through reaches a downloadable, clash-free route with no step that requires opening a collapsed section.
+- **Built:** both pre-checks (`ClampStations.closePairs`, `cornerLike`; messages after Use as stations and after Check); the
+  "tick Push the route away" hint now appears only when the route is too close, as a "Next: …" line; disabled buttons say why.
+  **Root cause of the piping3 clash found and fixed:** the parts it ran "6 mm into" are the brackets the clips are bolted to
+  (`95651236`, `22577598`). New survey role **mount** (≤ 300 mm, touching the clip at a station; unticked, with a reason). The
+  walk-through's route is now clash-free (smallest gap 10.3 mm) without Push.
+- **For Claude Design:** the wording of the three new messages (corner points, stations too close, Next), whether "Next" should
+  be real buttons in the status line, and how a mount row should read in the Keep clear list.
 
-## Phase 4 — Alternatives that explain themselves (Claude Code, 1–2 days; Claude Design reviews the cards)
-- Apply the held bore directions in Alternatives as Check does (report issue 1).
-- Group obstacle faces **per part** before enumerating sides, so one bracket is one obstacle, not 40 faces.
+## Phase 4 — Alternatives that explain themselves (Claude Code, 1–2 days; Claude Design reviews the cards) — PARTLY BUILT
+- Apply the held bore directions in Alternatives as Check does (report issue 1). **Done.**
+- Group obstacle faces **per part** before enumerating sides, so one bracket is one obstacle, not 40 faces. **Already in `multiroute.js` (`cluster()` merges touching face boxes).**
 - When no clean candidate exists: say which part blocks every side and offer "[Push the route away] [Tick fewer parts]".
 - Cards: length / min R / clearance in a fixed order, the losing numbers in red, "Use this" only on clean ones.
 - **Done when:** piping3 gives ≥ 2 distinct candidates or an explained "none clean"; `multiroute.test.js` extended.

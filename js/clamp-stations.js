@@ -79,7 +79,21 @@ function forCheck(P,text,ptsText){const t=String(text||'').trim();if(!t)return n
   const D=orient(P,dirs);
   return{fixDirs:base=>P.map((_,i)=>D[i]||(base&&base[i])||null),note:`, bore direction held at ${n} station${n>1?'s':''}`,msg:''};}
 
-const API={candidates,order,pathLength,twoOpt,orient,stationsText,dirsText,parseDirs,pointNames,forCheck};
+// Before solving. Neighbouring stations with both bore directions held need room for two bends between them: closer than
+// 2·R (measured across the bores, along the chord) cannot hold R unless the bores line up. P: points, D: held dirs (null = free)
+function closePairs(P,D,R){const out=[];
+  for(let i=0;i+1<P.length;i++){const a=D&&D[i],b=D&&D[i+1];if(!a||!b)continue;const ch=sub(P[i+1],P[i]),L=len(ch);if(!(L>0))continue;
+    const u=norm(ch),line=Math.min(Math.abs(dot(norm(a),u)),Math.abs(dot(norm(b),u)));
+    if(L<2*R&&line<0.999)out.push({i,j:i+1,L});}
+  return out;}
+// Points that read like pipe corner points (Creo Piping, Single radius) rather than points on a hose: few points, and a sharp
+// corner (over 90°) between two long legs (each ≥ R). A hose route through such a corner cannot keep R. Returns the corners.
+function cornerLike(P,R){const out=[];if(P.length<3||P.length>40)return out;
+  for(let i=1;i+1<P.length;i++){const u=sub(P[i],P[i-1]),v=sub(P[i+1],P[i]),a=len(u),b=len(v);if(!(a>0&&b>0))continue;
+    const th=Math.acos(Math.max(-1,Math.min(1,dot(u,v)/(a*b))))*180/Math.PI;if(th>90&&a>=R&&b>=R)out.push({i,deg:th});}
+  return out;}
+
+const API={candidates,order,pathLength,twoOpt,orient,stationsText,dirsText,parseDirs,pointNames,forCheck,closePairs,cornerLike};
 if(typeof module!=="undefined"&&module.exports)module.exports=API;
 root.ClampStations=API;
 
@@ -145,7 +159,9 @@ function useAsStations(){const T=ticked();if(T.length<2)return;
   const write=()=>{$('csAsk').hidden=true;
     $('pts').value=stationsText(T,tf);$('pts').dispatchEvent(new Event('input'));store.set('rs.pts',$('pts').value);
     $('csDirs').value=$('csHold').checked?dirsText(T,tv):'';store.set('rs.csDirs',$('csDirs').value);
-    const f=frame();say(`${T.length} stations written to Target points${f?` (in the ${f.name} frame)`:''}${$('csHold').checked?', bore directions below':''}. Press Check.`);};
+    const f=frame(),R=+$('r').value||65,near=$('csHold').checked?closePairs(T.map(s=>s.c),orient(T.map(s=>s.c),T.map(s=>s.d)),R):[];
+    const warn=near.length?` Too close for R ${fmt(R)} with the bores held: ${near.map(p=>`S${p.i+1}–S${p.j+1} ${fmt(p.L,0)} mm apart`).join(', ')} (need ${fmt(2*R,0)} mm unless the bores line up). Untick one of each pair, or untick “Hold the bore direction”.`:'';
+    say(`${T.length} stations written to Target points${f?` (in the ${f.name} frame)`:''}${$('csHold').checked?', bore directions below':''}. Press Check.${warn}`,!!near.length);};
   if(!$('pts').value.trim())return write();
   $('csAskTxt').textContent=`Target points already hold ${parsePts($('pts').value).length} point(s). Replace them with the ${T.length} clamp stations?`;
   $('csAsk').hidden=false;$('csYes').onclick=write;$('csNo').onclick=()=>{$('csAsk').hidden=true;say('Target points kept.');};$('csYes').focus();}

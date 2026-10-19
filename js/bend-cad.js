@@ -6,12 +6,12 @@ const BC={cad:null,sv:null,key:'',user:new Map(),focus:0};
 const say=(m,bad)=>{const e=$('statusCad');e.textContent=m;e.style.color=bad?'var(--bad)':'';};
 const opt=()=>({d:Math.max(0.1,+$('cdD').value||8),gap:Math.max(0,+$('cdGap').value||0),reach:Math.max(10,+$('cdReach').value||60)});
 const stations=()=>parsePts($('pts').value).map(p=>[p[0],p[1],p[2]]);
-const roleTxt=p=>p.role==='pipe'?`existing ${p.pipe.kind==='hose'?'hose':'pipe'}${p.pipe.name!==p.name?` ${esc(p.pipe.name)}`:''} Ø${fmt(p.pipe.OD,1)}`:p.role==='station'?`clip at ${p.stations.map(i=>'P'+(i+1)).join(', ')}`:p.role==='clip'?'small part on the station line, no station (clip, or screw?)':'frame / part';
+const roleTxt=p=>p.role==='pipe'?`existing ${p.pipe.kind==='hose'?'hose':'pipe'}${p.pipe.name!==p.name?` ${esc(p.pipe.name)}`:''} Ø${fmt(p.pipe.OD,1)}`:p.role==='station'?`clip at ${p.stations.map(i=>'P'+(i+1)).join(', ')}`:p.role==='clip'?'small part on the station line, no station (clip, or screw?)':p.role==='mount'?`bracket the clip at ${p.mountOf.map(i=>'P'+(i+1)).join(', ')} is fixed to: not checked (the hose in the clip always reaches it)`:'frame / part';
 const keepClear=p=>BC.user.has(p.sid)?BC.user.get(p.sid):p.role==='obstacle';
 // list groups: ticked, unticked clips and parts, unticked existing pipes
 const group=p=>keepClear(p)?0:p.role==='pipe'?2:1,GROUP=['Gap checked (ticked)','Not checked (clips, or unticked)','Existing pipes (not checked)'];
 // parts the too-close list and the gap chart look at: ticked ones, and unticked ones away from any station except existing pipes
-const watched=p=>keepClear(p)||(p.role!=='station'&&p.role!=='pipe');
+const watched=p=>keepClear(p)||(p.role!=='station'&&p.role!=='pipe'&&p.role!=='mount');
 function survey(){if(!BC.cad)return null;const P=stations();if(P.length<2)return null;const o=opt(),key=JSON.stringify([P,o]);
   if(BC.key!==key){BC.sv=CadSolids.survey(BC.cad,P,o);BC.key=key;render();}return BC.sv;}
 function render(){const sv=BC.sv,box=$('cdParts');if(!sv){box.innerHTML='';return;}
@@ -62,7 +62,6 @@ window.bendCad=function(P){
     report(A){const parts=[],bits=[],holes=[],marks=[],out={};
       if(straight.length)bits.push(`straight ${straight.join(', ')}`);
       let msg=straight.length?`Straight ${straight.join(', ')}.`:'';
-      if(ix&&!push&&faces.length)msg+=`\nThe route is generated from the stations only; the gap to parts is checked, not enforced — tick “Push the route away” to make it keep clear.`;
       if(notes.length)msg+=`\n${notes.join('.\n')}.`;
       if(ix){const w=CadSolids.clearance(A.d.pts,ix,o.d,o.d/2+o.gap+40),p=w.box&&sv.parts.find(x=>x.faces.includes(w.box));
         const near=A.Q.reduce((b,q,i)=>{const d=V.len(V.sub(q,w.p||q));return d<b.d?{d,i}:b;},{d:Infinity,i:0});
@@ -71,6 +70,8 @@ window.bendCad=function(P){
         const open=throughOpenings(A,P,faces,o),spots=closeSpots(A,P,o,spanOf(A,P));
         msg+=spots.length?`\nToo close — below the ${fmt(o.gap)} mm gap (${spots.length} place${spots.length>1?'s':''}, marked in 3D: red = into the part, amber = too close; clips at stations not counted):`:`\nNowhere closer than the ${fmt(o.gap)} mm gap to the parts checked (clips at stations not counted).`;
         spots.forEach(x=>{msg+=`\n• ${x.msg}`;marks.push(x.mark);});
+        // the route is generated from the stations only: say how to make it keep clear, only when it does not
+        if(spots.length&&!push&&faces.length)msg+=`\nNext: tick “Push the route away” under Keep clear of CAD parts and Check again, or press Alternatives below.`;
         // gap along the whole route, for the Clearance chart: to the same parts the spots use; capped where nothing is near
         const ixAll=CadSolids.index(sv.parts.filter(watched).flatMap(p=>p.faces),50),cap=o.gap*5+o.d;
         out.spots=spots.map(x=>x.spot);out.clearDense=A.d.pts.map(q=>Math.min(cap,ixAll.nearest(q,cap+o.d/2).d-o.d/2));out.gapLimit=o.gap;

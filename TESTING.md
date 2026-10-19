@@ -125,3 +125,17 @@ Both routes must come from the file; the example pair is only replaced per texta
    stations section is hidden, still shows it).
 4. "Load assembly .stp…" inside Stations from clamps does the same as the top Open….
 5. `node tests/ui-walk.js`: A 7 steps / 1 load / Ø typed once (was 12 / 2 / 2), B 2 steps (was 3).
+
+## 11. Mounts, next step, pre-checks (Phase 3 / 4 items)
+
+1. Hose / Cable · Route through stations, Open… `piping3_practice_asm.stp`, Hose Ø 12, Use as stations, Check.
+   Keep clear lists `95651236` (twice) and `22577598` as "bracket the clip at Pn is fixed to: not checked", unticked.
+   Check: "Nowhere closer than the 4.0 mm gap … Smallest gap … 10.3 mm (… 980709)". Before, the brackets were frame and the route
+   was "6.0 mm into" them at P1–P3. Tick a bracket to check it again. Parts over 300 mm (frame rails) stay frame even when a clip touches them.
+2. When a route is too close, the result ends with "Next: tick “Push the route away” … or press Alternatives below." When it is clear,
+   that line is gone (it used to show every time).
+3. Alternatives on the same stations holds the bore directions Check holds: A1 "direct", clearance 6.1 mm (was 2.3 mm without them).
+4. Open `piping2_practice_1.pts` in Hose · Route through stations, Check: the result says the points look like pipe corner points
+   (point 3 turns 122°, …) and points to Pipe · Route through points.
+5. Open `piping4_answer_asm.stp`, Hose Ø 14, Use as stations: "Too close for R 65 with the bores held: S2–S3 60 mm apart (need 130 mm …)".
+6. `node tests/clamp-stations.test.js` 46 checks, `node tests/cad-pipes.test.js` 30 checks.
