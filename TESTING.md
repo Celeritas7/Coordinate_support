@@ -113,3 +113,15 @@ Both routes must come from the file; the example pair is only replaced per texta
 5. piping2: the Ø22.0 clamp 990224 is found for the Ø22.5 pipe (Pipe keeps ± 1.5 mm; a Hose needs bore ≥ Ø − 0.2).
 6. `node tests/fixings.test.js` prints only `ok` lines (20 checks). `node tests/ui-walk.js` clicks through the Hose and Pipe jobs and
    prints step counts (needs Playwright + Chromium).
+
+## 10. Load once (Phase 2)
+
+1. Pipe · Check .pts against pipe, top **Open…** → `piping2_practice_asm.stp`: goes to Pipe as before. A line under the module switch
+   reads "Assembly: piping2_practice_asm.stp · 1 pipe · 3 parts · 1 hole with a coordinate system".
+2. Hose / Cable · Route through stations, top **Open…** → `piping3_practice_asm.stp`: stays in Hose; "Stations from clamps" and
+   "Keep clear of CAD parts" open by themselves; the stations list fills from the assembly; Keep clear reports "43 solids … read in 0.0 s"
+   (it reuses the parse, no second read). The Assembly line's **pipes** link jumps to Pipe with the same file open.
+3. Keep clear has no Hose Ø field of its own here: it follows Hose Ø under Stations from clamps (Pipe · Route through points, where the
+   stations section is hidden, still shows it).
+4. "Load assembly .stp…" inside Stations from clamps does the same as the top Open….
+5. `node tests/ui-walk.js`: A 7 steps / 1 load / Ø typed once (was 12 / 2 / 2), B 2 steps (was 3).

@@ -136,7 +136,7 @@ function iges(text){
 
 function step(text,opts){
   const SA=root.StepAsm||(typeof require!=="undefined"?require("./step-asm.js"):null);if(!SA)throw new Error('StepAsm not loaded');
-  const r=SA.parse(text,{pipe:(opts&&opts.pipe)||{}}),F=SA.F,faces=[],solids=[];let sid=0;
+  const r=(opts&&opts.parsed)||SA.parse(text,{pipe:(opts&&opts.pipe)||{}}),F=SA.F,faces=[],solids=[];let sid=0;
   r.instances.forEach((inst,idx)=>{const pp=r.pipes.find(p=>p.inst===idx),pipe=pp?{name:pp.name,OD:pp.OD,kind:pp.kind}:null;
     inst.part.solids.forEach(sol=>{sid++;const sb=newBox();let made=0;
     sol.faces.forEach(f=>{const b=newBox();f.verts.forEach(v=>grow(b,F.pt(inst.M,v)));
@@ -146,7 +146,8 @@ function step(text,opts){
   return{format:'STEP',solids,faces};
 }
 
-// opts.pipe: STEP only, the "pipe?" overrides for this file ({partName: true|false})
+// opts.pipe: STEP only, the "pipe?" overrides for this file ({partName: true|false}); opts.parsed: a StepAsm.parse result of
+// the same text (the assembly already open), so the file is not read twice
 function read(text,name,opts){
   const s=String(text),isStep=/^\s*ISO-10303-21/.test(s)||/\.(stp|step)$/i.test(name||'');
   const out=isStep?step(s,opts):iges(s);out.name=name||'';return out;

@@ -158,7 +158,9 @@ function load(file){say(`Reading ${file.name}...`);
   file.text().then(text=>{let r;try{r=StepAsm.parse(text);}catch(e){return say(`${file.name}: ${e.message}`,true);}
     CS.own={name:file.name,r};refresh();});}
 $('csLoad').onclick=()=>$('csFile').click();
-$('csFile').onchange=e=>{if(e.target.files[0])load(e.target.files[0]);e.target.value='';};
+// Load here = open the assembly for the whole page (shell.js), so Keep clear and Pipe get it too
+$('csFile').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f)return;if(typeof openAssembly==='function'){CS.own=null;openAssembly(f);}else load(f);};
+document.addEventListener('asm:loaded',()=>{if(!CS.own&&!$('csBox').hidden)refresh();});
 $('csUseAsm').onclick=()=>{CS.own=null;refresh();};
 $('csAuto').onclick=autoOrder;
 $('csUse').onclick=useAsStations;
@@ -169,7 +171,9 @@ $('csHold').onchange=()=>store.set('rs.csHold',$('csHold').checked?'1':'0');
 // opening the section picks up an assembly opened elsewhere since
 $('csBox').addEventListener('toggle',()=>{if($('csBox').open&&!CS.own&&openAsm()&&!CS.list.length)refresh();});
 // lines + arcs (Pipe · Route through points) holds no tangents at stations: the section is for the spline route only
-const sync=()=>{$('csBox').hidden=$('shape').value==='arc';};$('shape').addEventListener('change',sync);sync();
+const dWrap=()=>$('cdD').closest('div');
+const sync=()=>{const arc=$('shape').value==='arc';$('csBox').hidden=arc;dWrap().hidden=!arc;if(!arc&&$('cdD').value!==$('csD').value){$('cdD').value=$('csD').value;$('cdD').dispatchEvent(new Event('change'));}};
+$('csD').addEventListener('change',()=>{if($('shape').value!=='arc'){$('cdD').value=$('csD').value;$('cdD').dispatchEvent(new Event('change'));}});$('shape').addEventListener('change',sync);sync();
 $('csDirs').value=store.get('rs.csDirs')||'';$('csHold').checked=store.get('rs.csHold')!=='0';
 render();
 })(typeof globalThis!=="undefined"?globalThis:this);

@@ -46,13 +46,19 @@ Root cause of report issues 2, 3, 4 and of the 26-row list.
   not in the Library, grey = Library part); "Other holes (n)" fold; Pipe rows keep their existing one-line layout plus
   "Add to library". Screenshots: `handoff/shots/P1-*.png`.
 
-## Phase 2 — Load once (Claude Code, 1 day; Claude Design reviews the header)
+## Phase 2 — Load once (Claude Code, 1 day; Claude Design reviews the header) — BUILT 2026-10-19, awaiting design review
 - One assembly per session, loaded from the top **Open…** or dropped anywhere. A header line shows what is loaded
   ("piping3_practice_asm.stp · 2 pipes · 3 clamps for Ø12 · 51 parts") with **Change** / **Remove**.
 - Hose · Stations from clamps and Keep clear both read from it; their own Load links go. Hose Ø becomes **one field** per task.
 - Top Open… with an assembly follows the **open task** (Hose → stations + parts; Pipe → pipes). No more "assembly → Pipe" surprise.
 - **Design review:** the header block, what Change / Remove do, where Hose Ø lives.
 - **Done when:** the walk-through loads the file **once** and types Ø **once**; step count ≤ 9.
+- **Built:** `openAssembly()` in `shell.js` is the one way in (top Open…, drop, the section's Load link). Hose · Route → stations +
+  parts (parts reuse the parse via `CadSolids.read(…,{parsed})`, 0.0 s instead of ~6 s); any other task → Pipe. `asm:loaded` event
+  tells the panels. Header line "Assembly: name · pipes · parts · holes with a CSYS · [pipes]". Keep clear's Hose Ø follows the stations
+  field and is hidden while it is shown. Walk-through: **A 12 → 7 steps, 2 → 1 loads, Ø 2× → 1×; B 3 → 2.** Screenshot `shots/P2-header.png`.
+- **For the design review:** the header line (wording, where it sits, whether it needs Change / Remove), the status sentence after
+  Open… (long), and whether "holes with a coordinate system" should read "clamps for Ø…" once Hose Ø is known.
 
 ## Phase 3 — Next-step guidance (Claude Design leads, Claude Code builds; 1–2 days)
 - After every action the status line offers the **next button**:

@@ -116,16 +116,19 @@ function throughOpenings(A,P,faces,o){const pts=A.d.pts,s=A.d.s,sv=BC.sv,out=[],
     return{msg:`${span(g.i)}: ${what}${gap<0?` (hose ${fmt(-gap,1)} mm into it)`:low?` — below the ${fmt(o.gap)} mm gap`:''}`,
       hole:L.outer?null:{pts:CadSolids.loop3(sh,L),bad:low},mark:{p:g.c.x,text:`${span(g.i)} · ${fmt(Math.max(gap,0),1)} mm`,bad:low}};});}
 
-function load(f){say(`Reading ${f.name} (${(f.size/1e6).toFixed(1)} MB)...`);
-  f.text().then(t=>setTimeout(()=>{const t0=performance.now();let cad;
+function load(f){say(`Reading ${f.name} (${(f.size/1e6).toFixed(1)} MB)...`);f.text().then(t=>setTimeout(()=>fromText(f.name,t),30));}
+// parsed: the StepAsm result of the same text when the assembly is already open (no second read)
+function fromText(name,t,parsed){const t0=performance.now();let cad;
     // STEP: the parts marked pipe / not a pipe in the part tree for this file name count as such here too
-    try{cad=CadSolids.read(t,f.name,{pipe:window.AsmTree?AsmTree.load(f.name):{}});}catch(e){return say(`${f.name}: ${e.message}`,true);}
-    if(!cad.solids.length)return say(`${f.name}: no solids found. Export from Creo with solids (IGES: BREP / "Solid", or STEP AP214).`,true);
-    BC.cad=cad;BC.key='';BC.user=new Map();$('cdClear').hidden=false;$('cdBox').open=true;survey();
+    try{cad=CadSolids.read(t,name,{pipe:window.AsmTree?AsmTree.load(name):{},parsed});}catch(e){return say(`${name}: ${e.message}`,true);}
+    if(!cad.solids.length)return say(`${name}: no solids found. Export from Creo with solids (IGES: BREP / "Solid", or STEP AP214).`,true);
+    BC.cad=cad;BC.key='';BC.user=new Map();$('cdClear').hidden=false;survey();
     const ex=cad.faces.filter(x=>x.shape).length,np=cad.solids.filter(x=>x.pipe).length;
-    say(`${f.name}: ${cad.solids.length} solids, ${cad.faces.length} faces (${cad.format}${ex?`; ${ex} flat or cylindrical, gap exact`:''}${np?`; ${np} solid${np>1?'s':''} of existing pipes, not checked`:''}), read in ${((performance.now()-t0)/1000).toFixed(1)} s.${BC.sv?'':' Load the stations to see which parts are near.'}`);},30));}
+    say(`${name}: ${cad.solids.length} solids, ${cad.faces.length} faces (${cad.format}${ex?`; ${ex} flat or cylindrical, gap exact`:''}${np?`; ${np} solid${np>1?'s':''} of existing pipes, not checked`:''}), read in ${((performance.now()-t0)/1000).toFixed(1)} s.${BC.sv?'':' Use the stations to see which parts are near.'}`);}
+window.bcFromAsm=a=>{if(a&&a.text)fromText(a.name,a.text,a.r);};
 $('cdLoad').onclick=()=>$('cdFile').click();
 window.bcLoad=f=>{$('cdBox').open=true;load(f);};
+window.bcName=()=>BC.cad?BC.cad.name:null;
 $('cdFile').onchange=e=>{if(e.target.files[0])load(e.target.files[0]);e.target.value='';};
 $('cdClear').onclick=()=>{BC.cad=null;BC.sv=null;BC.key='';BC.focus=0;$('cdClear').hidden=true;render();say('');};
 ['cdD','cdGap','cdReach'].forEach(k=>$(k).addEventListener('change',()=>{survey();}));

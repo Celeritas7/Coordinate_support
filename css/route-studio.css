@@ -217,3 +217,5 @@ textarea[data-drop]{outline:2px dashed var(--ok);outline-offset:1px}
 .altrow .altt{flex:1;min-width:0}.altrow .altt b{font-weight:600}.altrow .unit{display:block}
 .altrow button{flex:none;padding:4px 10px;border:1px solid var(--rule);border-radius:3px;background:var(--field);color:var(--ink);font:500 12.5px var(--sans);cursor:pointer}
 .altrow button:hover{border-color:var(--ink)}
+
+.shasm{font-size:12.5px;margin:-4px 0 8px;overflow-wrap:anywhere}.shasm #shAsmTxt{font-weight:500}

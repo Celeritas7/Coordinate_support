@@ -82,7 +82,7 @@ function asmApply(note){
   runs=runs.filter(x=>!(x.asm&&x.asm.file===ASM.name));
   const nOv=Object.keys(ASM.ov).length,tree=`${parts} part${parts===1?'':'s'} with solids (${s.solids} solid${s.solids===1?'':'s'}), ${s.csys} coordinate systems${nOv?`, ${nOv} part${nOv>1?'s':''} marked by hand`:''}`;
   const nH=r.pipes.filter(p=>p.kind==='hose').length,nP=r.pipes.length-nH,found=[nP?`${nP} pipe${nP===1?'':'s'}`:'',nH?`${nH} hose${nH===1?'':'s'}`:''].filter(Boolean).join(', ');
-  thSetup();
+  thSetup();setTimeout(()=>document.dispatchEvent(new CustomEvent('asm:loaded',{detail:ASM})),0);
   if(!r.pipes.length){renderRuns();rebuild(true);renderCmp();renderPts();
     return cadSay('statusPipe',`${note?note+' ':''}${ASM.name}: ${tree}. No pipe or hose found. Open “Parts” below to see why per part, and mark the pipe there.`,true);}
   if(typeof FixLib!=='undefined')FixLib.fillThumbs(r);
