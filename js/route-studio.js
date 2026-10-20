@@ -710,7 +710,7 @@ $('runBend').onclick=()=>{
         if(corners.length)N.push({label:'Route it as a pipe instead',title:'Pipe · Route through points: lines + arcs at one radius through these corners',go:()=>{if(typeof goTask==='function')goTask('pipe','route');else{$('shape').value='arc';$('shape').dispatchEvent(new Event('change'));}}});
         if(cx&&cx.tooClose&&cx.canPush)N.push({label:'Push the route away and check again',title:'Ticks “Push the route away” under Keep clear of CAD parts and runs Check',go:()=>{$('cdBox').open=true;$('cdPush').checked=true;$('cdPush').dispatchEvent(new Event('change'));$('runBend').click();}});
         if(cx&&cx.tooClose)N.push({label:'Alternatives',title:'Other ways round the parts',go:()=>$('runAlt').click()});
-        if(!(cx&&cx.tooClose)&&!corners.length){N.push({label:'Download .pts',go:()=>{dock='pts';showPane();$('dl').click();}});if(cx)N.push({label:'Alternatives',go:()=>$('runAlt').click()});}
+        if(!(cx&&cx.tooClose)&&!corners.length){N.push({label:'Download .pts',go:()=>{dock='pts';showPane();$('dl').click();}},{label:'Copy .pts',title:'Copies the points to the clipboard, to paste into Creo',go:()=>{dock='pts';showPane();$('copy').click();}});if(cx)N.push({label:'Alternatives',go:()=>$('runAlt').click()});}
         if(A.minR<R&&!corners.length)N.unshift({label:'Refine the tightest bend',go:()=>{const b=$('dRef');if(b)b.click();}});
         nextSteps('statusBend',N);}};
     if(!$('thin').checked)return finish(res.A,res.s.tidx,'');
