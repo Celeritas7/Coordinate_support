@@ -198,6 +198,11 @@ After that:
 - Apply → re-check → accept or undo; fixes listed in the report as Creo instructions ("move clip CS31/32 −10 mm in Y")
 - Output: corner points .pts with the single radius in the header, 3 decimals, assembly frame
 
+## Phase 14b — Pick the side a route passes a part (hose first, then pipe)
+See `handoff/UI_PHASES.md` Phase 4b. Per blocking part: Any / Above / Below / Left / Right, with a per-file Up axis; Alternatives and
+Push keep only routes on the chosen side and say plainly when a side cannot hold the radius or the gap. Pipe gets the same picker
+once Phase 12d gives pipe runs a clearance check.
+
 ## Phase 16 — Pipe against real geometry
 - Route generation and Parallel pipes use the Phase 12/13 parts as obstacles and the clamps as stations
 - Parallel pipes at a set gap checked against each other and against parts

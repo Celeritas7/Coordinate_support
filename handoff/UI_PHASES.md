@@ -87,6 +87,33 @@ Root cause of report issues 2, 3, 4 and of the 26-row list.
 - Cards: length / min R / clearance in a fixed order, the losing numbers in red, "Use this" only on clean ones.
 - **Done when:** piping3 gives ≥ 2 distinct candidates or an explained "none clean"; `multiroute.test.js` extended.
 
+## Phase 4b — Pick the side: "pass this part from above" (Claude Code builds the logic first; Claude Design owns the picker; 2 days)
+Agreed 2026-10-20. Today the solver decides which side of a part the route passes and the user cannot say otherwise; the only
+workarounds are Alternatives (top 3 only, labelled "B47+Y") or typing an extra point by hand. The enumeration in
+`multiroute.js` already tries every side of every blocking part, so a preference is a filter on what it already does.
+
+What it does
+- Each part that blocks the route gets a side choice: **Any · Above · Below · Left · Right** (and Front / Back when the leg
+  runs along the up axis). Set it in the Keep clear parts list, or by clicking the part in 3D.
+- **Up axis** is a per-file setting ("Up = +Y / +Z / −Z …", default guessed from the file: the axis the frame is tallest along is
+  not up; the axis clips open toward is), saved like the pipe overrides. "Left / Right" are taken looking along the route.
+- Alternatives (and Check with "Push the route away") only keep topologies that respect every choice; the cards read in plain
+  words: "over 95651236, left of 22577598", never "B47+Y".
+- When a chosen side cannot hold the rules, the app says which rule and by how much ("over 95651236: needs R 41, limit R 65;
+  or gap 1.2 mm of 4") and shows the best route that side anyway, marked not clean, so the user can still take it or change the choice.
+- The choice is kept per part across Checks and saved per file name.
+
+Build order
+1. `multiroute.js`: `opts.prefer` = {partName → side}, mapped to ±axis with the up axis; combos that break a preference are skipped
+   before polishing (no cost); a "forced" flag when the best candidate on the chosen side fails a rule. Node tests: one box
+   between two stations with Above / Below / Any → 1 / 1 / ≥ 2 candidates; a chosen side that cannot hold R → `forced` with the reason.
+2. Plain-word labels: side names from the up axis + direction of travel, part names from the survey (not box ids).
+3. UI (after the design pass): side picker per part row + 3D click; Up-axis selector in Keep clear; "forced" cards in amber.
+- **Design review:** where the picker lives (row vs 3D vs both), the six side words and what "Left" means on a route that turns
+  back, how a forced choice is shown, the Up selector's wording. Design produces the mockup before step 3 is built.
+- **Done when:** on piping3, choosing Above for the first bracket gives a route over it or an explained failure; the walk-through
+  gains at most 1 step for a side choice; tests green.
+
 ## Phase 5 — Layout: 1-2-3 strip (Claude Design leads; Claude Code builds; 2 days)
 Only after 1–4, because they decide what the strip needs to hold.
 - Hose · Route through stations becomes **1 Load · 2 Stations · 3 Route**, each a card in order; settings (radius, spacing,
