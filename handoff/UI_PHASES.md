@@ -60,7 +60,7 @@ Root cause of report issues 2, 3, 4 and of the 26-row list.
 - **For the design review:** the header line (wording, where it sits, whether it needs Change / Remove), the status sentence after
   Open… (long), and whether "holes with a coordinate system" should read "clamps for Ø…" once Hose Ø is known.
 
-## Phase 3 — Next-step guidance (Claude Design leads, Claude Code builds; 1–2 days) — LOGIC BUILT 2026-10-19 with provisional wording; buttons-in-status and copy await design
+## Phase 3 — Next-step guidance (Claude Design leads, Claude Code builds; 1–2 days) — BUILT 2026-10-20, wording provisional until the design pass
 - After every action the status line offers the **next button**:
   - Use as stations → "[Check now]"
   - Check with a clash → "Route is 6.0 mm into 95651236 — [Push the route away] [Alternatives]"
@@ -77,8 +77,14 @@ Root cause of report issues 2, 3, 4 and of the 26-row list.
   **Root cause of the piping3 clash found and fixed:** the parts it ran "6 mm into" are the brackets the clips are bolted to
   (`95651236`, `22577598`). New survey role **mount** (≤ 300 mm, touching the clip at a station; unticked, with a reason). The
   walk-through's route is now clash-free (smallest gap 10.3 mm) without Push.
-- **For Claude Design:** the wording of the three new messages (corner points, stations too close, Next), whether "Next" should
-  be real buttons in the status line, and how a mount row should read in the Keep clear list.
+- **Built 2026-10-20:** real buttons under each result line (`js/next.js`, `nextSteps(statusId, items)`; the next status write
+  removes them). Use as stations → Check now (+ Untick “Hold the bore direction” when stations are too close); Check clear → Download
+  .pts · Alternatives; Check too close → Push the route away and check again · Alternatives; below min R → Refine the tightest bend;
+  corner points → Route it as a pipe instead; Through clamps → Download .pts · Copy .pts · Compare with your .pts. Screenshots
+  `shots/P3-*.png`. TESTING.md §12.
+- **For Claude Design:** the button labels (long: "Push the route away and check again"), their order and which one is primary
+  (first = bold today), the three message texts (corner points, stations too close, mount row), and whether Next should also
+  appear after Alternatives ("Use this" is already a button there).
 
 ## Phase 4 — Alternatives that explain themselves (Claude Code, 1–2 days; Claude Design reviews the cards) — PARTLY BUILT
 - Apply the held bore directions in Alternatives as Check does (report issue 1). **Done.**

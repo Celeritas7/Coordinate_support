@@ -13,6 +13,7 @@ Hose and cable routing checks for Creo: bend radius on one route, clearance betw
 - js/pts-table.js - Table → .pts tab
 - js/step.js, js/iges.js, js/cad-io.js - named datums from STEP / IGES, frames, STEP export
 - js/step-asm.js + js/asm-ui.js - assembly STEP: part tree with placements, world CSYS, pipe centrelines, clamp bores; route-through-clamps panel
+- js/next.js - "Next:" buttons under a result line (nextSteps)
 - js/fixings.js - one clamp finder for Hose and Pipe: Library part, end fitting, clamp not in the Library, holds another pipe, short bolt / plate hole; reason per row
 - js/through.js - re-route a pipe straight through clamp bores (ends, radius, min straight kept)
 - js/asm-tree.js - part tree with the per-part pipe override (Route Studio + Inspector)

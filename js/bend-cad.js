@@ -71,13 +71,13 @@ window.bendCad=function(P){
         msg+=spots.length?`\nToo close — below the ${fmt(o.gap)} mm gap (${spots.length} place${spots.length>1?'s':''}, marked in 3D: red = into the part, amber = too close; clips at stations not counted):`:`\nNowhere closer than the ${fmt(o.gap)} mm gap to the parts checked (clips at stations not counted).`;
         spots.forEach(x=>{msg+=`\n• ${x.msg}`;marks.push(x.mark);});
         // the route is generated from the stations only: say how to make it keep clear, only when it does not
-        if(spots.length&&!push&&faces.length)msg+=`\nNext: tick “Push the route away” under Keep clear of CAD parts and Check again, or press Alternatives below.`;
+        out.tooClose=spots.length>0;out.canPush=!push&&faces.length>0;
         // gap along the whole route, for the Clearance chart: to the same parts the spots use; capped where nothing is near
         const ixAll=CadSolids.index(sv.parts.filter(watched).flatMap(p=>p.faces),50),cap=o.gap*5+o.d;
         out.spots=spots.map(x=>x.spot);out.clearDense=A.d.pts.map(q=>Math.min(cap,ixAll.nearest(q,cap+o.d/2).d-o.d/2));out.gapLimit=o.gap;
         if(spots.some(x=>!x.ticked))msg+=`\nUnticked parts were taken as clips without a CSYS. Press “show” in the list to see one; tick it if it is a screw, bolt or bracket.`;if(open.length)msg+=`\nPlate crossings (marked in 3D):`;open.forEach(x=>{msg+=`\n• ${x.msg}`;if(x.hole)holes.push(x.hole);marks.push(x.mark);});
         msg+=isFinite(w.gap)?`\nSmallest gap to the kept-clear parts: ${fmt(w.gap,1)} mm${p?` (${p.name})`:''} near point ${near.i+1}${w.gap<o.gap-0.05?` — below the ${fmt(o.gap)} mm gap`:''}.`:`\nNo kept-clear part within ${fmt(o.d/2+o.gap+40)} mm of the route.`;}
-      return{parts:parts.length?parts:undefined,holes:holes.length?holes:undefined,marks:marks.length?marks:undefined,clearDense:out.clearDense,gapLimit:out.gapLimit,spots:out.spots,note:bits.length?', '+bits.join(', '):'',msg:msg.trim(),bad:false};}};
+      return{parts:parts.length?parts:undefined,holes:holes.length?holes:undefined,marks:marks.length?marks:undefined,clearDense:out.clearDense,gapLimit:out.gapLimit,spots:out.spots,tooClose:out.tooClose,canPush:out.canPush,note:bits.length?', '+bits.join(', '):'',msg:msg.trim(),bad:false};}};
 };
 
 // where the route crosses the plane of a flat face off its material — through a hole, or past the face's edge:

@@ -203,6 +203,8 @@ function thRun(){
     TH.last={run,rep,res,p,C};asmTexts();thReport();
     const warns=C.filter(c=>c.boreWarn).map(c=>`${c.fix.name}: ${c.boreWarn}`);
     say(`Done in ${ms} ms. ${res.steps.map(s=>s.clamp?`${s.clamp}: ${s.how}`:s.how).join('; ')}.${warns.length?` Check: ${warns.join('; ')}.`:''}`,false);
+    if(typeof nextSteps==='function')nextSteps('statusThrough',[{label:'Download .pts',go:()=>$('thDl').click()},{label:'Copy .pts',go:()=>$('thCopy').click()},
+      {label:'Compare with your .pts',title:'Pipe · Check .pts against pipe',go:()=>{if(typeof goTask==='function')goTask('pipe','asm');$('cmpOpen').click();}}]);
   },20);
 }
 function thReport(){const L=TH.last;if(!L)return;const{rep,res,p,C}=L,F=asmFrame(),loc=q=>asmLocal(q,F);

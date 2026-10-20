@@ -161,7 +161,8 @@ function useAsStations(){const T=ticked();if(T.length<2)return;
     $('csDirs').value=$('csHold').checked?dirsText(T,tv):'';store.set('rs.csDirs',$('csDirs').value);
     const f=frame(),R=+$('r').value||65,near=$('csHold').checked?closePairs(T.map(s=>s.c),orient(T.map(s=>s.c),T.map(s=>s.d)),R):[];
     const warn=near.length?` Too close for R ${fmt(R)} with the bores held: ${near.map(p=>`S${p.i+1}–S${p.j+1} ${fmt(p.L,0)} mm apart`).join(', ')} (need ${fmt(2*R,0)} mm unless the bores line up). Untick one of each pair, or untick “Hold the bore direction”.`:'';
-    say(`${T.length} stations written to Target points${f?` (in the ${f.name} frame)`:''}${$('csHold').checked?', bore directions below':''}. Press Check.${warn}`,!!near.length);};
+    say(`${T.length} stations written to Target points${f?` (in the ${f.name} frame)`:''}${$('csHold').checked?', bore directions below':''}.${warn}`,!!near.length);
+    if(typeof nextSteps==='function')nextSteps('statusCs',[{label:'Check now',go:()=>$('runBend').click()}].concat(near.length?[{label:'Untick “Hold the bore direction”',go:()=>{$('csHold').checked=false;$('csHold').dispatchEvent(new Event('change'));say('Bore directions off: Check uses the start / end directions only.');}}]:[]));};
   if(!$('pts').value.trim())return write();
   $('csAskTxt').textContent=`Target points already hold ${parsePts($('pts').value).length} point(s). Replace them with the ${T.length} clamp stations?`;
   $('csAsk').hidden=false;$('csYes').onclick=write;$('csNo').onclick=()=>{$('csAsk').hidden=true;say('Target points kept.');};$('csYes').focus();}

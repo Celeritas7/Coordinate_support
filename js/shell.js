@@ -89,7 +89,7 @@ function openAssembly(f){
     $('shAsm').hidden=false;$('shAsmTxt').textContent=asmLine(a);},{once:true});
   asmLoad(f);
   say(`${f.name}: assembly → ${hose?label('hose','route')+' (stations from its clamps, its parts to keep clear of); also open in Pipe':label('pipe',st.task.pipe)}.`);}
-window.openAssembly=openAssembly;
+window.openAssembly=openAssembly;window.goTask=go;
 function asmLine(a){const r=a.r;if(!r)return a.name;const parts=r.instances.filter(i=>i.solids).length,fx=(r.fixings||[]).length;
   return`${a.name} · ${r.pipes.length} pipe${r.pipes.length===1?'':'s'} · ${parts} parts · ${fx} hole${fx===1?'':'s'} with a coordinate system`;}
 $('shAsmGo').onclick=()=>go('pipe',st.task.pipe==='clamps'||st.task.pipe==='offset'?st.task.pipe:'asm');

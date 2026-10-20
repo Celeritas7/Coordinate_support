@@ -139,3 +139,14 @@ Both routes must come from the file; the example pair is only replaced per texta
    (point 3 turns 122°, …) and points to Pipe · Route through points.
 5. Open `piping4_answer_asm.stp`, Hose Ø 14, Use as stations: "Too close for R 65 with the bores held: S2–S3 60 mm apart (need 130 mm …)".
 6. `node tests/clamp-stations.test.js` 46 checks, `node tests/cad-pipes.test.js` 30 checks.
+
+## 12. "Next:" buttons (Phase 3)
+
+Every result line is followed by the buttons for what comes next; the next action's status replaces them.
+1. Stations from clamps → Use as stations: **Check now** (and **Untick “Hold the bore direction”** when stations are too close, piping4 Ø14).
+2. Check, route clear (piping3 Ø12): **Download .pts** (opens the Points pane and downloads) · **Alternatives**.
+3. Check, route too close (tick a bracket under Keep clear, Check again): **Push the route away and check again** (ticks Push, runs Check)
+   · **Alternatives**. Below min radius: **Refine the tightest bend** first.
+4. Check on pipe corner points (`piping2_practice_1.pts`): **Route it as a pipe instead** → Pipe · Route through points.
+5. Pipe · Through clamps → Route: **Download .pts** · **Copy .pts** · **Compare with your .pts** (→ Check .pts against pipe, file picker).
+Wording is provisional until the design pass; the buttons live in `js/next.js` (`nextSteps(statusId, items)`).

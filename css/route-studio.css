@@ -219,3 +219,7 @@ textarea[data-drop]{outline:2px dashed var(--ok);outline-offset:1px}
 .altrow button:hover{border-color:var(--ink)}
 
 .shasm{font-size:12.5px;margin:-4px 0 8px;overflow-wrap:anywhere}.shasm #shAsmTxt{font-weight:500}
+
+.next{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;margin-top:6px}.next>.unit{font-size:12.5px}
+.next button{font:inherit;font-size:12.5px;padding:3px 10px;border:1px solid var(--rule);border-radius:4px;background:var(--panel);color:var(--ink);cursor:pointer}
+.next button:hover{border-color:var(--focus)}.next button:first-of-type{font-weight:600}
