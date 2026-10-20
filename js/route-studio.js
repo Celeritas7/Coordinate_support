@@ -600,11 +600,13 @@ function renderRuns(){
       <input type="checkbox" ${r.visible?'checked':''} aria-label="show ${r.name}">
       <span class="sw" style="background:${r.color}"></span>
       <span class="nm">${r.name}<small>R ${fmt(r.minR)} mm &middot; ${r.Q.length} pts${r.clear?' &middot; gap '+fmt(Math.min(...r.clear.after)):''}${r.clr&&isFinite(r.clr.min)?' &middot; gap '+fmt(r.clr.min):''}</small></span>
-      <button class="del" title="remove" aria-label="remove ${r.name}">&times;</button></div>`).join('');
+      <button class="solo" title="show only this run in 3D" aria-label="show only ${r.name}">only</button><button class="del" title="remove" aria-label="remove ${r.name}">&times;</button></div>`).join('');
   }
   box.querySelectorAll('.run').forEach(el=>{
     const id=+el.dataset.id,r=runs.find(x=>x.id===id);
-    el.querySelector('input').onchange=e=>{r.visible=e.target.checked;rebuild(true);renderRuns();};
+    // the checkbox only shows / hides: its click must not reach the row (selecting re-draws the list before the change is read)
+    const cb=el.querySelector('input');cb.onclick=e=>e.stopPropagation();cb.onchange=e=>{r.visible=e.target.checked;rebuild(true);renderRuns();};
+    el.querySelector('.solo').onclick=e=>{e.stopPropagation();runs.forEach(x=>x.visible=x.id===id);selId=id;loadSettings(r);renderRuns();rebuild(true);renderCmp();renderPts();};
     el.querySelector('.del').onclick=e=>{e.stopPropagation();runs=runs.filter(x=>x.id!==id);
       if(selId===id)selId=runs.length?runs[runs.length-1].id:null;renderRuns();rebuild(true);renderCmp();renderPts();};
     el.onclick=()=>{selId=id;loadSettings(r);renderRuns();rebuild(false);renderCmp();renderPts();};
@@ -710,7 +712,7 @@ $('runBend').onclick=()=>{
         if(corners.length)N.push({label:'Route it as a pipe instead',title:'Pipe · Route through points: lines + arcs at one radius through these corners',go:()=>{if(typeof goTask==='function')goTask('pipe','route');else{$('shape').value='arc';$('shape').dispatchEvent(new Event('change'));}}});
         if(cx&&cx.tooClose&&cx.canPush)N.push({label:'Push the route away and check again',title:'Ticks “Push the route away” under Keep clear of CAD parts and runs Check',go:()=>{$('cdBox').open=true;$('cdPush').checked=true;$('cdPush').dispatchEvent(new Event('change'));$('runBend').click();}});
         if(cx&&cx.tooClose)N.push({label:'Alternatives',title:'Other ways round the parts',go:()=>$('runAlt').click()});
-        if(!(cx&&cx.tooClose)&&!corners.length){N.push({label:'Download .pts',go:()=>{dock='pts';showPane();$('dl').click();}});if(cx)N.push({label:'Alternatives',go:()=>$('runAlt').click()});}
+        if(!(cx&&cx.tooClose)&&!corners.length){N.push({label:'Download .pts',go:()=>{dock='pts';showPane();$('dl').click();}},{label:'Copy .pts',title:'Copies the points to the clipboard, to paste into Creo',go:()=>{dock='pts';showPane();$('copy').click();}});if(cx)N.push({label:'Alternatives',go:()=>$('runAlt').click()});}
         if(A.minR<R&&!corners.length)N.unshift({label:'Refine the tightest bend',go:()=>{const b=$('dRef');if(b)b.click();}});
         nextSteps('statusBend',N);}};
     if(!$('thin').checked)return finish(res.A,res.s.tidx,'');

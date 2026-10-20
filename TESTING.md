@@ -144,7 +144,7 @@ Both routes must come from the file; the example pair is only replaced per texta
 
 Every result line is followed by the buttons for what comes next; the next action's status replaces them.
 1. Stations from clamps → Use as stations: **Check now** (and **Untick “Hold the bore direction”** when stations are too close, piping4 Ø14).
-2. Check, route clear (piping3 Ø12): **Download .pts** (opens the Points pane and downloads) · **Alternatives**.
+2. Check, route clear (piping3 Ø12): **Download .pts** (opens the Points pane and downloads) · **Copy .pts** · **Alternatives**.
 3. Check, route too close (tick a bracket under Keep clear, Check again): **Push the route away and check again** (ticks Push, runs Check)
    · **Alternatives**. Below min radius: **Refine the tightest bend** first.
 4. Check on pipe corner points (`piping2_practice_1.pts`): **Route it as a pipe instead** → Pipe · Route through points.
