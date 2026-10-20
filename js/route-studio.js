@@ -702,7 +702,17 @@ $('runBend').onclick=()=>{
       addRun(Object.assign(A,{name:`Generated R${R} x${SF}`,kind:'bend',kindLabel:'bend radius, generated',parts:cx?cx.parts:undefined,holes:cx?cx.holes:undefined,marks:cx?cx.marks:undefined,clearDense:cx?cx.clearDense:undefined,gapLimit:cx?cx.gapLimit:undefined,spots:cx?cx.spots:undefined,
         params:{R,SF,spacing:SP},settings:`gap ${sp.toFixed(0)} mm between points${$('adapt').checked?', closer in bends':''}, x${SF} margin${nloc?`, ${nloc} local radius override${nloc>1?'s':''}`:''}${thinNote}${cx?cx.note:''}${SD?SD.note:''}${frameNote}`,
         text:toPts(A.Q,{R,designR:+(R*SF).toFixed(1),minR:A.minR,len:A.len,tidx})}));
-      $('statusBend').style.whiteSpace='pre-line';$('statusBend').textContent=`Added. Generated route holds R ${fmt(A.minR)} mm over ${A.Q.length} points${thinNote?` (${res.s.Q.length} before removing unneeded points)`:''}.${cx&&cx.msg?'\n'+cx.msg:''}${SD&&SD.msg?'\n'+SD.msg:''}`;};
+      const corners=typeof ClampStations!=='undefined'&&A.minR<R?ClampStations.cornerLike(P,R):[];
+      const cornerMsg=corners.length?`\nThese look like pipe corner points, not points on a hose: ${corners.map(c=>`point ${c.i+1} turns ${fmt(c.deg,0)}°`).join(', ')} between long straights. A hose through a corner cannot keep R ${fmt(R)}. For a pipe built with Single radius, use Pipe · Route through points.`:'';
+      $('statusBend').style.whiteSpace='pre-line';$('statusBend').textContent=`Added. Generated route holds R ${fmt(A.minR)} mm over ${A.Q.length} points${thinNote?` (${res.s.Q.length} before removing unneeded points)`:''}.${cornerMsg}${cx&&cx.msg?'\n'+cx.msg:''}${SD&&SD.msg?'\n'+SD.msg:''}`;
+      // what to do with this result: fix a clash, pick another way round, or take the points to Creo
+      if(typeof nextSteps==='function'){const N=[];
+        if(corners.length)N.push({label:'Route it as a pipe instead',title:'Pipe · Route through points: lines + arcs at one radius through these corners',go:()=>{if(typeof goTask==='function')goTask('pipe','route');else{$('shape').value='arc';$('shape').dispatchEvent(new Event('change'));}}});
+        if(cx&&cx.tooClose&&cx.canPush)N.push({label:'Push the route away and check again',title:'Ticks “Push the route away” under Keep clear of CAD parts and runs Check',go:()=>{$('cdBox').open=true;$('cdPush').checked=true;$('cdPush').dispatchEvent(new Event('change'));$('runBend').click();}});
+        if(cx&&cx.tooClose)N.push({label:'Alternatives',title:'Other ways round the parts',go:()=>$('runAlt').click()});
+        if(!(cx&&cx.tooClose)&&!corners.length){N.push({label:'Download .pts',go:()=>{dock='pts';showPane();$('dl').click();}});if(cx)N.push({label:'Alternatives',go:()=>$('runAlt').click()});}
+        if(A.minR<R&&!corners.length)N.unshift({label:'Refine the tightest bend',go:()=>{const b=$('dRef');if(b)b.click();}});
+        nextSteps('statusBend',N);}};
     if(!$('thin').checked)return finish(res.A,res.s.tidx,'');
     const tol=Math.max(0.05,+$('thinTol').value||1),needR=Math.max(R,Math.min(R*SF,res.A.minR*0.97)),T=thinner(res.s.Q,res.s.tidx,needR,tol,X&&X.thin),n0=res.s.Q.length;
     bendJob=-job;

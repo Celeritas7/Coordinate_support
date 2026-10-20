@@ -11,13 +11,14 @@
 const sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]],dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2],
 len=a=>Math.hypot(a[0],a[1],a[2]),norm=a=>{const l=len(a)||1e-12;return[a[0]/l,a[1]/l,a[2]/l];},dist=(a,b)=>len(sub(a,b));
 
-// fixings whose bore fits the hose (|D − Ø| ≤ tol). Coaxial copies at the same spot (two clamp halves, a bore split
-// into several faces) are one fixing. r: StepAsm.parse result. opt: {D, tol=1.5}
-function candidates(r,opt){const D=+opt.D,tol=opt.tol==null?1.5:+opt.tol,out=[];
-  for(const x of (r&&r.fixings)||[]){if(!(Math.abs(x.D-D)<=tol+1e-9))continue;
-    if(out.some(o=>dist(o.c,x.c)<=Math.max(0.5,x.r)&&Math.abs(dot(o.d,x.d))>0.999))continue;
-    out.push({id:out.length,name:x.csys,part:x.name,label:x.label,c:x.c.slice(),d:norm(x.d),D:x.D,length:x.length});}
-  return out;}
+// fixings whose bore fits the hose (Ø − 0.2 … Ø + tol), classified by Fixings.find (js/fixings.js): Library part, end fitting
+// of a pipe in the file, clamp not in the Library, or a short bolt / plate hole. Coaxial copies at one spot are one fixing.
+// Each entry: {id, name (CSYS), part, label, c, d, D, length, role, use (default tick), reason}. r: StepAsm.parse result.
+// opt: {D, tol=1.5, lib: x => Library entry | null}
+const FX=root.Fixings||(typeof require!=="undefined"?require("./fixings.js"):null);
+function candidates(r,opt){const D=+opt.D,tol=opt.tol==null?1.5:+opt.tol;
+  return FX.find(r,{D,fit:tol,lib:opt.lib||null}).map(c=>({id:c.id,name:c.name,part:c.part,label:c.label,c:c.c,d:c.d,D:c.D,length:c.length,
+    role:c.role,use:c.use,reason:c.reason}));}
 
 function pathLength(P,ord){let s=0;for(let i=1;i<ord.length;i++)s+=dist(P[ord[i-1]],P[ord[i]]);return s;}
 
@@ -78,7 +79,21 @@ function forCheck(P,text,ptsText){const t=String(text||'').trim();if(!t)return n
   const D=orient(P,dirs);
   return{fixDirs:base=>P.map((_,i)=>D[i]||(base&&base[i])||null),note:`, bore direction held at ${n} station${n>1?'s':''}`,msg:''};}
 
-const API={candidates,order,pathLength,twoOpt,orient,stationsText,dirsText,parseDirs,pointNames,forCheck};
+// Before solving. Neighbouring stations with both bore directions held need room for two bends between them: closer than
+// 2·R (measured across the bores, along the chord) cannot hold R unless the bores line up. P: points, D: held dirs (null = free)
+function closePairs(P,D,R){const out=[];
+  for(let i=0;i+1<P.length;i++){const a=D&&D[i],b=D&&D[i+1];if(!a||!b)continue;const ch=sub(P[i+1],P[i]),L=len(ch);if(!(L>0))continue;
+    const u=norm(ch),line=Math.min(Math.abs(dot(norm(a),u)),Math.abs(dot(norm(b),u)));
+    if(L<2*R&&line<0.999)out.push({i,j:i+1,L});}
+  return out;}
+// Points that read like pipe corner points (Creo Piping, Single radius) rather than points on a hose: few points, and a sharp
+// corner (over 90°) between two long legs (each ≥ R). A hose route through such a corner cannot keep R. Returns the corners.
+function cornerLike(P,R){const out=[];if(P.length<3||P.length>40)return out;
+  for(let i=1;i+1<P.length;i++){const u=sub(P[i],P[i-1]),v=sub(P[i+1],P[i]),a=len(u),b=len(v);if(!(a>0&&b>0))continue;
+    const th=Math.acos(Math.max(-1,Math.min(1,dot(u,v)/(a*b))))*180/Math.PI;if(th>90&&a>=R&&b>=R)out.push({i,deg:th});}
+  return out;}
+
+const API={candidates,order,pathLength,twoOpt,orient,stationsText,dirsText,parseDirs,pointNames,forCheck,closePairs,cornerLike};
 if(typeof module!=="undefined"&&module.exports)module.exports=API;
 root.ClampStations=API;
 
@@ -88,7 +103,8 @@ const CS={own:null,list:[],use:new Set(),start:null,end:null};
 const say=(m,bad)=>{const e=$('statusCs');e.textContent=m;e.style.color=bad?'var(--bad)':'';};
 const openAsm=()=>typeof ASM!=='undefined'&&ASM&&ASM.r?ASM:null;
 const src=()=>CS.own||openAsm();
-const opt=()=>({D:Math.max(0.1,+$('csD').value||8),tol:Math.max(0,+$('csTol').value||0)});
+const libOf=r=>typeof FixLib==='undefined'?null:x=>{const I=r.instances&&r.instances[x.inst];return FixLib.match(x.name,x.label,I&&I.part&&I.part.name);};
+const opt=r=>({D:Math.max(0.1,+$('csD').value||8),tol:Math.max(0,+$('csTol').value||0),lib:r?libOf(r):null});
 // Target points carry the frame picked under the points box (cad-io.js): write the stations in that frame too
 const frame=()=>typeof CAD!=='undefined'&&CAD.frame?CAD.frame:null;
 const tf=p=>frame()?cadToFrame(p):p,tv=v=>frame()?V.sub(cadToFrame(v),cadToFrame([0,0,0])):v;
@@ -97,9 +113,13 @@ const tag=s=>`${s.name} · ${s.part}`;
 
 function refresh(note){const a=src();$('csUseAsm').hidden=!openAsm()||CS.own===null;
   if(!a){CS.list=[];render();return say('Load a STEP assembly (or open one in Pipe · Check .pts against pipe). A fixing is a hole with a coordinate system on its axis, inside the hole.');}
-  const o=opt(),all=(a.r.fixings||[]).length;CS.list=candidates(a.r,o);CS.use=new Set(CS.list.map(s=>s.id));CS.start=CS.end=null;
+  const o=opt(a.r);CS.list=candidates(a.r,o);CS.use=new Set(CS.list.filter(s=>s.use).map(s=>s.id));
+  const ends=CS.list.filter(s=>s.use&&s.role==='end');CS.start=ends.length===2?ends[0].id:null;CS.end=ends.length===2?ends[1].id:null;
   if(CS.list.length)autoOrder();else render();
-  say(`${note?note+' ':''}${a.name}: ${all} fixing${all===1?'':'s'}, ${CS.list.length} with a bore Ø${fmt(o.D)} ± ${fmt(o.tol)} mm${CS.list.length?'. Untick the ones the hose does not pass through.':'. Change Hose Ø or the fit.'}`,!CS.list.length);}
+  const on=CS.use.size,off=CS.list.length-on;
+  say(`${note?note+' ':''}${a.name}: ${on} station${on===1?'':'s'} for a Ø${fmt(o.D)} hose (bore Ø${fmt(o.D-0.2)}–${fmt(o.D+o.tol)})`+
+    (ends.length===2?', starting and ending at the two end fittings':'')+(off?`; ${off} other hole${off===1?'':'s'} left unticked`:'')+
+    (CS.list.length?'. Check the list, then Use as stations.':'. No bore fits: change Hose Ø or the fit.'),!CS.list.length);}
 
 function autoOrder(){const T=ticked();if(T.length<2){render();return;}
   const idx=id=>T.findIndex(s=>s.id===id),si=CS.start==null?null:idx(CS.start),ei=CS.end==null?null:idx(CS.end);
@@ -110,12 +130,18 @@ function render(){const box=$('csList'),T=ticked();
   const opts=sel=>`<option value="">auto</option>`+T.map(s=>`<option value="${s.id}" ${sel===s.id?'selected':''}>${esc(tag(s))}</option>`).join('');
   $('csStart').innerHTML=opts(CS.start);$('csEnd').innerHTML=opts(CS.end);
   $('csAuto').disabled=$('csUse').disabled=T.length<2;
+  const why=T.length<2?(CS.list.length?'Tick at least 2 stations.':''):'';['csAuto','csUse'].forEach(id=>$(id).title=why);
   if(!CS.list.length){box.innerHTML='';$('csLen').textContent='';return;}
   let k=0;
-  box.innerHTML=CS.list.map((s,i)=>{const on=CS.use.has(s.id),no=on?++k:0;
+  const row=(s,i)=>{const on=CS.use.has(s.id),no=on?++k:0;
     return`<div class="csrow${on?'':' off'}" draggable="true" data-i="${i}"><button type="button" class="csgrip" data-grip="${i}" aria-label="Move ${esc(s.name)}: drag, or Up / Down arrow keys" title="Drag to reorder (or focus and press ↑ / ↓)">⠿</button>`+
-      `<label class="chk cdp"><input type="checkbox" data-id="${s.id}" ${on?'checked':''}><span><b>${no?'S'+no+' ':''}${esc(s.name)}</b> <span class="unit">${esc(s.part)} · bore Ø${fmt(s.D,2)} × ${fmt(s.length,1)} mm · ${s.c.map(v=>Math.round(v)).join(', ')}</span></span></label></div>`;}).join('');
-  $('csLen').textContent=T.length>1?`${T.length} stations, ${fmt(pathLength(T.map(s=>s.c),T.map((_,i)=>i)),0)} mm straight-line path`:'';
+      `<label class="chk cdp"><input type="checkbox" data-id="${s.id}" ${on?'checked':''}><span><b>${no?'S'+no+' ':''}${esc(s.name)}</b> <span class="unit">${esc(s.part)} · bore Ø${fmt(s.D,2)} × ${fmt(s.length,1)} mm · ${s.c.map(v=>Math.round(v)).join(', ')}</span>`+
+      (s.reason?`<span class="csrole csrole-${esc(s.role||'')}">${esc(s.reason)}</span>`:'')+`</span></label></div>`;};
+  // short holes nobody ticked go under one fold, so the list shows what the route uses
+  const hide=s=>s.role==='hole'&&!CS.use.has(s.id),main=CS.list.map((s,i)=>[s,i]).filter(([s])=>!hide(s)),rest=CS.list.map((s,i)=>[s,i]).filter(([s])=>hide(s));
+  box.innerHTML=main.map(([s,i])=>row(s,i)).join('')+(rest.length?`<details class="csmore"${CS.moreOpen?' open':''}><summary>Other holes (${rest.length}): bolt and plate holes, unticked</summary>${rest.map(([s,i])=>row(s,i)).join('')}</details>`:'');
+  const more=box.querySelector('.csmore');if(more)more.ontoggle=()=>{CS.moreOpen=more.open;};
+  $('csLen').textContent=T.length>1?`${T.length} stations, ${fmt(pathLength(T.map(s=>s.c),T.map((_,i)=>i)),0)} mm straight-line path`:'Tick at least 2 stations to order them.';
   box.querySelectorAll('input[data-id]').forEach(el=>el.onchange=()=>{const id=+el.dataset.id;if(el.checked)CS.use.add(id);else{CS.use.delete(id);if(CS.start===id)CS.start=null;if(CS.end===id)CS.end=null;}render();});
   let drag=-1;
   box.querySelectorAll('.csrow').forEach(row=>{const i=+row.dataset.i;
@@ -133,7 +159,10 @@ function useAsStations(){const T=ticked();if(T.length<2)return;
   const write=()=>{$('csAsk').hidden=true;
     $('pts').value=stationsText(T,tf);$('pts').dispatchEvent(new Event('input'));store.set('rs.pts',$('pts').value);
     $('csDirs').value=$('csHold').checked?dirsText(T,tv):'';store.set('rs.csDirs',$('csDirs').value);
-    const f=frame();say(`${T.length} stations written to Target points${f?` (in the ${f.name} frame)`:''}${$('csHold').checked?', bore directions below':''}. Press Check.`);};
+    const f=frame(),R=+$('r').value||65,near=$('csHold').checked?closePairs(T.map(s=>s.c),orient(T.map(s=>s.c),T.map(s=>s.d)),R):[];
+    const warn=near.length?` Too close for R ${fmt(R)} with the bores held: ${near.map(p=>`S${p.i+1}–S${p.j+1} ${fmt(p.L,0)} mm apart`).join(', ')} (need ${fmt(2*R,0)} mm unless the bores line up). Untick one of each pair, or untick “Hold the bore direction”.`:'';
+    say(`${T.length} stations written to Target points${f?` (in the ${f.name} frame)`:''}${$('csHold').checked?', bore directions below':''}.${warn}`,!!near.length);
+    if(typeof nextSteps==='function')nextSteps('statusCs',[{label:'Check now',go:()=>$('runBend').click()}].concat(near.length?[{label:'Untick “Hold the bore direction”',go:()=>{$('csHold').checked=false;$('csHold').dispatchEvent(new Event('change'));say('Bore directions off: Check uses the start / end directions only.');}}]:[]));};
   if(!$('pts').value.trim())return write();
   $('csAskTxt').textContent=`Target points already hold ${parsePts($('pts').value).length} point(s). Replace them with the ${T.length} clamp stations?`;
   $('csAsk').hidden=false;$('csYes').onclick=write;$('csNo').onclick=()=>{$('csAsk').hidden=true;say('Target points kept.');};$('csYes').focus();}
@@ -146,7 +175,9 @@ function load(file){say(`Reading ${file.name}...`);
   file.text().then(text=>{let r;try{r=StepAsm.parse(text);}catch(e){return say(`${file.name}: ${e.message}`,true);}
     CS.own={name:file.name,r};refresh();});}
 $('csLoad').onclick=()=>$('csFile').click();
-$('csFile').onchange=e=>{if(e.target.files[0])load(e.target.files[0]);e.target.value='';};
+// Load here = open the assembly for the whole page (shell.js), so Keep clear and Pipe get it too
+$('csFile').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f)return;if(typeof openAssembly==='function'){CS.own=null;openAssembly(f);}else load(f);};
+document.addEventListener('asm:loaded',()=>{if(!CS.own&&!$('csBox').hidden)refresh();});
 $('csUseAsm').onclick=()=>{CS.own=null;refresh();};
 $('csAuto').onclick=autoOrder;
 $('csUse').onclick=useAsStations;
@@ -157,7 +188,9 @@ $('csHold').onchange=()=>store.set('rs.csHold',$('csHold').checked?'1':'0');
 // opening the section picks up an assembly opened elsewhere since
 $('csBox').addEventListener('toggle',()=>{if($('csBox').open&&!CS.own&&openAsm()&&!CS.list.length)refresh();});
 // lines + arcs (Pipe · Route through points) holds no tangents at stations: the section is for the spline route only
-const sync=()=>{$('csBox').hidden=$('shape').value==='arc';};$('shape').addEventListener('change',sync);sync();
+const dWrap=()=>$('cdD').closest('div');
+const sync=()=>{const arc=$('shape').value==='arc';$('csBox').hidden=arc;dWrap().hidden=!arc;if(!arc&&$('cdD').value!==$('csD').value){$('cdD').value=$('csD').value;$('cdD').dispatchEvent(new Event('change'));}};
+$('csD').addEventListener('change',()=>{if($('shape').value!=='arc'){$('cdD').value=$('csD').value;$('cdD').dispatchEvent(new Event('change'));}});$('shape').addEventListener('change',sync);sync();
 $('csDirs').value=store.get('rs.csDirs')||'';$('csHold').checked=store.get('rs.csHold')!=='0';
 render();
 })(typeof globalThis!=="undefined"?globalThis:this);

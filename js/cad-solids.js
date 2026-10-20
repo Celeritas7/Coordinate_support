@@ -136,7 +136,7 @@ function iges(text){
 
 function step(text,opts){
   const SA=root.StepAsm||(typeof require!=="undefined"?require("./step-asm.js"):null);if(!SA)throw new Error('StepAsm not loaded');
-  const r=SA.parse(text,{pipe:(opts&&opts.pipe)||{}}),F=SA.F,faces=[],solids=[];let sid=0;
+  const r=(opts&&opts.parsed)||SA.parse(text,{pipe:(opts&&opts.pipe)||{}}),F=SA.F,faces=[],solids=[];let sid=0;
   r.instances.forEach((inst,idx)=>{const pp=r.pipes.find(p=>p.inst===idx),pipe=pp?{name:pp.name,OD:pp.OD,kind:pp.kind}:null;
     inst.part.solids.forEach(sol=>{sid++;const sb=newBox();let made=0;
     sol.faces.forEach(f=>{const b=newBox();f.verts.forEach(v=>grow(b,F.pt(inst.M,v)));
@@ -146,7 +146,8 @@ function step(text,opts){
   return{format:'STEP',solids,faces};
 }
 
-// opts.pipe: STEP only, the "pipe?" overrides for this file ({partName: true|false})
+// opts.pipe: STEP only, the "pipe?" overrides for this file ({partName: true|false}); opts.parsed: a StepAsm.parse result of
+// the same text (the assembly already open), so the file is not read twice
 function read(text,name,opts){
   const s=String(text),isStep=/^\s*ISO-10303-21/.test(s)||/\.(stp|step)$/i.test(name||'');
   const out=isStep?step(s,opts):iges(s);out.name=name||'';return out;
@@ -161,6 +162,8 @@ function along(P,step){const out=[];for(let i=0;i+1<P.length;i++){const a=P[i],b
 // what each solid is to one route. role: 'pipe' = an existing pipe (STEP, solid.pipe); 'station' = small part (≤ clipSize)
 // touching a station (its clip / clamp); 'clip' = small part the station line runs through or touches; 'obstacle' = anything
 // else within `reach` of the line — a part over clipSize in any direction is frame even where it touches a station
+// roles: pipe (existing pipe), station (a clip at a station), clip (a small part on the station line), mount (the bracket a
+// station's clip is fixed to), obstacle (everything else). o: {d, gap, reach, touch=5, clipSize=80, mountSize=300}
 function survey(cad,stations,o){
   const rad=o.d/2+o.gap,touch=rad+(o.touch??5),reach=Math.max(o.reach,touch),clipSize=o.clipSize??80;
   const S=along(stations,2),by=new Map();
@@ -174,7 +177,13 @@ function survey(cad,stations,o){
   const solid=new Map(cad.solids.map(x=>[x.sid,x]));
   const parts=[...by.values()].map(s=>{const so=solid.get(s.sid),size=Math.max(...so.max.map((v,k)=>v-so.min[k]));
     const role=so.pipe?'pipe':size>clipSize?'obstacle':s.st.size?'station':s.dLine<=touch?'clip':'obstacle';
-    return{sid:s.sid,name:so.name,pipe:so.pipe||null,size,dims:so.max.map((v,k)=>v-so.min[k]),dLine:s.dLine,stations:[...s.st].sort((a,b)=>a-b),role,faces:s.faces};}).sort((a,b)=>a.dLine-b.dLine);
+    return{sid:s.sid,name:so.name,pipe:so.pipe||null,size,dims:so.max.map((v,k)=>v-so.min[k]),min:so.min,max:so.max,dLine:s.dLine,stations:[...s.st].sort((a,b)=>a-b),role,faces:s.faces};}).sort((a,b)=>a.dLine-b.dLine);
+  // mount: a bracket-sized part (≤ mountSize) at a station that touches the clip there — the clip is bolted to it, so a hose
+  // through the clip always reaches into its face box. Frame-sized parts stay obstacles (the hose must still clear a rail).
+  const mountSize=o.mountSize??300,near=(a,b,g)=>[0,1,2].every(k=>a.min[k]<=b.max[k]+g&&b.min[k]<=a.max[k]+g);
+  const clips=parts.filter(p=>p.role==='station');
+  for(const p of parts){if(p.role!=='obstacle'||!p.stations.length||p.size>mountSize)continue;
+    const c=clips.find(c=>c.stations.some(i=>p.stations.includes(i))&&near(p,c,1));if(c){p.role='mount';p.mountOf=c.stations.filter(i=>p.stations.includes(i));p.clip=c.name;}}
   return{rad,touch,reach,parts};
 }
 

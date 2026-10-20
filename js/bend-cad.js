@@ -6,12 +6,12 @@ const BC={cad:null,sv:null,key:'',user:new Map(),focus:0};
 const say=(m,bad)=>{const e=$('statusCad');e.textContent=m;e.style.color=bad?'var(--bad)':'';};
 const opt=()=>({d:Math.max(0.1,+$('cdD').value||8),gap:Math.max(0,+$('cdGap').value||0),reach:Math.max(10,+$('cdReach').value||60)});
 const stations=()=>parsePts($('pts').value).map(p=>[p[0],p[1],p[2]]);
-const roleTxt=p=>p.role==='pipe'?`existing ${p.pipe.kind==='hose'?'hose':'pipe'}${p.pipe.name!==p.name?` ${esc(p.pipe.name)}`:''} Ø${fmt(p.pipe.OD,1)}`:p.role==='station'?`clip at ${p.stations.map(i=>'P'+(i+1)).join(', ')}`:p.role==='clip'?'small part on the station line, no station (clip, or screw?)':'frame / part';
+const roleTxt=p=>p.role==='pipe'?`existing ${p.pipe.kind==='hose'?'hose':'pipe'}${p.pipe.name!==p.name?` ${esc(p.pipe.name)}`:''} Ø${fmt(p.pipe.OD,1)}`:p.role==='station'?`clip at ${p.stations.map(i=>'P'+(i+1)).join(', ')}`:p.role==='clip'?'small part on the station line, no station (clip, or screw?)':p.role==='mount'?`bracket the clip at ${p.mountOf.map(i=>'P'+(i+1)).join(', ')} is fixed to: not checked (the hose in the clip always reaches it)`:'frame / part';
 const keepClear=p=>BC.user.has(p.sid)?BC.user.get(p.sid):p.role==='obstacle';
 // list groups: ticked, unticked clips and parts, unticked existing pipes
 const group=p=>keepClear(p)?0:p.role==='pipe'?2:1,GROUP=['Gap checked (ticked)','Not checked (clips, or unticked)','Existing pipes (not checked)'];
 // parts the too-close list and the gap chart look at: ticked ones, and unticked ones away from any station except existing pipes
-const watched=p=>keepClear(p)||(p.role!=='station'&&p.role!=='pipe');
+const watched=p=>keepClear(p)||(p.role!=='station'&&p.role!=='pipe'&&p.role!=='mount');
 function survey(){if(!BC.cad)return null;const P=stations();if(P.length<2)return null;const o=opt(),key=JSON.stringify([P,o]);
   if(BC.key!==key){BC.sv=CadSolids.survey(BC.cad,P,o);BC.key=key;render();}return BC.sv;}
 function render(){const sv=BC.sv,box=$('cdParts');if(!sv){box.innerHTML='';return;}
@@ -62,7 +62,6 @@ window.bendCad=function(P){
     report(A){const parts=[],bits=[],holes=[],marks=[],out={};
       if(straight.length)bits.push(`straight ${straight.join(', ')}`);
       let msg=straight.length?`Straight ${straight.join(', ')}.`:'';
-      if(ix&&!push&&faces.length)msg+=`\nThe route is generated from the stations only; the gap to parts is checked, not enforced — tick “Push the route away” to make it keep clear.`;
       if(notes.length)msg+=`\n${notes.join('.\n')}.`;
       if(ix){const w=CadSolids.clearance(A.d.pts,ix,o.d,o.d/2+o.gap+40),p=w.box&&sv.parts.find(x=>x.faces.includes(w.box));
         const near=A.Q.reduce((b,q,i)=>{const d=V.len(V.sub(q,w.p||q));return d<b.d?{d,i}:b;},{d:Infinity,i:0});
@@ -71,12 +70,14 @@ window.bendCad=function(P){
         const open=throughOpenings(A,P,faces,o),spots=closeSpots(A,P,o,spanOf(A,P));
         msg+=spots.length?`\nToo close — below the ${fmt(o.gap)} mm gap (${spots.length} place${spots.length>1?'s':''}, marked in 3D: red = into the part, amber = too close; clips at stations not counted):`:`\nNowhere closer than the ${fmt(o.gap)} mm gap to the parts checked (clips at stations not counted).`;
         spots.forEach(x=>{msg+=`\n• ${x.msg}`;marks.push(x.mark);});
+        // the route is generated from the stations only: say how to make it keep clear, only when it does not
+        out.tooClose=spots.length>0;out.canPush=!push&&faces.length>0;
         // gap along the whole route, for the Clearance chart: to the same parts the spots use; capped where nothing is near
         const ixAll=CadSolids.index(sv.parts.filter(watched).flatMap(p=>p.faces),50),cap=o.gap*5+o.d;
         out.spots=spots.map(x=>x.spot);out.clearDense=A.d.pts.map(q=>Math.min(cap,ixAll.nearest(q,cap+o.d/2).d-o.d/2));out.gapLimit=o.gap;
         if(spots.some(x=>!x.ticked))msg+=`\nUnticked parts were taken as clips without a CSYS. Press “show” in the list to see one; tick it if it is a screw, bolt or bracket.`;if(open.length)msg+=`\nPlate crossings (marked in 3D):`;open.forEach(x=>{msg+=`\n• ${x.msg}`;if(x.hole)holes.push(x.hole);marks.push(x.mark);});
         msg+=isFinite(w.gap)?`\nSmallest gap to the kept-clear parts: ${fmt(w.gap,1)} mm${p?` (${p.name})`:''} near point ${near.i+1}${w.gap<o.gap-0.05?` — below the ${fmt(o.gap)} mm gap`:''}.`:`\nNo kept-clear part within ${fmt(o.d/2+o.gap+40)} mm of the route.`;}
-      return{parts:parts.length?parts:undefined,holes:holes.length?holes:undefined,marks:marks.length?marks:undefined,clearDense:out.clearDense,gapLimit:out.gapLimit,spots:out.spots,note:bits.length?', '+bits.join(', '):'',msg:msg.trim(),bad:false};}};
+      return{parts:parts.length?parts:undefined,holes:holes.length?holes:undefined,marks:marks.length?marks:undefined,clearDense:out.clearDense,gapLimit:out.gapLimit,spots:out.spots,tooClose:out.tooClose,canPush:out.canPush,note:bits.length?', '+bits.join(', '):'',msg:msg.trim(),bad:false};}};
 };
 
 // where the route crosses the plane of a flat face off its material — through a hole, or past the face's edge:
@@ -116,16 +117,19 @@ function throughOpenings(A,P,faces,o){const pts=A.d.pts,s=A.d.s,sv=BC.sv,out=[],
     return{msg:`${span(g.i)}: ${what}${gap<0?` (hose ${fmt(-gap,1)} mm into it)`:low?` — below the ${fmt(o.gap)} mm gap`:''}`,
       hole:L.outer?null:{pts:CadSolids.loop3(sh,L),bad:low},mark:{p:g.c.x,text:`${span(g.i)} · ${fmt(Math.max(gap,0),1)} mm`,bad:low}};});}
 
-function load(f){say(`Reading ${f.name} (${(f.size/1e6).toFixed(1)} MB)...`);
-  f.text().then(t=>setTimeout(()=>{const t0=performance.now();let cad;
+function load(f){say(`Reading ${f.name} (${(f.size/1e6).toFixed(1)} MB)...`);f.text().then(t=>setTimeout(()=>fromText(f.name,t),30));}
+// parsed: the StepAsm result of the same text when the assembly is already open (no second read)
+function fromText(name,t,parsed){const t0=performance.now();let cad;
     // STEP: the parts marked pipe / not a pipe in the part tree for this file name count as such here too
-    try{cad=CadSolids.read(t,f.name,{pipe:window.AsmTree?AsmTree.load(f.name):{}});}catch(e){return say(`${f.name}: ${e.message}`,true);}
-    if(!cad.solids.length)return say(`${f.name}: no solids found. Export from Creo with solids (IGES: BREP / "Solid", or STEP AP214).`,true);
-    BC.cad=cad;BC.key='';BC.user=new Map();$('cdClear').hidden=false;$('cdBox').open=true;survey();
+    try{cad=CadSolids.read(t,name,{pipe:window.AsmTree?AsmTree.load(name):{},parsed});}catch(e){return say(`${name}: ${e.message}`,true);}
+    if(!cad.solids.length)return say(`${name}: no solids found. Export from Creo with solids (IGES: BREP / "Solid", or STEP AP214).`,true);
+    BC.cad=cad;BC.key='';BC.user=new Map();$('cdClear').hidden=false;survey();
     const ex=cad.faces.filter(x=>x.shape).length,np=cad.solids.filter(x=>x.pipe).length;
-    say(`${f.name}: ${cad.solids.length} solids, ${cad.faces.length} faces (${cad.format}${ex?`; ${ex} flat or cylindrical, gap exact`:''}${np?`; ${np} solid${np>1?'s':''} of existing pipes, not checked`:''}), read in ${((performance.now()-t0)/1000).toFixed(1)} s.${BC.sv?'':' Load the stations to see which parts are near.'}`);},30));}
+    say(`${name}: ${cad.solids.length} solids, ${cad.faces.length} faces (${cad.format}${ex?`; ${ex} flat or cylindrical, gap exact`:''}${np?`; ${np} solid${np>1?'s':''} of existing pipes, not checked`:''}), read in ${((performance.now()-t0)/1000).toFixed(1)} s.${BC.sv?'':' Use the stations to see which parts are near.'}`);}
+window.bcFromAsm=a=>{if(a&&a.text)fromText(a.name,a.text,a.r);};
 $('cdLoad').onclick=()=>$('cdFile').click();
 window.bcLoad=f=>{$('cdBox').open=true;load(f);};
+window.bcName=()=>BC.cad?BC.cad.name:null;
 $('cdFile').onchange=e=>{if(e.target.files[0])load(e.target.files[0]);e.target.value='';};
 $('cdClear').onclick=()=>{BC.cad=null;BC.sv=null;BC.key='';BC.focus=0;$('cdClear').hidden=true;render();say('');};
 ['cdD','cdGap','cdReach'].forEach(k=>$(k).addEventListener('change',()=>{survey();}));

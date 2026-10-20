@@ -104,4 +104,26 @@ check(dot(tan(w, 1), [1, 0, 0]) > 0.9999 && dot(tan(w, 2), [0, 1, 0]) > 0.9999, 
 check(dot(tan(w, 0), [1, 0, 0]) > 0.9999, "start direction still applied at the first station");
 check(!(dot(tan(b, 2), [0, 1, 0]) > 0.9999), "without them the route crosses C at its own angle");
 
+
+// ---- pre-checks before solving ----
+// stations closer than 2·R with both bores held, unless the bores line up with the chord
+const Rr = 65, ax = [1, 0, 0], up = [0, 1, 0];
+check(C.closePairs([[0, 0, 0], [100, 0, 0]], [up, up], Rr).length === 1, "100 mm apart, both bores across the chord: too close for R 65");
+check(C.closePairs([[0, 0, 0], [100, 0, 0]], [ax, ax], Rr).length === 0, "100 mm apart, bores along the chord: a straight, fine");
+check(C.closePairs([[0, 0, 0], [140, 0, 0]], [up, up], Rr).length === 0, "140 mm apart (≥ 2R): fine");
+check(C.closePairs([[0, 0, 0], [100, 0, 0]], [up, null], Rr).length === 0, "one bore free: not flagged");
+// pipe corner points fed to the hose route (the piping2 .pts, same as data/new/pasted-1145.pts)
+if (fs.existsSync(path.join(__dirname, "../samples/piping2_practice_1.pts"))) {
+  const pts = read("piping2_practice_1.pts").split(/\r?\n/).map(l => l.trim()).filter(l => l && l[0] !== "!").map(l => l.split(/\s+/).map(Number)).filter(v => v.length === 3)
+    .filter((p, i, a) => !i || dist(p, a[i - 1]) > 1e-6);
+  const cl = C.cornerLike(pts, Rr);
+  check(cl.length >= 2 && cl.some(c => Math.abs(c.deg - 121.6) < 1) && cl.filter(c => c.deg > 120).length >= 2, `piping2 corner points flagged (121.6° at #3; the hairpin reads 150°+ in file order) (${cl.map(c => "#" + (c.i + 1) + " " + c.deg.toFixed(1) + "°").join(", ")})`);
+} else console.log("skip: samples/piping2_practice_1.pts not found");
+const hose = [[0, 0, 0], [200, 0, 0], [380, 60, 0], [520, 160, 0], [600, 300, 0]];
+check(C.cornerLike(hose, Rr).length === 0, "points along a gentle hose route are not flagged");
+if (fs.existsSync(path.join(__dirname, "../samples/piping4_answer_asm.stp"))) {
+  const r4 = S.parse(read("piping4_answer_asm.stp")), c = C.candidates(r4, { D: 14, tol: 1.5 }).filter(x => x.use), o = C.order(c.map(x => x.c)).map(i => c[i]);
+  const near = C.closePairs(o.map(x => x.c), C.orient(o.map(x => x.c), o.map(x => x.d)), Rr);
+  check(near.length > 0, `piping4 Ø14 clamps: pairs too close with the bores held (${near.map(p => (p.i + 1) + "–" + (p.j + 1) + " " + p.L.toFixed(0) + " mm").join(", ")})`);
+}
 process.exit(fail ? 1 : 0);

@@ -28,8 +28,10 @@ for (const [file, D, pipeNames] of [
   check(sv.parts.filter(p => p.role !== "pipe").every(p => !p.pipe), "no other part is a pipe");
   check(sv.parts.filter(p => p.role === "station" || p.role === "clip").every(p => !big(p)), "every clip (at a station or on the line) is 80 mm or less in every direction");
   const frameAtStation = sv.parts.filter(p => p.role === "obstacle" && p.stations.length);
-  check(frameAtStation.length > 0 && frameAtStation.every(big), `parts over 80 mm touching a station are frame / part (${frameAtStation.map(p => p.name.split(" / ").pop() + " " + p.dims.map(Math.round).join("x")).join(", ")})`);
+  check(frameAtStation.every(big), `parts over 80 mm touching a station (and not a clip's mount) are frame / part (${frameAtStation.map(p => p.name.split(" / ").pop() + " " + p.dims.map(Math.round).join("x")).join(", ")})`);
   check(sv.parts.filter(p => p.role === "station").length > 0, "small parts at stations are still clips");
+  const mounts = sv.parts.filter(p => p.role === "mount");
+  check(mounts.every(p => p.size <= 300 && p.mountOf.length && sv.parts.some(c => c.role === "station" && c.name === p.clip)), `mounts are bracket-sized and touch a clip at their station (${mounts.map(p => p.name.split(" / ").pop() + "@P" + p.mountOf.map(i => i + 1).join(",")).join(", ") || "none"})`);
 }
 
 // overrides saved for the file name: a part marked "not a pipe" is frame again
@@ -48,5 +50,10 @@ const cad = { solids: [{ sid: 1, name: "small", ...box(1, [-30, -30, -5], [30, 3
   { sid: 3, name: "pipe", pipe: { name: "P", OD: 10, kind: "pipe" }, ...box(3, [-5, -5, -100], [5, 5, 100]) }],
   faces: [box(1, [-30, -30, -5], [30, 30, 5]), box(2, [-60, 8, -5], [60, 20, 5]), box(3, [-5, -5, -100], [5, 5, 100])] };
 const sv = C.survey(cad, [[0, 0, 0], [0, 0, 200]], { d: 8, gap: 4, reach: 60 }), role = n => sv.parts.find(p => p.name === n).role;
-check(role("small") === "station" && role("large") === "obstacle" && role("pipe") === "pipe", `60 mm part at the station: clip; 120 mm: frame; tagged pipe: pipe (${role("small")}, ${role("large")}, ${role("pipe")})`);
+check(role("small") === "station" && role("large") === "mount" && role("pipe") === "pipe", `60 mm part at the station: clip; 120 mm touching it: its mount; tagged pipe: pipe (${role("small")}, ${role("large")}, ${role("pipe")})`);
+// the same 120 mm part away from the clip (not touching it) is frame; a 400 mm rail touching the clip stays frame
+const cad2 = { solids: [cad.solids[0], { sid: 2, name: "large", ...box(2, [-60, 40, -5], [60, 52, 5]) }, { sid: 4, name: "rail", ...box(4, [-200, -40, -5], [200, -30, 5]) }],
+  faces: [cad.faces[0], box(2, [-60, 40, -5], [60, 52, 5]), box(4, [-200, -40, -5], [200, -30, 5])] };
+const sv2 = C.survey(cad2, [[0, 0, 0], [0, 0, 200]], { d: 8, gap: 4, reach: 60 }), role2 = n => (sv2.parts.find(p => p.name === n) || {}).role;
+check(role2("rail") === "obstacle", `a 400 mm rail the clip touches stays frame (${role2("rail")})`);
 process.exit(fail ? 1 : 0);

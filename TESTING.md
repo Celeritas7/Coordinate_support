@@ -99,3 +99,54 @@ Both routes must come from the file; the example pair is only replaced per texta
 6b. Below the crossings: “Unticked parts within the gap, away from any station” lists solid 49 at P8–P9 (the screw, about 0 mm clear on the straight run) plus small parts near P1–P4. Tick solid 49, press Check: it moves to the checked parts and the straight P8–P12 is either dropped (“left free to bend round it”) or the gap shows below 4 mm.
 7. Select the run: grey boxes of the plate are now as wide as the plate (116 / 71 mm), not 2 m.
 8. `node tests/cad-solids.test.js` prints only `ok` lines (16 checks).
+
+## 9. One clamp finder (Phase 1, `js/fixings.js`)
+
+1. Hose / Cable · Route through stations → Stations from clamps → Load assembly .stp… → `piping3_practice_asm.stp`, Hose Ø 8 (default).
+   Expect **1** station (60115970, the 78.5 mm sleeve, "not in the Library") and a fold "Other holes (25): bolt and plate holes, unticked".
+   Before Phase 1 all 26 were ticked.
+2. Hose Ø 12: 5 stations. S1 and S5 are the end fittings of PRACTICE_111 (blue "end fitting … start or end of the route") and are
+   picked as Start at / End at; CS16, CS17 "Library clip 22402156"; 25375330 "not in the Library" (amber). No "Other holes" fold.
+3. Untick until one row is left: Auto order / Use as stations go grey, the line under them says "Tick at least 2 stations to order them."
+4. Pipe · Through clamps on the same file, pipe 111: 3 ticked (CS17, CS16, 25375330 with "not in the Library · Add to library"),
+   2 end fittings listed and off. Route through ticked clamps: 23 points, moves ≤ 0.17 mm (same as §7.6).
+5. piping2: the Ø22.0 clamp 990224 is found for the Ø22.5 pipe (Pipe keeps ± 1.5 mm; a Hose needs bore ≥ Ø − 0.2).
+6. `node tests/fixings.test.js` prints only `ok` lines (20 checks). `node tests/ui-walk.js` clicks through the Hose and Pipe jobs and
+   prints step counts (needs Playwright + Chromium).
+
+## 10. Load once (Phase 2)
+
+1. Pipe · Check .pts against pipe, top **Open…** → `piping2_practice_asm.stp`: goes to Pipe as before. A line under the module switch
+   reads "Assembly: piping2_practice_asm.stp · 1 pipe · 3 parts · 1 hole with a coordinate system".
+2. Hose / Cable · Route through stations, top **Open…** → `piping3_practice_asm.stp`: stays in Hose; "Stations from clamps" and
+   "Keep clear of CAD parts" open by themselves; the stations list fills from the assembly; Keep clear reports "43 solids … read in 0.0 s"
+   (it reuses the parse, no second read). The Assembly line's **pipes** link jumps to Pipe with the same file open.
+3. Keep clear has no Hose Ø field of its own here: it follows Hose Ø under Stations from clamps (Pipe · Route through points, where the
+   stations section is hidden, still shows it).
+4. "Load assembly .stp…" inside Stations from clamps does the same as the top Open….
+5. `node tests/ui-walk.js`: A 7 steps / 1 load / Ø typed once (was 12 / 2 / 2), B 2 steps (was 3).
+
+## 11. Mounts, next step, pre-checks (Phase 3 / 4 items)
+
+1. Hose / Cable · Route through stations, Open… `piping3_practice_asm.stp`, Hose Ø 12, Use as stations, Check.
+   Keep clear lists `95651236` (twice) and `22577598` as "bracket the clip at Pn is fixed to: not checked", unticked.
+   Check: "Nowhere closer than the 4.0 mm gap … Smallest gap … 10.3 mm (… 980709)". Before, the brackets were frame and the route
+   was "6.0 mm into" them at P1–P3. Tick a bracket to check it again. Parts over 300 mm (frame rails) stay frame even when a clip touches them.
+2. When a route is too close, the result ends with "Next: tick “Push the route away” … or press Alternatives below." When it is clear,
+   that line is gone (it used to show every time).
+3. Alternatives on the same stations holds the bore directions Check holds: A1 "direct", clearance 6.1 mm (was 2.3 mm without them).
+4. Open `piping2_practice_1.pts` in Hose · Route through stations, Check: the result says the points look like pipe corner points
+   (point 3 turns 122°, …) and points to Pipe · Route through points.
+5. Open `piping4_answer_asm.stp`, Hose Ø 14, Use as stations: "Too close for R 65 with the bores held: S2–S3 60 mm apart (need 130 mm …)".
+6. `node tests/clamp-stations.test.js` 46 checks, `node tests/cad-pipes.test.js` 30 checks.
+
+## 12. "Next:" buttons (Phase 3)
+
+Every result line is followed by the buttons for what comes next; the next action's status replaces them.
+1. Stations from clamps → Use as stations: **Check now** (and **Untick “Hold the bore direction”** when stations are too close, piping4 Ø14).
+2. Check, route clear (piping3 Ø12): **Download .pts** (opens the Points pane and downloads) · **Alternatives**.
+3. Check, route too close (tick a bracket under Keep clear, Check again): **Push the route away and check again** (ticks Push, runs Check)
+   · **Alternatives**. Below min radius: **Refine the tightest bend** first.
+4. Check on pipe corner points (`piping2_practice_1.pts`): **Route it as a pipe instead** → Pipe · Route through points.
+5. Pipe · Through clamps → Route: **Download .pts** · **Copy .pts** · **Compare with your .pts** (→ Check .pts against pipe, file picker).
+Wording is provisional until the design pass; the buttons live in `js/next.js` (`nextSteps(statusId, items)`).

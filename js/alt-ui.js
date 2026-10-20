@@ -35,7 +35,9 @@ $('runAlt').onclick=()=>{
   const boxes=[...typed,...(cad?cad.faces:[])];
   store.set('rs.altObs',$('altObs').value);
   if(!boxes.length)return say('No obstacles to go round: type boxes under “Obstacle boxes typed by hand”, or load a parts file under “Keep clear of CAD parts” and tick the parts.',true);
-  const dirOf=i=>i===0?parseDir($('sd').value):i===P.length-1?parseDir($('ed').value):null;
+  // the same station directions Check holds: bore axes from Stations from clamps, typed start / end directions winning at the ends
+  const SD=typeof clampStationDirs==='function'?clampStationDirs(P):null,held=SD?SD.fixDirs(null):null;
+  const dirOf=i=>(i===0&&parseDir($('sd').value))||(i===P.length-1&&parseDir($('ed').value))||(held&&held[i])||null;
   let job;try{job=MultiRoute.start(P.map((p,i)=>({p:[p[0],p[1],p[2]],dir:dirOf(i)})),{R,SF,rad,boxes,keep:3});}
   catch(e){return say(e.message,true);}
   ALT.cands=[];ALT.sel=0;ALT.ctx={P,R,SF,rad,typed,nBoxes:boxes.length,cadParts:cad?cad.parts:0};render();rebuild(false);
