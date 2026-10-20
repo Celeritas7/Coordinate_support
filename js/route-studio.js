@@ -600,11 +600,13 @@ function renderRuns(){
       <input type="checkbox" ${r.visible?'checked':''} aria-label="show ${r.name}">
       <span class="sw" style="background:${r.color}"></span>
       <span class="nm">${r.name}<small>R ${fmt(r.minR)} mm &middot; ${r.Q.length} pts${r.clear?' &middot; gap '+fmt(Math.min(...r.clear.after)):''}${r.clr&&isFinite(r.clr.min)?' &middot; gap '+fmt(r.clr.min):''}</small></span>
-      <button class="del" title="remove" aria-label="remove ${r.name}">&times;</button></div>`).join('');
+      <button class="solo" title="show only this run in 3D" aria-label="show only ${r.name}">only</button><button class="del" title="remove" aria-label="remove ${r.name}">&times;</button></div>`).join('');
   }
   box.querySelectorAll('.run').forEach(el=>{
     const id=+el.dataset.id,r=runs.find(x=>x.id===id);
-    el.querySelector('input').onchange=e=>{r.visible=e.target.checked;rebuild(true);renderRuns();};
+    // the checkbox only shows / hides: its click must not reach the row (selecting re-draws the list before the change is read)
+    const cb=el.querySelector('input');cb.onclick=e=>e.stopPropagation();cb.onchange=e=>{r.visible=e.target.checked;rebuild(true);renderRuns();};
+    el.querySelector('.solo').onclick=e=>{e.stopPropagation();runs.forEach(x=>x.visible=x.id===id);selId=id;loadSettings(r);renderRuns();rebuild(true);renderCmp();renderPts();};
     el.querySelector('.del').onclick=e=>{e.stopPropagation();runs=runs.filter(x=>x.id!==id);
       if(selId===id)selId=runs.length?runs[runs.length-1].id:null;renderRuns();rebuild(true);renderCmp();renderPts();};
     el.onclick=()=>{selId=id;loadSettings(r);renderRuns();rebuild(false);renderCmp();renderPts();};
