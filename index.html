@@ -23,7 +23,15 @@
         <a class="shbtn" href="inspector.html" target="_blank" title="Check what a Creo export contains">Inspector</a><button type="button" id="shTheme" class="shbtn" title="Switch light / dark">Dark</button></div></div>
     <div class="modsw" role="tablist" aria-label="Module"><button type="button" role="tab" data-mod="hose">Hose / Cable</button><button type="button" role="tab" data-mod="pipe">Pipe</button><button type="button" role="tab" data-mod="bundle">Bundle</button><button type="button" role="tab" data-mod="library">Library</button></div>
     <div class="shstatus" id="shStatus">Drop .stp, .igs or .pts files anywhere on the page.</div>
-    <div class="shasm" id="shAsm" hidden><span class="unit">Assembly:</span> <span id="shAsmTxt"></span> <button type="button" class="linkish" id="shAsmGo">pipes</button></div>
+    <div class="shasm" id="shAsm" hidden><span class="unit">Assembly:</span> <span id="shAsmTxt"></span> <button type="button" class="linkish" id="shAsmGo">pipes</button>
+      <span class="avctl"><label class="chk"><input type="checkbox" id="avParts" checked> parts in 3D</label>
+      <label>CSYS <select id="avCsys"><option value="off">none</option><option value="fix" selected>on holes</option><option value="all">all</option></select></label></span></div>
+    <details class="mkbox" id="mkBox" hidden><summary>CSYS made here (<span id="mkN">0</span>)</summary>
+      <div id="mkList"></div>
+      <div class="mkadd"><label>New at <input id="mkXYZ" placeholder="X Y Z" spellcheck="false"></label> <button type="button" id="mkAdd">Add</button>
+        <button type="button" id="mkExport">Download .stp for Creo</button> <button type="button" id="mkCopy">Copy table</button></div>
+      <div class="status" id="mkStatus"></div>
+    </details>
     <input type="file" id="shFile" multiple accept=".pts,.txt,.csv,.ibl,.igs,.iges,.stp,.step" hidden>
   </header>
 
@@ -112,9 +120,21 @@
         <label for="altObs" style="margin-top:8px">Obstacles <span class="unit">(id  Xmin Ymin Zmin  Xmax Ymax Zmax)</span></label>
         <textarea id="altObs" rows="2" spellcheck="false" wrap="off"></textarea>
       </details>
+      <label class="altup">Up is <select id="altUp"><option>+Z</option><option>-Z</option><option>+Y</option><option>-Y</option><option>+X</option><option>-X</option></select>
+        <span class="unit" id="altSides"></span></label>
       <div class="status" id="statusAlt"></div>
       <div id="altList" class="altlist"></div>
     </div>
+    <details class="adv" id="sgBox"><summary>Suggest extra clamps</summary>
+      <p class="hint">Along the selected route, held at its stations: a clamp before and after each bend, then enough in every span to keep it under the max spacing. Each one says what it mounts on and which existing clamp it should be like (same mounting part, else the nearest).</p>
+      <div class="fields c2"><div><label for="sgSpan">Max spacing <span class="unit">mm</span></label><input id="sgSpan" type="number" value="300" min="20" step="10"></div>
+        <div><label for="sgNear">Near a bend <span class="unit">mm</span></label><input id="sgNear" type="number" value="60" min="0" step="5"></div></div>
+      <div class="fields c2"><div><label for="sgReach">Mount reach <span class="unit">mm</span></label><input id="sgReach" type="number" value="60" min="0" step="5"></div>
+        <div><label class="chk" style="margin-top:22px"><input type="checkbox" id="sgBends" checked> clamp either side of a bend</label></div></div>
+      <button class="go ghost" id="sgRun" type="button">Suggest for the selected route</button>
+      <div class="status" id="sgStatus"></div>
+      <div id="sgList" class="sglist"></div>
+    </details>
   </section>
 
   <section id="panClear" hidden>
@@ -342,8 +362,9 @@
       </div>
     </div>
     <div class="legend" id="legend"></div>
-    <div class="help">Drag to rotate, shift-drag to pan, scroll to zoom, double-click to reset view</div>
+    <div class="help">Drag to rotate, shift-drag to pan, scroll to zoom, double-click to reset view, click a part or CSYS to pick it</div>
     <div id="tags"></div>
+    <div class="avpick" id="avPick" hidden></div>
   </div>
   <div class="dock">
     <div class="docktabs" role="tablist">
@@ -420,5 +441,8 @@
 <script src="js/clamp-stations.js"></script>
 <script src="js/alt-ui.js"></script>
 <script src="js/shell.js"></script>
+<script src="js/asm-view.js"></script>
+<script src="js/csys-make.js"></script>
+<script src="js/clamp-suggest.js"></script>
 </body>
 </html>

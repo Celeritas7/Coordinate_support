@@ -370,6 +370,8 @@ function fitAll(){const b=new THREE.Box3();let any=false;
     const B=r.bundle&&bundles[r.bundle];if(B){Object.values(B.clamps).forEach(k=>b.expandByPoint(new THREE.Vector3(...k.p)));
       B.obstacles.forEach(o=>{b.expandByPoint(new THREE.Vector3(...o.min));b.expandByPoint(new THREE.Vector3(...o.max));});}});
   if(typeof ALT!=='undefined')ALT.cands.forEach(a=>a.Q.forEach(p=>{b.expandByPoint(new THREE.Vector3(...p));any=true;}));
+  // nothing else to fit: the open assembly
+  if(!any&&typeof asmBounds==='function'){const ab=asmBounds();if(ab){b.min.set(...ab.min);b.max.set(...ab.max);any=true;}}
   if(!any)return;b.getCenter(orbit.target);diag=Math.max(b.getSize(new THREE.Vector3()).length(),100);
   const asp=($('view').clientWidth||1)/($('view').clientHeight||1);
   orbit.dist=diag*1.35*Math.max(1,Math.pow(1/asp,0.8));tubeR=Math.max(diag*0.0042,1.5);
@@ -402,7 +404,8 @@ function addTag(p,text,cls){const e=document.createElement('div');e.className='t
   $('tags').appendChild(e);tagEls.push({e,p:new THREE.Vector3(...p)});}
 
 function rebuild(refit){
-  scene.remove(content);content.traverse(o=>{o.geometry&&o.geometry.dispose();o.material&&o.material.dispose();});
+  // userData.keep: geometry cached elsewhere (the assembly outlines, asm-view.js), only its material is dropped
+  scene.remove(content);content.traverse(o=>{o.geometry&&!o.userData.keep&&o.geometry.dispose();o.material&&o.material.dispose();});
   content=new THREE.Group();scene.add(content);$('tags').innerHTML='';tagEls=[];
   renderer.setClearColor(css('--paper'));
   if(refit)fitAll();
@@ -450,6 +453,8 @@ function rebuild(refit){
   if(typeof BC!=='undefined'&&BC.focus&&BC.sv){const p=BC.sv.parts.find(x=>x.sid===BC.focus);if(p){const fc=new THREE.Color(css('--warn'));
     p.faces.forEach(f=>content.add(new THREE.Box3Helper(new THREE.Box3(new THREE.Vector3(...f.min),new THREE.Vector3(...f.max)),fc)));
     const so=BC.cad.solids.find(x=>x.sid===p.sid);addTag(so.max,`${p.name} · ${p.dims.map(v=>Math.round(v)).join('×')} mm`,'');}}
+  // the open assembly: part outlines, CSYS arrows, the picked part / CSYS (asm-view.js)
+  if(typeof asmOverlay==='function')asmOverlay(content,{sg,addTag,tubeR});
   // Alternatives: the top candidates over everything else, each in its own colour (alt-ui.js)
   if(typeof altOverlay==='function')altOverlay(content,{tube,sg,addTag,tubeR});
   const shownB=new Set();

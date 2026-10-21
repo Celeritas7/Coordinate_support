@@ -142,7 +142,7 @@ function step(text,opts){
     sol.faces.forEach(f=>{const b=newBox();f.verts.forEach(v=>grow(b,F.pt(inst.M,v)));
       f.edges.forEach(ed=>circle(b,F.pt(inst.M,ed.ax.o),F.vec(inst.M,ed.ax.z),ed.r));
       if(ok(b)){faces.push({sid,min:b.min,max:b.max});grow(sb,b.min);grow(sb,b.max);made++;}});
-    if(made)solids.push({sid,name:inst.label||inst.name||`solid ${sid}`,faces:made,min:sb.min,max:sb.max,...(pipe?{pipe}:{})});});});
+    if(made)solids.push({sid,inst:idx,name:inst.label||inst.name||`solid ${sid}`,faces:made,min:sb.min,max:sb.max,...(pipe?{pipe}:{})});});});
   return{format:'STEP',solids,faces};
 }
 

@@ -6,6 +6,8 @@ const pts = t => t.split(/\r?\n/).map(l => l.trim()).filter(l => l && l[0] !== "
 const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 let fail = 0;
 const check = (ok, msg) => { console.log((ok ? "ok   " : "FAIL ") + msg); if (!ok) fail++; };
+const missing = ["piping2_practice_asm.stp", "piping2_practice_1.pts", "piping3_practice_asm.stp", "piping3_practice_11.pts", "piping4_answer_asm.stp"].filter(f => !fs.existsSync(path.join(__dirname, "../samples", f)));
+if (missing.length) { console.log(`skip: samples/${missing.join(", samples/")} not found`); process.exit(0); }
 
 // piping2: one pipe, two fittings
 const r2 = S.parse(read("piping2_practice_asm.stp"));

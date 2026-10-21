@@ -4,6 +4,8 @@ const C = require("../js/cad-solids.js"), ST = require("../js/step.js");
 const read = f => fs.readFileSync(path.join(__dirname, "../samples", f), "utf8");
 let fail = 0;
 const check = (ok, msg) => { console.log((ok ? "ok   " : "FAIL ") + msg); if (!ok) fail++; };
+const missing = ["u107338_fy26_test_frame_asm_111.igs", "route_343434_csys.stp"].filter(f => !fs.existsSync(path.join(__dirname, "../samples", f)));
+if (missing.length) { console.log(`skip: samples/${missing.join(", samples/")} not found`); process.exit(0); }
 const t0 = Date.now(), cad = C.read(read("u107338_fy26_test_frame_asm_111.igs"), "frame.igs");
 check(cad.solids.length === 73 && cad.faces.length === 3682, `frame: ${cad.solids.length} solids, ${cad.faces.length} faces (${Date.now() - t0} ms)`);
 const kinds = {}; cad.faces.forEach(f => { const k = f.shape ? f.shape.kind : "box"; kinds[k] = (kinds[k] || 0) + 1; });

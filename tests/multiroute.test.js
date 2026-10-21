@@ -49,4 +49,31 @@ const faces = [{ min: [400, -100, -100], max: [600, -90, 100] }, { min: [400, 90
 const fj = M.start([A, B], { R, rad, boxes: faces, makeRoute, optimiser });
 check(fj.tried === 4, `three touching face boxes → one obstacle, ${fj.tried} ways round`);
 
+// ---- Phase 4b: pick the side (prefer + up axis), plain-word labels ----
+const named = { ...box, part: "95651236" }, run = (o, st = [A, B], bx = [named]) => M.enumerate(st, { R, SF: 1.5, rad, boxes: bx, makeRoute, optimiser, ...o });
+const up = run({ prefer: { "95651236": "above" } }), dn = run({ prefer: { "95651236": "below" } }), any = run({ prefer: { "95651236": "any" } });
+check(up.tried === 1 && up.candidates.length === 1 && up.candidates[0].label === "over 95651236" && up.candidates[0].ok && !up.forced,
+  `Above: ${up.tried} topology, “${up.candidates.map(c => c.label)}”`);
+check(dn.tried === 1 && dn.candidates.length === 1 && dn.candidates[0].label === "under 95651236" && !dn.forced, `Below: “${dn.candidates.map(c => c.label)}”`);
+check(any.tried === 4 && any.candidates.length >= 2, `Any: ${any.candidates.length} candidates (${any.candidates.map(c => c.label).join(" / ")})`);
+check(C.every(c => !/[+-][XYZ]/.test(c.label)), "labels are words, never B1+Y");
+const lt = run({ prefer: { "95651236": "left" } }), ax = run({ prefer: { "95651236": "-Y" } });
+check(lt.candidates.length === 1 && lt.candidates[0].label === "left of 95651236" && lt.candidates[0].Q.some(p => p[1] > 100),
+  "Left, travelling +X with +Z up: passes on +Y");
+check(ax.candidates.length === 1 && ax.candidates[0].label === "right of 95651236", "an axis name works too: −Y is right of it");
+const upY = run({ up: "+Y", prefer: { "95651236": "above" } });
+check(upY.candidates.length === 1 && upY.candidates[0].Q.some(p => p[1] > 100), "Up = +Y: above means +Y");
+const vert = run({ prefer: { "95651236": "above" } }, [[500, 0, -500], [500, 0, 500]]);
+check(vert.tried === 4 && vert.notes.length === 1 && /up axis/.test(vert.notes[0]), `leg along the up axis: “above” ignored with a note (${vert.notes[0]})`);
+const along = run({ prefer: { "95651236": "+X" } });
+check(along.tried === 4 && /along leg 1/.test(along.notes[0]), "a side along the leg is not a side: any kept, with a note");
+// a tall wall close to the stations: over it the radius cannot hold, under it is easy
+// (stations 160 mm apart, both held along +X: over needs about 4R = 200 mm)
+const wall = { min: [490, -100, -6], max: [510, 100, 600], part: "22577598" }, near = [{ p: [420, 0, 0], dir: [1, 0, 0] }, { p: [580, 0, 0], dir: [1, 0, 0] }];
+const fo = run({ prefer: { "22577598": "above" } }, near, [wall]), fu = run({ prefer: { "22577598": "below" } }, near, [wall]);
+console.log(`     over the wall: ${fo.candidates.map(c => `${c.label}, min R ${c.minR.toFixed(1)}, clearance ${c.clearance.toFixed(1)}`)}; ${fo.forced && fo.forced.text}`);
+check(fo.forced && fo.candidates.length === 1 && fo.candidates[0].forced && /^above 22577598: /.test(fo.forced.text) && /needs R \d+, limit R 50|mm into/.test(fo.forced.why),
+  "Above a wall too tall for R: best route that side, marked forced with the rule and the number");
+check(!fu.forced && fu.candidates[0].ok && fu.candidates[0].label === "under 22577598", "Below the same wall: clean, not forced");
+
 if (fail) { console.log(`${fail} failed`); process.exit(1); }
