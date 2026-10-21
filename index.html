@@ -55,8 +55,9 @@
         <div><label for="csStart">Start at</label><select id="csStart"></select></div>
         <div><label for="csEnd">End at</label><select id="csEnd"></select></div>
       </div>
+      <div class="presets"><button type="button" id="csAuto" disabled>Auto order</button><button type="button" id="csNone" disabled>Untick all</button><button type="button" id="csPicked" disabled title="Keep only the stations picked in the 3D view">Only picked</button></div>
       <div id="csList" class="cdparts cslist"></div>
-      <div class="presets"><button type="button" id="csAuto" disabled>Auto order</button><button type="button" id="csUse" disabled>Use as stations</button><span class="unit" id="csLen"></span></div>
+      <div class="presets"><button type="button" id="csUse" disabled>Use as stations</button><span class="unit" id="csLen"></span></div>
       <div class="csask" id="csAsk" hidden role="alertdialog" aria-labelledby="csAskTxt"><span id="csAskTxt"></span> <span class="presets"><button type="button" id="csYes">Replace</button><button type="button" id="csNo">Keep</button></span></div>
       <label class="chk" style="margin-top:10px"><input type="checkbox" id="csHold" checked>Hold the bore direction at each station when checking</label>
       <label for="csDirs">Bore directions <span class="unit">(dX dY dZ per target point, - = free; optional)</span></label>

@@ -149,6 +149,21 @@ const server = http.createServer((q, s) => {
     if (await pickCsys()) step("asmSetPick() on a CSYS on a hole", (await pickMsg()).slice(0, 160));
     await shot("F6-pick-dark");
     await pg.click("#shTheme"); await pg.evaluate(() => asmSetPick(null));
+    // start and end picked in 3D: only the holes between them stay ticked
+    const ends = await pg.evaluate(() => { const names = new Set([...document.querySelectorAll("#csList > .csrow b")].map(b => b.textContent.replace(/^S\d+ /, "").trim()));
+      const H = (AV.shown || []).filter(c => c.hole && !c.made && names.has(c.name)), d = (a, b) => Math.hypot(...[0, 1, 2].map(k => a.o[k] - b.o[k]));
+      for (const a of H) { const b = H.find(b => d(a, b) > 500 && d(a, b) < 1500); if (b) return [a.name, b.name, Math.round(d(a, b))]; } return null; });
+    if (ends) {
+      const pickNamed = n => pg.evaluate(n => { const c = AV.shown.find(c => c.name === n && c.hole); asmSetPick({ kind: "csys", c, inst: c.inst }); }, n);
+      await pickNamed(ends[0]); await act("Use as start"); step(`Use as start: ${ends[0]}`, await text("statusCs"));
+      await pickNamed(ends[1]); await act("Use as end"); step(`Use as end: ${ends[1]} (${ends[2]} mm away)`, await text("statusCs"));
+      const tk2 = await pg.evaluate(() => document.querySelectorAll("#csList .csrow input[type=checkbox]:checked").length);
+      console.log(`     ticked now: ${tk2}`);
+      await pg.evaluate(() => { asmSetPick(null); document.getElementById("csBox").scrollIntoView({ block: "start" }); });
+      await shot("F7-start-end");
+      await pg.click("#csPicked"); step("Only picked", await text("statusCs"));
+      await pg.click("#csNone"); step("Untick all", await text("statusCs"));
+    }
   }
 
   console.log("\nSummary");

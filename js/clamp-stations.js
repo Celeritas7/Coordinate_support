@@ -100,8 +100,17 @@ root.ClampStations=API;
 // ---------------- UI ----------------
 if(typeof document==='undefined'||!document.getElementById('csBox'))return;
 // extra: stations picked in the 3D view (a connector port, a CSYS with no hole, a point on a part); kept across refreshes
-const CS={own:null,list:[],use:new Set(),start:null,end:null,extra:[],next:1e6,near:new Map()};
-const say=(m,bad)=>{const e=$('statusCs');e.textContent=m;e.style.color=bad?'var(--bad)':'';};
+// picked: ids of the stations picked in the 3D view (a hole already in the list keeps its id)
+const CS={own:null,list:[],use:new Set(),start:null,end:null,extra:[],next:1e6,near:new Map(),picked:new Set()};
+// a start and an end both set: tick only the holes within BETWEEN mm of the straight line from start to end (start, end and
+// stations picked in 3D stay ticked); the rest stay listed, unticked
+const BETWEEN=150;
+function between(){const a=CS.list.find(s=>s.id===CS.start),b=CS.list.find(s=>s.id===CS.end);if(!a||!b)return'';
+  const ab=sub(b.c,a.c),L2=dot(ab,ab)||1e-12,off=c=>{const t=Math.max(0,Math.min(1,dot(sub(c,a.c),ab)/L2));return dist(c,[0,1,2].map(k=>a.c[k]+ab[k]*t));};
+  const pool=CS.list.filter(s=>s.use||CS.picked.has(s.id));CS.near.clear();
+  CS.use=new Set(pool.filter(s=>s.id===a.id||s.id===b.id||CS.picked.has(s.id)||off(s.c)<=BETWEEN).map(s=>s.id));
+  autoOrder();return`${CS.use.size} of ${pool.length} holes ticked, the ones between start and end. Tick more in the list.`;}
+const say=(m,bad)=>{const e=$('statusCs');e.textContent=m;e.style.color=bad?'var(--bad)':'';if(typeof nextClear==='function')nextClear('statusCs');};
 const openAsm=()=>typeof ASM!=='undefined'&&ASM&&ASM.r?ASM:null;
 const src=()=>CS.own||openAsm();
 const libOf=r=>typeof FixLib==='undefined'?null:x=>{const I=r.instances&&r.instances[x.inst];return FixLib.match(x.name,x.label,I&&I.part&&I.part.name);};
@@ -112,7 +121,7 @@ const tf=p=>frame()?cadToFrame(p):p,tv=v=>frame()?V.sub(cadToFrame(v),cadToFrame
 const ticked=()=>CS.list.filter(s=>CS.use.has(s.id));
 const tag=s=>`${s.name} · ${s.part}`;
 
-function refresh(note){const a=src();CS.near=new Map();$('csUseAsm').hidden=!openAsm()||CS.own===null;
+function refresh(note){const a=src();CS.near=new Map();CS.picked=new Set(CS.extra.map(s=>s.id));$('csUseAsm').hidden=!openAsm()||CS.own===null;
   if(!a){CS.list=[];render();return say('Load a STEP assembly (or open one in Pipe · Check .pts against pipe). A fixing is a hole with a coordinate system on its axis, inside the hole.');}
   const o=opt(a.r),keep=[CS.start,CS.end].map(id=>CS.extra.some(s=>s.id===id)?id:null);
   CS.list=candidates(a.r,o).concat(CS.extra);CS.use=new Set(CS.list.filter(s=>s.use).map(s=>s.id));
@@ -132,7 +141,7 @@ function autoOrder(){const T=ticked();if(T.length<2){render();return;}
 function render(){const box=$('csList'),T=ticked();
   const opts=sel=>`<option value="">auto</option>`+T.map(s=>`<option value="${s.id}" ${sel===s.id?'selected':''}>${esc(tag(s))}</option>`).join('');
   $('csStart').innerHTML=opts(CS.start);$('csEnd').innerHTML=opts(CS.end);
-  $('csAuto').disabled=$('csUse').disabled=T.length<2;
+  $('csAuto').disabled=$('csUse').disabled=T.length<2;$('csNone').disabled=!T.length;$('csPicked').disabled=!CS.list.some(s=>CS.picked.has(s.id));
   const why=T.length<2?(CS.list.length?'Tick at least 2 stations.':''):'';['csAuto','csUse'].forEach(id=>$(id).title=why);
   if(!CS.list.length){box.innerHTML='';$('csLen').textContent='';return;}
   let k=0;
@@ -191,8 +200,12 @@ $('csFile').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f)retur
 document.addEventListener('asm:loaded',()=>{if(!CS.own&&!$('csBox').hidden)refresh();});
 $('csUseAsm').onclick=()=>{CS.own=null;refresh();};
 $('csAuto').onclick=autoOrder;
+$('csNone').onclick=()=>{CS.use.clear();CS.near.clear();CS.start=CS.end=null;render();say(`All ${CS.list.length} unticked. Tick stations in the list, or pick them in 3D.`);};
+$('csPicked').onclick=()=>{CS.use=new Set(CS.list.filter(s=>CS.picked.has(s.id)).map(s=>s.id));CS.near.clear();
+  if(!CS.use.has(CS.start))CS.start=null;if(!CS.use.has(CS.end))CS.end=null;autoOrder();say(`${CS.use.size} station${CS.use.size===1?'':'s'} picked in 3D ticked; the rest unticked.`);};
 $('csUse').onclick=useAsStations;
-['csStart','csEnd'].forEach(id=>$(id).onchange=()=>{const v=$(id).value===''?null:+$(id).value;if(id==='csStart')CS.start=v;else CS.end=v;autoOrder();});
+['csStart','csEnd'].forEach(id=>$(id).onchange=()=>{const v=$(id).value===''?null:+$(id).value;if(id==='csStart')CS.start=v;else CS.end=v;
+  const bt=CS.start!=null&&CS.end!=null?between():'';if(bt)say(bt);else autoOrder();});
 ['csD','csTol'].forEach(id=>$(id).onchange=()=>refresh());
 $('csDirs').oninput=()=>store.set('rs.csDirs',$('csDirs').value);
 $('csHold').onchange=()=>store.set('rs.csHold',$('csHold').checked?'1':'0');
@@ -210,13 +223,13 @@ function usePick(p,r,as){
   if(!CS.list.length&&src())refresh();
   const st=fromPick(p,r);let s=CS.list.find(x=>len(sub(x.c,st.c))<0.5);
   if(!s){s={id:CS.next++,...st,role:'picked',use:true,reason:'picked in 3D'};CS.extra.push(s);CS.list.push(s);}
-  CS.use.add(s.id);if(as==='start'){CS.start=s.id;if(CS.end===s.id)CS.end=null;}if(as==='end'){CS.end=s.id;if(CS.start===s.id)CS.start=null;}
-  $('csBox').open=true;autoOrder();
+  CS.use.add(s.id);CS.picked.add(s.id);if(as==='start'){CS.start=s.id;if(CS.end===s.id)CS.end=null;}if(as==='end'){CS.end=s.id;if(CS.start===s.id)CS.start=null;}
+  $('csBox').open=true;const bt=as!=='station'&&CS.start!=null&&CS.end!=null?between():'';if(!bt)autoOrder();
   const verb=as==='station'?'Station added':as==='start'?'Start set':'End set',on=st.part?` on ${st.part}`:'';
   const m=st.snapped!=null?`${verb} at the Ø${fmt(st.D,1)} hole${on}, ${fmt(st.snapped,0)} mm from where you clicked.`
     :p.kind==='csys'?`${verb} at ${st.name}${st.D?` (Ø${fmt(st.D,1)} hole${on})`:''}${st.d?'':'; direction left free'}.`
     :`${verb} at the clicked point${on}; direction left free.`;
-  say(`${m} ${ticked().length} stations ticked.`);return m;}
+  say(bt?`${m} ${bt}`:`${m} ${ticked().length} stations ticked.`);return bt?`${m} ${bt}`:m;}
 // for Suggest extra clamps (clamp-suggest.js): what is ticked, and adding its suggestions as stations
 root.clampStationsTicked=()=>ticked();
 root.csAddStations=L=>{if(!CS.list.length&&src())refresh();
