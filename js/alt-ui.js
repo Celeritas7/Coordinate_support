@@ -15,7 +15,7 @@ const say=(m,bad)=>{const e=$('statusAlt');e.textContent=m;e.style.color=bad?'va
 function typedBoxes(){
   return $('altObs').value.split(/\r?\n/).map(l=>l.split('!')[0].trim()).filter(Boolean).map(l=>l.replace(/,/g,' ').split(/\s+/))
     .filter(r=>r.length>=7&&r.slice(1,7).every(v=>Number.isFinite(+v))).map(r=>{const v=r.slice(1,7).map(Number);
-      return{id:r[0],min:[0,1,2].map(k=>Math.min(v[k],v[k+3])),max:[0,1,2].map(k=>Math.max(v[k],v[k+3]))};});}
+      return{id:r[0],part:r[0],min:[0,1,2].map(k=>Math.min(v[k],v[k+3])),max:[0,1,2].map(k=>Math.max(v[k],v[k+3]))};});}
 function render(){
   const box=$('altList');
   box.innerHTML=ALT.cands.map((a,i)=>`<div class="altrow${ALT.sel===i?' on':''}" data-i="${i}"><i style="background:var(--alt${i+1})"></i>
@@ -48,7 +48,8 @@ $('runAlt').onclick=()=>{
     const C=r.result.candidates;ALT.cands=C;stop();render();rebuild(true);
     if(!C.length)return say('No route came out.',true);
     const clean=C.filter(a=>a.ok).length;
-    say(`${C.length} distinct route${C.length>1?'s':''} from ${r.result.tried} way${r.result.tried>1?'s':''} round ${boxes.length} box${boxes.length>1?'es':''}${extra}; ${clean===C.length?'all clear the boxes and hold the radius':`${clean} clean`}. Click one to highlight it.`);};
+    const more=[r.result.forced?`Chosen side: ${r.result.forced.text}.`:'',...r.result.notes.map(n=>n+'.')].filter(Boolean).join(' ');
+    say(`${C.length} distinct route${C.length>1?'s':''} from ${r.result.tried} way${r.result.tried>1?'s':''} round ${boxes.length} box${boxes.length>1?'es':''}${extra}; ${clean===C.length?'all clear the boxes and hold the radius':`${clean} clean`}. Click one to highlight it.${more?' '+more:''}`);};
   defer(tick);
 };
 

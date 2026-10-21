@@ -20,7 +20,8 @@ Phases are ordered so each one is useful on its own and none needs a later one.
 - `tests/ui-walk.js`: the Playwright walk-through used for the rating, made repeatable: loads the samples through the real
   buttons, counts steps, captures status text and screenshots into `handoff/shots/`. Runs locally with
   `node tests/ui-walk.js` (needs Chromium).
-- ~~Force-add the samples to git~~: **not done, the repo is public** and the samples carry real part numbers. They stay local; every test skips cleanly without them.
+- ~~Force-add the samples to git~~: **not done, the repo is public** and the samples carry real part numbers. They stay local; every test skips cleanly without them (`asm-extras`, `cad-solids`, `step-asm`, `through` crashed
+  instead until 2026-10-21; they now print `skip:` and `asm-extras` still runs its synthetic spline-hose part).
 - **Done when:** the script prints the baseline numbers above.
 
 ## Phase 1 — One clamp finder (Claude Code, 1–2 days; Claude Design reviews the row wording) — BUILT 2026-10-19, awaiting design review
@@ -115,6 +116,16 @@ Build order
    between two stations with Above / Below / Any → 1 / 1 / ≥ 2 candidates; a chosen side that cannot hold R → `forced` with the reason.
 2. Plain-word labels: side names from the up axis + direction of travel, part names from the survey (not box ids).
 3. UI (after the design pass): side picker per part row + 3D click; Up-axis selector in Keep clear; "forced" cards in amber.
+- **Built 2026-10-21 (steps 1–2, no picker yet):** `MultiRoute.start(…, {prefer: {part → 'above'|'below'|'left'|'right'|'+X'…|'any'},
+  up: '+Z'})`. A preference cuts the sides before polishing (Above on one box: 1 topology, not 4). Left / right are looking along
+  the leg (travelling +X with +Z up, left = +Y). On a leg along the up axis the words do not apply: any side kept, `result.notes`
+  says so (axis names still work there). If the optimiser slides off the chosen side the topology is re-polished once with that
+  via pinned. `result.forced` = `{what, why, text}`, e.g. "above 22577598: needs R 49, limit R 50; 0.04 mm into the keep-clear
+  gap"; the best route that side is still returned, each candidate marked `forced`. Labels are words from the part names
+  ("over 95651236, left of 22577598"; boxes without a part stay "B3"); `bendCadBoxes()` now tags each face with its part, typed
+  boxes use their id. Also fixed: the side a route passes was read at its closest sample, which on a tall part is the climb
+  beside it; now read over the samples level with the part. Alternatives' status line shows `forced` and the notes.
+  `tests/multiroute.test.js` +11 checks. **Up axis is a parameter only (default +Z); guessing it from the file is open.**
 - **Design review:** where the picker lives (row vs 3D vs both), the six side words and what "Left" means on a route that turns
   back, how a forced choice is shown, the Up selector's wording. Design produces the mockup before step 3 is built.
 - **Done when:** on piping3, choosing Above for the first bracket gives a route over it or an explained failure; the walk-through

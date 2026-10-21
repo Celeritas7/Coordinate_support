@@ -5,6 +5,10 @@
  * labelled by the side they actually pass each box on, duplicates dropped, and the best `keep` returned.
  * Ranking: clean routes (no box hit, min R met) first, then shorter (1 % length buckets), then more clearance,
  * then larger min R.
+ * Side preferences (opts.prefer = {part name → 'above'|'below'|'left'|'right'|'+X'…'-Z'|'any'}, with opts.up = '+Z' by
+ * default): a choice that breaks a preference is never built, so it costs nothing. Above / below are ± the up axis; left /
+ * right are taken looking along the leg. On a leg that runs along the up axis only axis names apply (the words are ignored,
+ * with a note). When the best route on the chosen sides breaks the radius or the gap, result.forced says which and by how much.
  * No DOM. makeRoute/optimiser come from opts or the globals route-studio.js defines.
  * Browser: window.MultiRoute. Node: require('./multiroute.js').
  */
@@ -45,12 +49,33 @@ function sides(d){const ax=[0,1,2].sort((i,j)=>Math.abs(d[i])-Math.abs(d[j])).sl
 function viaFor(hit,bx,side,rad,margin){const c=centre(bx),h=half(bx),q=hit.p.slice();
   q[side.ax]=c[side.ax]+side.sg*(h[side.ax]+rad+margin);return q;}
 const sideName=s=>(s.sg>0?'+':'-')+AX[s.ax];
+// '+Z' / '-y' / 'z' → {ax,sg}
+function parseAxis(t){const m=/^\s*([+-]?)\s*([xyz])\s*$/i.exec(t||'');return m?{ax:'XYZ'.indexOf(m[2].toUpperCase()),sg:m[1]==='-'?-1:1}:null;}
+// the plain word for passing on side s of a leg travelling along d, with up axis up: over / under / left of / right of,
+// or "on the +X side of" when the side is neither (a leg running along the up axis)
+function sideWord(s,d,up){
+  if(s.ax===up.ax)return s.sg===up.sg?'over':'under';
+  const u=[0,0,0];u[up.ax]=up.sg;
+  const right=[d[1]*u[2]-d[2]*u[1],d[2]*u[0]-d[0]*u[2],d[0]*u[1]-d[1]*u[0]];
+  if(sides(d).some(o=>o.ax===up.ax)&&Math.abs(right[s.ax])>1e-9)return Math.sign(right[s.ax])===s.sg?'right of':'left of';
+  return`on the ${sideName(s)} side of`;}
+// does side s keep the preference p ('any', a word or an axis name)? null when p does not apply on this leg
+function keeps(p,s,d,up){
+  p=String(p||'any').trim().toLowerCase();if(!p||p==='any')return true;
+  const a=parseAxis(p);if(a)return a.ax===s.ax&&a.sg===s.sg;
+  const w={above:'over',over:'over',below:'under',under:'under',left:'left of',right:'right of'}[p];
+  if(!w)return null;
+  if(!sides(d).some(o=>o.ax===up.ax))return null;  // leg along the up axis: no over / under / left / right
+  return sideWord(s,d,up)===w;}
 
-// which side of box bx a polished curve passes: at its closest sample, the off-travel axis it is furthest out on
+// which side of box bx a polished curve passes: over the samples level with the box along the travel axis, the
+// off-travel side it is furthest out on (the closest sample alone misreads a tall box: that is the climb beside it)
 function passSide(curve,bx,d,rad){
-  let bi=0,bd=Infinity;curve.forEach((p,i)=>{const e=boxDist(p,bx);if(e<bd){bd=e;bi=i;}});
-  const c=centre(bx),h=half(bx),o=sub(curve[bi],c);let best=null;
-  sides(d).forEach(s=>{const r=s.sg*o[s.ax]/(h[s.ax]+rad);if(!best||r>best.r)best={...s,r};});
+  const c=centre(bx),h=half(bx),S=sides(d),t=[0,1,2].find(k=>!S.some(s=>s.ax===k));
+  let pts=curve.filter(p=>Math.abs(p[t]-c[t])<=h[t]+rad);
+  if(!pts.length){let bi=0,bd=Infinity;curve.forEach((p,i)=>{const e=boxDist(p,bx);if(e<bd){bd=e;bi=i;}});pts=[curve[bi]];}
+  let best=null;
+  for(const p of pts){const o=sub(p,c);S.forEach(s=>{const r=s.sg*o[s.ax]/(h[s.ax]+rad);if(!best||r>best.r)best={...s,r};});}
   return best;
 }
 function sampleCurve(route,x,per=40){const out=[];
@@ -68,42 +93,64 @@ function start(stations,opts={}){
   const S0=stations.map(s=>Array.isArray(s)?{p:s.slice(0,3),dir:null}:{p:s.p.slice(0,3),dir:s.dir||null});
   if(S0.length<2)throw new Error('need at least two stations');
   const R=+opts.R||0,SF=opts.SF==null?1.5:+opts.SF,designR=R*SF,rad=+opts.rad||0,boxes=opts.boxes||[],
-    margin=opts.margin==null?15:+opts.margin,keep=opts.keep||3,maxPolish=opts.maxPolish||12,maxChoices=opts.maxChoices||4;
-  // every (leg, obstacle in the way) is one choice with four options
+    margin=opts.margin==null?15:+opts.margin,keep=opts.keep||3,maxPolish=opts.maxPolish||12,maxChoices=opts.maxChoices||4,
+    up=parseAxis(opts.up)||{ax:2,sg:1},prefer=opts.prefer||{},notes=[];
+  const partOf=g=>{const b=g.bis.map(i=>boxes[i]).find(b=>b.part);return b?String(b.part):`B${g.bis[0]+1}`;};
+  // every (leg, obstacle in the way) is one choice with four options, fewer when the part has a side preference
   let choices=[];
   for(let i=0;i<S0.length-1;i++){const a=S0[i].p,b=S0[i+1].p,d=sub(b,a);
-    cluster(blockers(a,b,boxes,rad),boxes,rad).forEach(g=>choices.push({leg:i,hit:g.hit,bx:g.box,bis:g.bis,d,opts:sides(d)}));}
+    cluster(blockers(a,b,boxes,rad),boxes,rad).forEach(g=>{const part=partOf(g),p=prefer[part];let o=sides(d);
+      if(p!=null){const k=o.filter(s=>keeps(p,s,d,up));
+        if(o.some(s=>keeps(p,s,d,up)===null))notes.push(`${part}: “${p}” does not apply on leg ${i+1}, which runs along the up axis; any side kept`);
+        else if(!k.length)notes.push(`${part}: “${p}” is along leg ${i+1}, not a side of it; any side kept`);
+        else o=k;}
+      choices.push({leg:i,hit:g.hit,bx:g.box,bis:g.bis,part,pref:p!=null&&o.length<4?p:null,d,opts:o});});}
   const skipped=Math.max(0,choices.length-maxChoices);choices=choices.slice(0,maxChoices);
   // all combinations (4^k), cut to the maxPolish shortest via polylines
   let combos=[[]];
   for(const c of choices){const next=[];for(const pre of combos)for(let s=0;s<c.opts.length;s++)next.push(pre.concat(s));combos=next;}
   const build=combo=>{const W=[];
     S0.forEach((st,i)=>{W.push({p:st.p,dir:st.dir,free:false});
-      choices.forEach((c,k)=>{if(c.leg===i)W.push({p:viaFor(c.hit,c.bx,c.opts[combo[k]],rad,margin),dir:null,free:true});});});
+      choices.forEach((c,k)=>{if(c.leg===i)W.push({p:viaFor(c.hit,c.bx,c.opts[combo[k]],rad,margin),dir:null,free:true,pref:!!c.pref});});});
     let L=0;for(let i=1;i<W.length;i++)L+=len(sub(W[i].p,W[i-1].p));return{W,L,combo};};
   const tops=combos.map(build).sort((u,v)=>u.L-v.L).slice(0,maxPolish);
   // polish each topology with the unchanged makeRoute + optimiser
   const polished=[];let k=0,cur=null,result=null;
-  function begin(t){const freePts=t.W.map((w,i)=>w.free?i:-1).filter(i=>i>=0);
+  // a pinned topology keeps its preferred vias where they are: the retry when the optimiser slid off the chosen side
+  function begin(t){const freePts=t.W.map((w,i)=>w.free&&!(t.pin&&w.pref)?i:-1).filter(i=>i>=0);
     const route=makeRoute(t.W.map(w=>w.p),{fixDirs:t.W.map(w=>w.dir),freePts,obstacles:boxes,rad,S:opts.S||24});
     return{route,o:optimiser(route,designR)};}
-  function finish(route,r){
+  function finish(route,r,t){
     const Q=sampleCurve(route,r.x);
     let clearance=Infinity;for(const p of Q)for(const bx of boxes)clearance=Math.min(clearance,boxDist(p,bx)-rad);
     // label by where the polished curve really went, not by the via it started from
-    const pass=choices.map(c=>{const s=passSide(Q,c.bx,c.d,rad);return`L${c.leg + 1}:B${c.bis[0] + 1}${sideName(s)}`;});
-    const sig=pass.join(' ')||'direct',ok=r.obs<=1e-6&&r.minR>=R-1e-6&&clearance>=-1e-6;
-    polished.push({sig,label:pass.length?pass.map(p=>p.split(':')[1]).join(', '):'direct',len:r.len,minR:r.minR,
-      clearance:boxes.length?clearance:Infinity,ok,W:route.pts(r.x),Q,route,x:r.x.slice()});}
+    const ss=choices.map(c=>passSide(Q,c.bx,c.d,rad));
+    const sig=ss.map((s,k)=>`L${choices[k].leg+1}:B${choices[k].bis[0]+1}${sideName(s)}`).join(' ')||'direct';
+    // did the optimiser keep every preferred side? (it starts there, but is free to slide round)
+    const kept=choices.every((c,k)=>!c.pref||keeps(c.pref,ss[k],c.d,up));
+    const label=ss.length?ss.map((s,k)=>`${sideWord(s,choices[k].d,up)} ${choices[k].part}`).filter((w,k,a)=>a.indexOf(w)===k).join(', '):'direct';
+    const ok=r.obs<=1e-6&&r.minR>=R-1e-6&&clearance>=-1e-6;
+    if(!kept&&!t.pin){tops.splice(k+1,0,{...t,pin:true});return;}
+    polished.push({sig,label,len:r.len,minR:r.minR,clearance:boxes.length?clearance:Infinity,ok,kept,obs:r.obs,
+      W:route.pts(r.x),Q,route,x:r.x.slice()});}
   function rank(){
     const best=Math.min(...polished.map(p=>p.len)),bucket=p=>Math.round(p.len/(0.01*best));
-    polished.sort((a,b)=>(b.ok-a.ok)||(bucket(a)-bucket(b))||(b.clearance-a.clearance)||(b.minR-a.minR));
+    polished.sort((a,b)=>(b.kept-a.kept)||(b.ok-a.ok)||(bucket(a)-bucket(b))||(b.clearance-a.clearance)||(b.minR-a.minR));
     // distinct: a different pass signature, and not lying on top of one already kept
     const sep=Math.max(4*rad,margin,1),out=[];
     for(const p of polished){if(out.length>=keep)break;
       if(out.some(q=>q.sig===p.sig||curveGap(p.Q,q.Q)<sep))continue;out.push(p);}
     out.forEach((p,i)=>p.rank=i+1);
-    return{candidates:out,tried:combos.length,polished:polished.length,skipped};}
+    // a preference that cost the clean route: say which rule broke and by how much on the best route that keeps it
+    let forced=null;const pref=choices.filter(c=>c.pref);
+    if(pref.length&&out.length&&!(out[0].ok&&out[0].kept)){const b=out[0],why=[];
+      if(!b.kept)why.push('the route slid off the chosen side');
+      if(b.minR<R-1e-6)why.push(`needs R ${b.minR.toFixed(0)}, limit R ${R}`);
+      if(b.clearance<-1e-6)why.push(`${(-b.clearance).toFixed(-b.clearance<0.1?2:1)} mm into the keep-clear gap`);
+      if(b.obs>1e-6&&!why.length)why.push('runs into a part');
+      forced={what:[...new Set(pref.map(c=>`${c.pref} ${c.part}`))].join(', '),why:why.join('; ')||'not clean',text:''};
+      forced.text=`${forced.what}: ${forced.why}`;out.forEach(p=>p.forced=true);}
+    return{candidates:out,tried:combos.length,polished:polished.length,skipped,forced,notes};}
   const now=()=>typeof performance!=='undefined'?performance.now():Date.now();
   function step(ms=30){
     const t0=now();let minR=null;
@@ -111,15 +158,15 @@ function start(stations,opts={}){
       if(k>=tops.length){result=rank();break;}
       if(!cur)cur=begin(tops[k]);
       const r=cur.o.step(4);minR=r.minR;
-      if(r.done){finish(cur.route,r);cur=null;k++;}
+      if(r.done){finish(cur.route,r,tops[k]);cur=null;k++;}
       if(now()-t0>=ms)break;}
     return{done:!!result,k,total:tops.length,minR,result};}
-  return{step,total:tops.length,tried:combos.length,skipped};
+  return{step,total:tops.length,tried:combos.length,skipped,notes};
 }
 // the same, run to the end in one go
 function enumerate(stations,opts={}){const job=start(stations,opts);let r;do{r=job.step(1e9);}while(!r.done);return r.result;}
 
-const API={start,enumerate,blockers,boxDist};
+const API={start,enumerate,blockers,boxDist,sideWord,parseAxis};
 if(typeof module!=="undefined"&&module.exports)module.exports=API;
 root.MultiRoute=API;
 })(typeof globalThis!=="undefined"?globalThis:this);

@@ -7,6 +7,8 @@ const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]], dot = (a, b) => a
 const norm = a => { const l = len(a); return [a[0] / l, a[1] / l, a[2] / l]; };
 let fail = 0;
 const check = (ok, msg) => { console.log((ok ? "ok   " : "FAIL ") + msg); if (!ok) fail++; };
+const missing = ["piping2_practice_asm.stp", "piping3_practice_asm.stp"].filter(f => !fs.existsSync(path.join(__dirname, "../samples", f)));
+if (missing.length) { console.log(`skip: samples/${missing.join(", samples/")} not found`); process.exit(0); }
 const clampsOf = (r, pi) => r.clampsFor(pi).filter(c => c.use).map(c => ({ c: c.fix.c, a: c.fix.d, length: c.fix.length, name: c.fix.name }));
 
 // ---- piping2: the target ----

@@ -20,6 +20,8 @@ check(Math.abs(h.R - 109.95) / 109.95 < 0.01, `smallest bend radius ${h.R.toFixe
 check(h.curveAgree != null && h.curveAgree < 0.01, `datum curve agrees with the skin to ${h.curveAgree.toFixed(4)} mm`);
 check(dist(h.info.start, [0, 0, 0]) < 0.01 && dist(h.info.end, [80, 60, 300]) < 0.01, "ends at HOSE_START and HOSE_END");
 
+const missing = ["piping2_practice_asm.stp", "piping3_practice_asm.stp"].filter(f => !fs.existsSync(path.join(__dirname, "../samples", f)));
+if (missing.length) { console.log(`skip: samples/${missing.join(", samples/")} not found`); process.exit(fail ? 1 : 0); }
 // ---- pipe override ----
 const t2 = read("piping2_practice_asm.stp"), r2 = S.parse(t2), pipeName = r2.pipes[0].name;
 const fittings = r2.instances.filter(i => i.solids && i.part.name !== pipeName).map(i => i.part.name);
