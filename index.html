@@ -61,6 +61,7 @@
       <div class="csask" id="csAsk" hidden role="alertdialog" aria-labelledby="csAskTxt"><span id="csAskTxt"></span> <span class="presets"><button type="button" id="csYes">Replace</button><button type="button" id="csNo">Keep</button></span></div>
       <label class="chk" style="margin-top:10px"><input type="checkbox" id="csHold" checked>Hold the bore direction at each station when checking</label>
       <label for="csDirs">Bore directions <span class="unit">(dX dY dZ per target point, - = free; optional)</span></label>
+      <span class="unit csstale" id="csDirsNote" hidden>For the stations now in Target points; updated when you press Use as stations.</span>
       <textarea id="csDirs" rows="3" spellcheck="false" wrap="off"></textarea>
       <div class="presets"><button type="button" id="csClearDirs">clear directions</button></div>
       <p class="hint">A fixing is a hole with a coordinate system on its axis, inside the hole; listed when its bore is within Hose Ø ± fit. Auto order finds the shortest path (nearest neighbour, then 2-opt) from Start to End; drag rows to change it. Use as stations writes the ticked ones into Target points and their bore axes here. Check then runs the hose along each bore. With this list empty, Check uses the start / end directions only.</p>

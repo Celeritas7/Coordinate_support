@@ -139,10 +139,12 @@ function autoOrder(){const T=ticked();if(T.length<2){render();return;}
   const rest=CS.list.filter(s=>!CS.use.has(s.id));CS.list=ord.concat(rest);render();}
 
 function render(){const box=$('csList'),T=ticked();
-  const opts=sel=>`<option value="">auto</option>`+T.map(s=>`<option value="${s.id}" ${sel===s.id?'selected':''}>${esc(tag(s))}</option>`).join('');
+  // the name only (the select is narrow); the part in the tooltip
+  const opts=sel=>`<option value="">auto</option>`+T.map(s=>`<option value="${s.id}" title="${esc(tag(s))}" ${sel===s.id?'selected':''}>${esc(s.name)}</option>`).join('');
   $('csStart').innerHTML=opts(CS.start);$('csEnd').innerHTML=opts(CS.end);
   $('csAuto').disabled=$('csUse').disabled=T.length<2;$('csNone').disabled=!T.length;$('csPicked').disabled=!CS.list.some(s=>CS.picked.has(s.id));
   const why=T.length<2?(CS.list.length?'Tick at least 2 stations.':''):'';['csAuto','csUse'].forEach(id=>$(id).title=why);
+  staleDirs();
   if(!CS.list.length){box.innerHTML='';$('csLen').textContent='';return;}
   let k=0;
   const row=(s,i)=>{const on=CS.use.has(s.id),no=on?++k:0;
@@ -168,13 +170,18 @@ function render(){const box=$('csList'),T=ticked();
     row.ondrop=e=>{e.preventDefault();e.stopPropagation();row.classList.remove('over');if(drag>=0&&drag!==i)move(drag,i);};});
   box.querySelectorAll('[data-grip]').forEach(b=>b.onkeydown=e=>{const i=+b.dataset.grip,j=e.key==='ArrowUp'?i-1:e.key==='ArrowDown'?i+1:-1;
     if(j<0||j>=CS.list.length)return;e.preventDefault();move(i,j);const g=box.querySelector(`[data-grip="${j}"]`);if(g)g.focus();});}
+// Bore directions name their stations ("! 23135437_L"): when the ticked stations (or their order) no longer match, the list
+// is greyed with a note until Use as stations rewrites it. Not cleared: Check still holds it at the points in Target points
+function staleDirs(){const t=$('csDirs').value.trim(),names=t?parseDirs(t).names:[],T=ticked();
+  const stale=!!t&&T.length>0&&(names.length!==T.length||names.some((n,i)=>n&&n!==T[i].name));
+  $('csDirs').classList.toggle('stale',stale);$('csDirsNote').hidden=!stale;}
 // a hand-made order: start / end pickers go back to auto so they never contradict the list
 function move(from,to){CS.near.clear();const [s]=CS.list.splice(from,1);CS.list.splice(to,0,s);CS.start=CS.end=null;render();}
 
 function useAsStations(){const T=ticked();if(T.length<2)return;
   const write=()=>{$('csAsk').hidden=true;
     $('pts').value=stationsText(T,tf);$('pts').dispatchEvent(new Event('input'));store.set('rs.pts',$('pts').value);
-    $('csDirs').value=$('csHold').checked?dirsText(T,tv):'';store.set('rs.csDirs',$('csDirs').value);
+    $('csDirs').value=$('csHold').checked?dirsText(T,tv):'';store.set('rs.csDirs',$('csDirs').value);staleDirs();
     const f=frame(),R=+$('r').value||65,near=$('csHold').checked?closePairs(T.map(s=>s.c),orient(T.map(s=>s.c),T.map(s=>s.d)),R):[];
     // each pair in amber in the list, with its gap; one red line here
     CS.near=new Map();near.forEach(p=>[[p.i,p.j],[p.j,p.i]].forEach(([a,b])=>{const id=T[a].id;if(!CS.near.has(id))CS.near.set(id,[]);CS.near.get(id).push({to:`S${b+1}`,L:p.L,need:2*R});}));render();
@@ -189,7 +196,7 @@ function useAsStations(){const T=ticked();if(T.length<2)return;
 
 // Check (route-studio.js runBend) asks for the held directions; null = none, Check runs as before
 root.clampStationDirs=P=>$('csHold').checked?forCheck(P,$('csDirs').value,$('pts').value):null;
-$('csClearDirs').onclick=()=>{$('csDirs').value='';store.set('rs.csDirs','');say('Bore directions cleared: Check uses the start / end directions only.');};
+$('csClearDirs').onclick=()=>{$('csDirs').value='';store.set('rs.csDirs','');staleDirs();say('Bore directions cleared: Check uses the start / end directions only.');};
 
 function load(file){say(`Reading ${file.name}...`);
   file.text().then(text=>{let r;try{r=StepAsm.parse(text);}catch(e){return say(`${file.name}: ${e.message}`,true);}
@@ -207,7 +214,7 @@ $('csUse').onclick=useAsStations;
 ['csStart','csEnd'].forEach(id=>$(id).onchange=()=>{const v=$(id).value===''?null:+$(id).value;if(id==='csStart')CS.start=v;else CS.end=v;
   const bt=CS.start!=null&&CS.end!=null?between():'';if(bt)say(bt);else autoOrder();});
 ['csD','csTol'].forEach(id=>$(id).onchange=()=>refresh());
-$('csDirs').oninput=()=>store.set('rs.csDirs',$('csDirs').value);
+$('csDirs').oninput=()=>{store.set('rs.csDirs',$('csDirs').value);staleDirs();};
 $('csHold').onchange=()=>store.set('rs.csHold',$('csHold').checked?'1':'0');
 // opening the section picks up an assembly opened elsewhere since
 $('csBox').addEventListener('toggle',()=>{if($('csBox').open&&!CS.own&&openAsm()&&!CS.list.length)refresh();});
