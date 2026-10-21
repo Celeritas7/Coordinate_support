@@ -245,3 +245,7 @@ textarea[data-drop]{outline:2px dashed var(--ok);outline-offset:1px}
 .mkrow .mkname{width:11em;font-weight:600}.mkrow .mko,.mkrow .mkz{width:15em}
 .mkrow .mkbtn{display:flex;gap:4px}.mkrow button,.mkadd button{border:1px solid var(--rule);border-radius:4px;background:var(--field);color:var(--ink);font:500 12px var(--sans);padding:2px 8px;cursor:pointer}
 .mkadd{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px}.mkadd input{width:14em}
+/* Suggest extra clamps (clamp-suggest.js) */
+.sglist .sgrow{padding:6px 0;border-bottom:1px solid var(--rule);font-size:12.5px}
+.sglist .sgrow button{margin-top:4px;border:1px solid var(--rule);border-radius:4px;background:var(--field);color:var(--ink);font:500 12px var(--sans);padding:2px 8px;cursor:pointer}
+.altup{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px}.altup select{width:auto;min-width:5em}

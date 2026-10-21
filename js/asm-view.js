@@ -41,6 +41,8 @@ window.asmBounds=()=>{const r=asm();if(!r||!AV.parts)return null;return geometry
 
 // called from rebuild(): the assembly layer under the routes
 window.asmOverlay=(content,g)=>{
+  // other layers on the routes (Suggest extra clamps) hang on window.VIEW_OVERLAYS
+  (window.VIEW_OVERLAYS||[]).forEach(f=>{try{f(content,g);}catch(e){console.error(e);}});
   const r=asm();if(!r)return;
   if(AV.parts){const G=geometry(r);
     if(G.n){const lines=new THREE.LineSegments(G.g,new THREE.LineBasicMaterial({color:new THREE.Color(css('--muted')),transparent:true,opacity:0.35}));

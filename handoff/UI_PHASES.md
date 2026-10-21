@@ -171,7 +171,7 @@ Status: **DONE** = in `main` or on `claude/coordinate-support-memory-5m5bwf`; **
 | Q4 | Big STEP files offline | **DONE** for reading (worker + memory); solvers still on the page |
 | Q5 | Show CSYS in 3D | **DONE** |
 | Q6 | Make new CSYS in the app, export to Creo | **DONE** (Creo import still to try) |
-| Q7 | Suggest where to add clamps | **NOT STARTED** (requirements noted) |
+| Q7 | Suggest where to add clamps | **BUILT** (spacing and type rule assumed, to confirm) |
 
 ### Q1 — Route through existing clamps (DONE)
 - Hose · Stations from clamps lists every bore that fits the hose Ø (−0.2 / +1.5) with a CSYS or a Library match, orders them
@@ -230,16 +230,22 @@ Click a part or a CSYS in the 3D view (Q5); the panel offers what fits the open 
   the file read back by both STEP readers to 1e-9.
 - Not checked: the import in Creo itself (no Creo here) — first thing to try with the user.
 
-### Q7 — Suggest extra clamps (NOT STARTED)
-- After routing through the existing clamps: spans longer than the max spacing, and both sides of bends → suggested clamp
-  positions on the route; each moved onto the nearest part it can mount on (bracket, rail, plate) within reach; clamp **type
-  from a location rule** (by part, zone or Ø) and from the Library; access for hand and tool scored.
-- Requirements already written: ROADMAP Phase 18 (spacing cable 150 / hose 300 mm, clamps either side of a bend) and
-  "Clamp placement on a mounting plate" on branch `claude/app-function-visibility-llqw97` (allowed positions only, no
-  interference, ease of clamping ranks).
-- Output: suggested clamps as CSYS (Q6) for Creo, and as stations for a re-route.
-- Needs from the user: max spacing (hose / cable / pipe), the clamp-type-by-location rule.
+### Q7 — Suggest extra clamps (BUILT 2026-10-21 with assumed rules, `js/clamp-suggest.js`)
+- Hose · Route through stations → **Suggest extra clamps** (fold under Alternatives), on the selected route, held at its stations:
+  1. near each bend (tighter than 4 × R): a clamp within **Near a bend** (60 mm) before it starts and after it ends, unless one is there;
+  2. then every span still over **Max spacing** (300 mm) is filled evenly.
+- Each suggestion: position along the route, why ("span of 669 mm between S2 and a new clamp", "after the bend at 256–362 mm"),
+  **mounts on** the nearest part within **Mount reach** (60 mm; existing pipes left out) or "needs a bracket", and **like** the
+  existing clamp on the same mounting part (nearest along the route), else the nearest along the route.
+- **Make CSYS** each / for all (Z along the route, into "CSYS made here" → Download .stp for Creo), **Add them as stations**
+  (into Stations from clamps, then Check again). Amber +n dots in 3D. `tests/clamp-suggest.test.js` (11 checks).
+- **Assumed until the user says otherwise:** max spacing 300 mm (ROADMAP Phase 18's hose figure), clamps either side of a bend,
+  and "type follows location" read as "copy the clamp already on that mounting part". Mount distance uses face boxes, so it
+  is generous near round parts.
+- Needs from the user: their max spacing (hose / cable / pipe), and the real clamp-type-by-location rule if it is not
+  "same as the clamp already on that part".
 
-### Suggested order
-Q3 (pick in 3D) → Q5 (show CSYS) → Q6 (make CSYS) → Q7 (suggest clamps) ; Q4 worker merge alongside, before files get large.
-Q2's last gap closes with Q3 + Q6.
+### Next
+- Try the exported CSYS .stp in Creo (Q6); give the spacing and clamp-type rule (Q7); Claude Design pass on the pick panel,
+  "CSYS made here" and "Suggest extra clamps" wording.
+- Big files: Check / Alternatives / clearance still run on the page (in chunks); reading only the parts near the route.

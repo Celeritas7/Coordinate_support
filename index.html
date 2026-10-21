@@ -125,6 +125,16 @@
       <div class="status" id="statusAlt"></div>
       <div id="altList" class="altlist"></div>
     </div>
+    <details class="adv" id="sgBox"><summary>Suggest extra clamps</summary>
+      <p class="hint">Along the selected route, held at its stations: a clamp before and after each bend, then enough in every span to keep it under the max spacing. Each one says what it mounts on and which existing clamp it should be like (same mounting part, else the nearest).</p>
+      <div class="fields c2"><div><label for="sgSpan">Max spacing <span class="unit">mm</span></label><input id="sgSpan" type="number" value="300" min="20" step="10"></div>
+        <div><label for="sgNear">Near a bend <span class="unit">mm</span></label><input id="sgNear" type="number" value="60" min="0" step="5"></div></div>
+      <div class="fields c2"><div><label for="sgReach">Mount reach <span class="unit">mm</span></label><input id="sgReach" type="number" value="60" min="0" step="5"></div>
+        <div><label class="chk" style="margin-top:22px"><input type="checkbox" id="sgBends" checked> clamp either side of a bend</label></div></div>
+      <button class="go ghost" id="sgRun" type="button">Suggest for the selected route</button>
+      <div class="status" id="sgStatus"></div>
+      <div id="sgList" class="sglist"></div>
+    </details>
   </section>
 
   <section id="panClear" hidden>
@@ -433,5 +443,6 @@
 <script src="js/shell.js"></script>
 <script src="js/asm-view.js"></script>
 <script src="js/csys-make.js"></script>
+<script src="js/clamp-suggest.js"></script>
 </body>
 </html>

@@ -209,6 +209,12 @@ function usePick(p,r,as){
   const what=as==='station'?'added as a station':`is the ${as}`;
   say(`${s.name} ${what}${st.snapped?' (snapped to the nearest hole of the part you clicked)':''}. ${ticked().length} stations ticked.`);
   return`${s.name} ${what}${st.snapped?', snapped to the part’s nearest hole':''}${s.d?'':' (direction left free)'}.`;}
+// for Suggest extra clamps (clamp-suggest.js): what is ticked, and adding its suggestions as stations
+root.clampStationsTicked=()=>ticked();
+root.csAddStations=L=>{if(!CS.list.length&&src())refresh();
+  L.forEach(st=>{if(CS.list.some(x=>len(sub(x.c,st.c))<0.5))return;const s={id:CS.next++,label:'',D:null,length:0,...st,role:'picked',use:true,reason:'suggested clamp'};
+    CS.extra.push(s);CS.list.push(s);CS.use.add(s.id);});
+  $('csBox').open=true;autoOrder();say(`${L.length} suggested clamps added; ${ticked().length} stations ticked. Use as stations, then Check.`);};
 (root.AV_ACTIONS=root.AV_ACTIONS||[]).push((p,r)=>$('csBox').hidden?[]:[
   {label:'Use as start',go:x=>usePick(x,r,'start'),title:'First station of the hose route (Stations from clamps)',order:1},
   {label:'Use as end',go:x=>usePick(x,r,'end'),title:'Last station of the hose route',order:1},
