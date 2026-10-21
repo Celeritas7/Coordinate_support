@@ -11,6 +11,19 @@ function altOverlay(content,g){
 }
 {
 const LABEL=$('runAlt').textContent,seq={n:0};
+// side per part ("route passes it over / under / left / right"), set by clicking the part in 3D; up axis per file
+const fileKey=()=>typeof ASM!=='undefined'&&ASM?ASM.name:'';
+ALT.prefer=()=>{try{return JSON.parse(store.get('rs.altPrefer.'+fileKey())||'{}');}catch(e){return{};}};
+const savePrefer=o=>store.set('rs.altPrefer.'+fileKey(),JSON.stringify(o));
+function sidesLine(){const o=ALT.prefer(),k=Object.keys(o);$('altSides').textContent=k.length?`· passes ${k.map(n=>`${{above:'over',below:'under',left:'left of',right:'right of'}[o[n]]||o[n]} ${n.split(' / ').pop()}`).join(', ')}`:'';}
+$('altUp').onchange=()=>store.set('rs.altUp.'+fileKey(),$('altUp').value);
+document.addEventListener('asm:loaded',()=>{$('altUp').value=store.get('rs.altUp.'+fileKey())||'+Z';sidesLine();});
+(window.AV_ACTIONS=window.AV_ACTIONS||[]).push((p,r)=>{if(p.kind!=='part'||$('altBox').hidden)return[];
+  const I=r.instances[p.inst],name=I.label||I.name,cur=ALT.prefer()[name]||'any';
+  return['any','above','below','left','right'].map(s=>({row:'Route passes it',label:s==='above'?'over':s==='below'?'under':s,on:cur===s,
+    title:s==='any'?'Alternatives may pass it on any side':`Alternatives keep only routes that pass ${s==='above'?'over':s==='below'?'under':'to the '+s+' of'} it (up = ${$('altUp').value})`,
+    go:()=>{const o=ALT.prefer();if(s==='any')delete o[name];else o[name]=s;savePrefer(o);sidesLine();
+      return s==='any'?`${I.name}: any side.`:`${I.name}: Alternatives pass it ${s==='above'?'over':s==='below'?'under':'on the '+s} (looking along the route, up ${$('altUp').value}). Run Alternatives.`;}}));});
 const say=(m,bad)=>{const e=$('statusAlt');e.textContent=m;e.style.color=bad?'var(--bad)':'';};
 function typedBoxes(){
   return $('altObs').value.split(/\r?\n/).map(l=>l.split('!')[0].trim()).filter(Boolean).map(l=>l.replace(/,/g,' ').split(/\s+/))
@@ -38,7 +51,7 @@ $('runAlt').onclick=()=>{
   // the same station directions Check holds: bore axes from Stations from clamps, typed start / end directions winning at the ends
   const SD=typeof clampStationDirs==='function'?clampStationDirs(P):null,held=SD?SD.fixDirs(null):null;
   const dirOf=i=>(i===0&&parseDir($('sd').value))||(i===P.length-1&&parseDir($('ed').value))||(held&&held[i])||null;
-  let job;try{job=MultiRoute.start(P.map((p,i)=>({p:[p[0],p[1],p[2]],dir:dirOf(i)})),{R,SF,rad,boxes,keep:3});}
+  let job;try{job=MultiRoute.start(P.map((p,i)=>({p:[p[0],p[1],p[2]],dir:dirOf(i)})),{R,SF,rad,boxes,keep:3,prefer:ALT.prefer(),up:$('altUp').value});}
   catch(e){return say(e.message,true);}
   ALT.cands=[];ALT.sel=0;ALT.ctx={P,R,SF,rad,typed,nBoxes:boxes.length,cadParts:cad?cad.parts:0};render();rebuild(false);
   const id=++seq.n;ALT.job=id;$('runAlt').textContent='Stop';

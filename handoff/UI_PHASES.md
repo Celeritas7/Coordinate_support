@@ -166,8 +166,8 @@ Status: **DONE** = in `main` or on `claude/coordinate-support-memory-5m5bwf`; **
 | # | Phase | Status |
 |---|-------|--------|
 | Q1 | Route through the clamps you have, no route in the file | **DONE** |
-| Q2 | Start / end when the file has no hint | **PARTLY** |
-| Q3 | Pick parts in 3D (Library, start / end, station, side) | **PARTLY** (Library add from the list only) |
+| Q2 | Start / end when the file has no hint | **DONE** (pick in 3D) |
+| Q3 | Pick parts in 3D (Library, start / end, station, side) | **DONE** |
 | Q4 | Big STEP files offline | **DONE** for reading (worker + memory); solvers still on the page |
 | Q5 | Show CSYS in 3D | **DONE** |
 | Q6 | Make new CSYS in the app, export to Creo | **NOT STARTED** |
@@ -179,22 +179,20 @@ Status: **DONE** = in `main` or on `claude/coordinate-support-memory-5m5bwf`; **
 - Pipe · Through clamps does the same for an existing pipe.
 - Not checked in this session: the samples are local only.
 
-### Q2 — Start / end without hints in the file (PARTLY)
-- Done: **Start** / **End** pickers among the listed clamps; a pipe's end fittings become Start / End by themselves; start / end
-  directions can be typed under "Fix end directions".
-- Not done: a start or end that is **not a clamp** (connector port, bulkhead): today it needs a CSYS on it in Creo, or typed
-  coordinates. Comes with Q3 (click a face / hole → Use as start) and Q6 (make a CSYS there).
+### Q3 — Pick in 3D (DONE 2026-10-21) and Q2 — start / end with no hint (DONE)
+Click a part or a CSYS in the 3D view (Q5); the panel offers what fits the open task:
+- **Use as start · Use as end · Add as station** (Hose · Stations from clamps). A hole already in the list is used as it is.
+  A CSYS with no hole (a connector port such as `A_T_F_PORT2`) becomes a station with its Z axis as the hose direction.
+  A click on a part snaps to that part's nearest hole (within 30 mm or 3 × its radius), else the clicked point with the
+  direction left free. Picked stations are marked "picked in 3D", have a **remove** link, and survive a change of Hose Ø.
+- **Add to library** (or "In the Library (clamp)" when it already matches): the picked part, or the part a picked CSYS's hole is in.
+- **Keep clear: yes / no** for the picked part (Hose · Keep clear of CAD parts loaded).
+- **Route passes it: any · over · under · left · right**: Phase 4b step 3. Saved per file; Alternatives keep only routes on
+  that side and say when it cannot hold R or the gap. **Up is +Z / −Z / ±Y / ±X** under Alternatives, saved per file.
+- Tested on the 20 MB frame (`A_T_F_PORT2` as start, part 991063 → its Ø15.5 hole as end, over 991063, added to the Library).
+- Design pass still owed: panel wording, button order, whether the side row belongs in the panel or the parts list.
 
-### Q3 — Pick in 3D (PARTLY)
-- Done: **Add to library** on a clamp-list row (`FixLib.addFromPart`).
-- Not done: clicking a part in the 3D view. No part raycasting today (only the Refine point drag). Parts are drawn as boxes /
-  face boxes, not meshes, so picking would hit their boxes first (good enough for clamps and brackets; exact once faces are
-  tessellated, ROADMAP Phase 13).
-- Click → menu: Add to library · Use as start / end · Use as station · Keep clear on / off · Pass it above / below / left / right
-  (that is Phase 4b step 3).
-- Needs: Claude Design for the menu; nothing else.
-
-### Q4 — Big STEP files, offline (PARTLY + BRANCH)
+### Q4 — Big STEP files, offline (DONE for reading)
 - Done: everything runs on the user's computer; nothing is uploaded. The assembly is read once per session (Phase 2).
 - **On branch `claude/app-function-visibility-llqw97` (2026-10-08), not merged:** STEP parse in a **Web Worker** with a progress
   bar (page stays responsive), per-part edge cloud and exact world boxes, `tests/asm-cloud.test.js`. It branched from main
@@ -220,11 +218,6 @@ Status: **DONE** = in `main` or on `claude/coordinate-support-memory-5m5bwf`; **
   "on a Ø11.0 × 12.0 mm hole"; a part: name, path, size, where it was clicked; picked part in orange. Esc / Close clears.
   The click costs 1–25 ms on the frame (only parts whose box the ray passes are tested).
 - Other modules add buttons to the panel with `avPickActions(fn)`: that is how Q3 / Q2 / Q6 hang their actions on it.
-- Earlier text, kept for the record:
-### Q5 (as it was)
-- Done: clamp bores drawn as two rings + axis line with the CSYS name; stations labelled; CSYS listed as the frame for .pts.
-- Not done: CSYS drawn as **X / Y / Z arrows**; a toggle to show every CSYS in the file (not only clamp ones); click a CSYS → name,
-  position, axes.
 
 ### Q6 — Make CSYS in the app, export for Creo (NOT STARTED)
 - Already there to build on: STEP export of route points + one frame CSYS (`cad-io.js`).

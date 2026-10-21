@@ -2,9 +2,9 @@
 // Loaded after route-studio.js (rebuild, content, camera, orbit, addTag) and asm-ui.js (ASM). The outlines are the face loops
 // StepAsm already reads, placed per instance into one LineSegments: one draw call even for a big frame. Segment → instance is
 // kept, so a click on a line names the part. CSYS shown: 'off' | 'fix' (the ones on a hole) | 'all'.
-// avPickActions: other modules add buttons to the pick panel (Use as start, Add to library, ...): fn(pick) → [{label, go}].
-const AV={parts:true,csys:'fix',r:null,geo:null,pick:null,actions:[]};
-window.avPickActions=fn=>AV.actions.push(fn);
+// Pick actions: other modules push fn(pick, r) → [{label, go(pick) → message?, row?, on?, title?}] onto window.AV_ACTIONS
+// (they load before this file). Items with a row are shown as one labelled group of toggles (on = pressed).
+const AV={parts:true,csys:'fix',r:null,geo:null,pick:null,actions:window.AV_ACTIONS||(window.AV_ACTIONS=[]),msg:''};
 {
 const X=(M,p)=>[M.o[0]+M.x[0]*p[0]+M.y[0]*p[1]+M.z[0]*p[2],M.o[1]+M.x[1]*p[0]+M.y[1]*p[1]+M.z[1]*p[2],M.o[2]+M.x[2]*p[0]+M.y[2]*p[1]+M.z[2]*p[2]];
 const asm=()=>typeof ASM!=='undefined'&&ASM&&ASM.r?ASM.r:null;
@@ -89,7 +89,7 @@ function pickLine(r,nx,ny,tol){
       if(!best||t<best.t-tol)best={t,inst:ii,p:onSeg.toArray()};}});
   return best;
 }
-function setPick(p){AV.pick=p;panel();rebuild(false);document.dispatchEvent(new CustomEvent('asm:pick',{detail:p}));}
+function setPick(p){AV.pick=p;AV.msg='';panel();rebuild(false);document.dispatchEvent(new CustomEvent('asm:pick',{detail:p}));}
 window.asmPick=()=>AV.pick;window.asmSetPick=setPick;
 
 const f1=v=>v.toFixed(1),vec=a=>`(${a.map(v=>(Math.abs(v)<5e-7?0:v).toFixed(3)).join(', ')})`;
@@ -103,10 +103,15 @@ function panel(){
       ${c.hole?`<div class="unit">on a Ø${f1(c.hole.D)} × ${f1(c.hole.length)} mm hole</div>`:''}`;}
   else h=`<b>${esc(inst.name||'part')}</b> <span class="unit">part</span><div class="unit">${esc(inst.label||'')}</div>
       ${bb?`<div class="unit">${bb.max.map((v,k)=>Math.round(v-bb.min[k])).join(' × ')} mm</div>`:''}<div class="avxyz">clicked at ${vec(p.p)}</div>`;
-  const acts=[].concat(...AV.actions.map(fn=>{try{return fn(p)||[];}catch(x){return[];}}));
-  el.innerHTML=h+`<div class="avacts">${acts.map((a,i)=>`<button type="button" data-a="${i}"${a.title?` title="${esc(a.title)}"`:''}>${esc(a.label)}</button>`).join('')}<button type="button" data-x>Close</button></div>`;
+  // order: lower first (stations 1, Library 2, toggles 5 by default)
+  const acts=[].concat(...AV.actions.map(fn=>{try{return fn(p,r)||[];}catch(x){console.error(x);return[];}})).sort((a,b)=>(a.order||5)-(b.order||5));
+  const btn=(a,i)=>`<button type="button" data-a="${i}"${a.row?` aria-pressed="${!!a.on}"`:''}${a.title?` title="${esc(a.title)}"`:''}>${esc(a.label)}</button>`;
+  const rows=[...new Set(acts.filter(a=>a.row).map(a=>a.row))];
+  el.innerHTML=h+`<div class="avacts">${acts.map((a,i)=>a.row?'':btn(a,i)).join('')}<button type="button" data-x>Close</button></div>`+
+    rows.map(rw=>`<div class="avrow"><span class="unit">${esc(rw)}</span>${acts.map((a,i)=>a.row===rw?btn(a,i):'').join('')}</div>`).join('')+
+    (AV.msg?`<div class="avmsg">${esc(AV.msg)}</div>`:'');
   el.hidden=false;
-  el.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>acts[+b.dataset.a].go(p));
+  el.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>{const m=acts[+b.dataset.a].go(p);AV.msg=typeof m==='string'?m:'';panel();rebuild(false);});
   el.querySelector('[data-x]').onclick=()=>setPick(null);
 }
 window.asmPanel=panel;

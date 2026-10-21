@@ -234,3 +234,7 @@ textarea[data-drop]{outline:2px dashed var(--ok);outline-offset:1px}
 .avpick .avacts{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
 .avpick .avacts button{border:1px solid var(--rule);border-radius:4px;background:var(--field);color:var(--ink);font:500 12px var(--sans);padding:3px 9px;cursor:pointer}
 .avpick .avacts button:first-child{font-weight:600}
+.avpick .avrow{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-top:6px}.avpick .avrow .unit{margin-right:4px}
+.avpick .avrow button{border:1px solid var(--rule);border-radius:4px;background:var(--field);color:var(--ink);font:500 12px var(--sans);padding:2px 8px;cursor:pointer}
+.avpick .avrow button[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.avpick .avmsg{margin-top:6px;color:var(--muted)}

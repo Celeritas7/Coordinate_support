@@ -45,6 +45,14 @@ function straightRuns(P,tol){const runs=[],n=P.length,dot=(a,b)=>a[0]*b[0]+a[1]*
 window.bendCadBoxes=function(){const o=opt(),sv=$('cdUse').checked?survey():null;
   // each face box carries its part name, so Alternatives can say "over 95651236"
   return{faces:sv?sv.parts.filter(keepClear).flatMap(p=>p.faces.map(f=>({...f,part:p.name}))):[],rad:o.d/2+o.gap,parts:sv?sv.parts.filter(keepClear).length:0};};
+// keep clear on / off from the 3D view (asm-view.js): the solids of the picked instance
+(window.AV_ACTIONS=window.AV_ACTIONS||[]).push((p,r)=>{if(!BC.cad||!BC.cad.solids.some(s=>s.inst!=null)||$('cdBox').hidden)return[];
+  const inst=p.kind==='part'?p.inst:null;if(inst==null)return[];
+  const sids=BC.cad.solids.filter(s=>s.inst===inst).map(s=>s.sid);if(!sids.length)return[];
+  const sv=BC.sv,part=sv&&sv.parts.find(x=>sids.includes(x.sid)),on=part?keepClear(part):BC.user.get(sids[0])===true;
+  const set=v=>{sids.forEach(id=>BC.user.set(id,v));render();
+    return`${part?part.name:'This part'}: ${v?'kept clear of (gap checked)':'not checked'}${part?'':'; it is not near the stations now, the choice holds when it is'}.`;};
+  return[{row:'Keep clear',label:'yes',on,go:()=>set(true)},{row:'Keep clear',label:'no',on:!on,go:()=>set(false)}];});
 window.bendCad=function(P){
   const o=opt(),sv=$('cdUse').checked?survey():null;
   const faces=sv?sv.parts.filter(keepClear).flatMap(p=>p.faces):[],ix=faces.length?CadSolids.index(faces,50):null,rad=o.d/2+o.gap;

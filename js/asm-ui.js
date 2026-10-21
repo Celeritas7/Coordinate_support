@@ -135,6 +135,12 @@ function thRender(){if(!ASM)return;const pi=thPipe(),p=ASM.r.pipes[pi];if(!p)ret
   thLibWire(box);
   box.querySelectorAll('input[data-k]').forEach(el=>el.onchange=()=>{TH.pick[el.dataset.k]=el.checked;const r=asmBase(pi);if(r){r.clamps=asmClampViz(pi);rebuild(false);}});}
 
+// Library from the 3D view (asm-view.js): the picked part, or the part a picked CSYS's hole is in
+(window.AV_ACTIONS=window.AV_ACTIONS||[]).push((p,r)=>{if(typeof FixLib==='undefined')return[];
+  const inst=p.kind==='csys'?(p.c.hole?p.c.hole.inst:null):p.inst;if(inst==null)return[];const I=r.instances[inst];
+  const known=FixLib.match(p.kind==='csys'?p.c.name:'',I.label,I.part&&I.part.name);
+  return[known?{order:2,label:`In the Library (${known.type})`,go:()=>{if(typeof showPanel==='function')showPanel('lib');return'';}}
+    :{order:2,label:'Add to library',go:()=>{const e=FixLib.addFromPart(r,inst);return e?`${I.name} added to the Library as a ${e.type}, bore Ø${e.boreMin}–${e.boreMax}. Edit it under Library.`:'Not added.';}}];});
 // Library links and one-click add inside the clamp list
 function thLibWire(box){
   box.querySelectorAll('[data-golib]').forEach(b=>b.onclick=()=>{if(typeof showPanel==='function')showPanel('lib');});
