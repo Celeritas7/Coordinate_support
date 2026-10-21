@@ -169,7 +169,7 @@ Status: **DONE** = in `main` or on `claude/coordinate-support-memory-5m5bwf`; **
 | Q2 | Start / end when the file has no hint | **PARTLY** |
 | Q3 | Pick parts in 3D (Library, start / end, station, side) | **PARTLY** (Library add from the list only) |
 | Q4 | Big STEP files offline | **DONE** for reading (worker + memory); solvers still on the page |
-| Q5 | Show CSYS in 3D | **PARTLY** |
+| Q5 | Show CSYS in 3D | **DONE** |
 | Q6 | Make new CSYS in the app, export to Creo | **NOT STARTED** |
 | Q7 | Suggest where to add clamps | **NOT STARTED** (requirements noted) |
 
@@ -211,7 +211,17 @@ Status: **DONE** = in `main` or on `claude/coordinate-support-memory-5m5bwf`; **
 - Not done: Check / Alternatives / clearance still run on the page's main thread (in short chunks); reading only the parts
   near the route.
 
-### Q5 — Show CSYS (PARTLY)
+### Q5 — Show CSYS (DONE 2026-10-21, `js/asm-view.js`)
+- The open assembly is drawn in 3D even with no route: every part as its edge outline (the face loops StepAsm reads, one
+  LineSegments for the whole file: 797 000 segments on the 20 MB frame), dim; Fit frames it when no route is shown.
+- CSYS as **X / Y / Z arrows** (red / green / blue). Header switch **CSYS: none · on holes · all** (frame: 284 on holes, 769 all);
+  names shown when ≤ 60 are on screen. **parts in 3D** switch hides the outlines.
+- **Click** a CSYS (within 10 px of its origin) or a part line → panel: name, the part it is in, origin and axes (3 decimals),
+  "on a Ø11.0 × 12.0 mm hole"; a part: name, path, size, where it was clicked; picked part in orange. Esc / Close clears.
+  The click costs 1–25 ms on the frame (only parts whose box the ray passes are tested).
+- Other modules add buttons to the panel with `avPickActions(fn)`: that is how Q3 / Q2 / Q6 hang their actions on it.
+- Earlier text, kept for the record:
+### Q5 (as it was)
 - Done: clamp bores drawn as two rings + axis line with the CSYS name; stations labelled; CSYS listed as the frame for .pts.
 - Not done: CSYS drawn as **X / Y / Z arrows**; a toggle to show every CSYS in the file (not only clamp ones); click a CSYS → name,
   position, axes.
