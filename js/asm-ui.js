@@ -92,7 +92,7 @@ function asmApply(note){
 }
 function asmApplied(r,note,t0){
   ASM.r=r;TH.pick={};TH.last=null;TH.cmp=null;const ms=Math.round(performance.now()-t0),s=r.summary,parts=r.instances.filter(i=>i.solids).length;
-  ASM.done=`Open: ${parts} parts, ${r.csys.length} CSYS, ${r.pipes.length} pipe${r.pipes.length===1?'':'s'}, ${(ms/1000).toFixed(1)} s.`;
+  ASM.secs=ms/1000;
   runs=runs.filter(x=>!(x.asm&&x.asm.file===ASM.name));
   const nOv=Object.keys(ASM.ov).length,tree=`${parts} part${parts===1?'':'s'} with solids (${s.solids} solid${s.solids===1?'':'s'}), ${s.csys} coordinate systems${nOv?`, ${nOv} part${nOv>1?'s':''} marked by hand`:''}`;
   const nH=r.pipes.filter(p=>p.kind==='hose').length,nP=r.pipes.length-nH,found=[nP?`${nP} pipe${nP===1?'':'s'}`:'',nH?`${nH} hose${nH===1?'':'s'}`:''].filter(Boolean).join(', ');

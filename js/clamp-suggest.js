@@ -94,17 +94,15 @@ function render(){const box=$('sgList'),R=SG.res;if(!R){box.innerHTML='';return;
   const G=groups(R),fold=R.list.length>12;
   const row=i=>{const q=R.list[i],m=mountTxt(q),lk=likeTxt(q);
     return`<tr data-i="${i}"${SG.on===i?' class="on"':''}><td class="n"><span class="sgchip">+${i+1}</span></td><td class="n">${f0(q.s)}</td>
-      <td>${esc(q.why)}<div class="unit">${m?esc(m):`<span class="sgtag">needs a bracket</span>no part within ${f0(R.reach)} mm`}${lk?' · '+esc(lk):''}</div></td>
-      <td><button type="button" data-mk="${i}">Make CSYS</button></td></tr>`;};
+      <td>${esc(q.why)}<div class="unit">${m?esc(m):`<span class="sgtag">needs a bracket</span>no part within ${f0(R.reach)} mm`}${lk?' · '+esc(lk):''}</div></td></tr>`;};
   box.innerHTML=G.map(g=>`<details class="sggrp"${fold?'':' open'}><summary>${esc(supName(g.a))} → ${esc(supName(g.b))} · ${f0(g.b.s-g.a.s)} mm · ${g.rows.length} clamp${g.rows.length>1?'s':''}</summary>
-    <table><thead><tr><th></th><th>along, mm</th><th>why</th><th></th></tr></thead><tbody>${g.rows.map(row).join('')}</tbody></table></details>`).join('')+
+    <table><thead><tr><th></th><th>along, mm</th><th>why <span class="unit">· click a row for Make CSYS</span></th></tr></thead><tbody>${g.rows.map(row).join('')}</tbody></table></details>`).join('')+
     (R.spans.length?`<details class="sgspans"><summary>Spans before (${R.spans.length})</summary>${R.spans.map(s=>`<div class="unit">${esc(s.from)} → ${esc(s.to)}: ${f0(s.len)} mm</div>`).join('')}</details>`:'');
-  box.querySelectorAll('[data-mk]').forEach(b=>b.onclick=()=>make(R.list[+b.dataset.mk]));
   // row hover ↔ the dot in 3D (as the Points table); click picks it
   box.querySelectorAll('tr[data-i]').forEach(tr=>{const i=+tr.dataset.i,q=R.list[i];
     tr.onpointerenter=()=>{if(marker){marker.position.set(...q.p);marker.visible=true;draw();}};
     tr.onpointerleave=()=>{if(marker){marker.visible=false;draw();}};
-    tr.onclick=e=>{if(e.target.closest('button'))return;if(typeof asmSetPick==='function')asmSetPick({kind:'suggest',i});};});}
+    tr.onclick=()=>{if(typeof asmSetPick==='function')asmSetPick({kind:'suggest',i});};});}
 const make=q=>typeof csysMake==='function'?csysMake(q.p,q.t,null,'RS_CLAMP'):null;
 function makeAll(){SG.res.list.forEach(make);say(`${SG.res.list.length} CSYS made (Z along the route), listed in the CSYS tab for Download .stp.`);}
 const asStation=(q,i)=>({name:`NEW_CLAMP_${i+1}`,c:q.p,d:q.t,part:q.like?q.like.part:''});

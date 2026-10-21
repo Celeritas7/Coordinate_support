@@ -40,7 +40,7 @@ const server = http.createServer((q, s) => {
   await go("hose", "route"); step("Hose / Cable · Route through stations");
   // the page's own way in: top Open… (falls back to the section's Load link if the assembly does not reach the stations list)
   await pg.setInputFiles("#shFile", ASM); flows[cur].loads++;
-  await until("shStatus", /^Open:/, 60); await pg.waitForTimeout(3000); step("Open… piping3_practice_asm.stp", (await text("shStatus")).slice(0, 120));
+  await until("shStatus", /^Opened in/, 60); await pg.waitForTimeout(3000); step("Open… piping3_practice_asm.stp", (await text("shStatus")).slice(0, 120));
   if (await expand("csBox")) step("open “Stations from clamps”");
   await pg.fill("#csD", "12"); await pg.dispatchEvent("#csD", "change"); flows[cur].typedD++; await pg.waitForTimeout(300); step("Hose Ø 12");
   if (!(await pg.evaluate(() => document.querySelectorAll("#csList .csrow").length))) {
@@ -87,7 +87,7 @@ const server = http.createServer((q, s) => {
     await pg.evaluate(() => localStorage.clear()); await pg.reload(); await pg.waitForTimeout(800);
     await go("hose", "route"); step("Hose / Cable · Route through stations");
     await pg.setInputFiles("#shFile", FRAME); flows[cur].loads++;
-    await until("shStatus", /^Open:/, 60); await pg.waitForTimeout(3000); step("Open… frame_asm.stp", (await text("shStatus")).slice(0, 120));
+    await until("shStatus", /^Opened in/, 60); await pg.waitForTimeout(3000); step("Open… frame_asm.stp", (await text("shStatus")).slice(0, 120));
     await pg.evaluate(() => { document.querySelectorAll(".taskpane, #panBend").forEach(e => e.scrollTop = 0); window.scrollTo(0, 0); });
     await shot("F1-header");
     // pick: what the 3D click would set, centred like the “show” button of CSYS made here

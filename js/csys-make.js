@@ -72,9 +72,9 @@ function render(){const n=MK.list.length;
     <div class="mk1"><input class="mkname" value="${esc(c.name)}" aria-label="Name" title="Name (Creo shows it as the CSYS name); click to edit">
       <button type="button" data-show>show</button><button type="button" data-flip>flip Z</button><button type="button" data-turn>X +90°</button><button type="button" class="mkdel" data-del aria-label="Delete ${esc(c.name)}" title="Delete">×</button></div>
     <div class="mk2"><label>at <input class="mko" value="${xyz(c.o)}" spellcheck="false" aria-label="Origin X Y Z"></label>
-      <label>· Z <select class="mkzs" aria-label="Z axis">${AXES.map(([w])=>`<option${w===za?' selected':''}>${w}</option>`).join('')}<option value="typed"${za?'':' selected'}>typed…</option></select></label>
+      <label>Z <select class="mkzs" aria-label="Z axis">${AXES.map(([w])=>`<option${w===za?' selected':''}>${w}</option>`).join('')}<option value="typed"${za?'':' selected'}>typed…</option></select></label>
       <input class="mkz" value="${xyz(c.z)}" spellcheck="false" aria-label="Z as dX dY dZ"${za?' hidden':''}>
-      <span>· X ${xa||xyz(c.x)}</span></div></div>`;}).join('')||
+      <span>X ${xa||xyz(c.x)}</span></div></div>`;}).join('')||
     '<p class="hint">None yet. Click a part, hole or CSYS in the 3D view and choose “New CSYS here”, or type a point below.</p>';
   $('mkList').querySelectorAll('.mkrow').forEach(row=>{const i=+row.dataset.i,c=MK.list[i];
     row.querySelector('.mkname').onchange=e=>{c.name=CsysMake.stepName(e.target.value);done(`Renamed to ${c.name}.`);};

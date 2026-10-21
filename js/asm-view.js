@@ -135,7 +135,8 @@ function panel(){
   const radio=a=>`<button type="button" role="radio" aria-checked="${!!a.on}" tabindex="${a.on?0:-1}" data-a="${acts.indexOf(a)}"${a.title?` title="${esc(a.title)}"`:''}>${esc(a.label)}</button>`;
   const grp=g=>{const A=acts.filter(a=>gname(a)===g).sort((a,b)=>(a.order||5)-(b.order||5)),rows=A.filter(a=>a.row),plain=A.filter(a=>!a.row);
     return`<div class="avgrp"><span class="unit">${esc(g)}</span>${plain.length?`<div class="avacts">${plain.map(btn).join('')}</div>`:''}${rows.length?`<div class="seg" role="radiogroup" aria-label="${esc(g)}">${rows.map(radio).join('')}</div>`:''}</div>`;};
-  el.innerHTML=`<div class="avhead"><span><b>${esc(F.name)}</b> <span class="unit">· ${esc(F.kind)}${F.parent?' · '+esc(F.parent):''}</span></span><button type="button" class="avx" data-x aria-label="Close (Esc)" title="Close (Esc)">×</button></div>`+
+  el.innerHTML=`<div class="avhead"><span><b>${esc(F.name)}</b> <span class="unit">· ${esc(F.kind)}</span></span><button type="button" class="avx" data-x aria-label="Close (Esc)" title="Close (Esc)">×</button></div>`+
+    (F.parent?`<div class="avpar">${esc(F.parent)}</div>`:'')+
     (F.grid.length?`<div class="avgrid">${F.grid.join('')}</div>`:'')+line.map(t=>`<div class="avfact">${esc(t)}</div>`).join('')+
     names.map(grp).join('')+(AV.msg?`<div class="avmsg">${esc(AV.msg)}</div>`:'');
   el.hidden=false;

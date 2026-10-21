@@ -84,10 +84,10 @@ function openAssembly(f){
   const hose=st.mod==='hose'&&st.task.hose==='route'&&$('shape').value!=='arc';
   if(!hose)go('pipe',st.task.pipe==='clamps'||st.task.pipe==='offset'?st.task.pipe:'asm');
   else{$('csBox').open=true;$('cdBox').open=true;}
-  const where=hose?`stations and parts to keep clear of in ${label('hose','route')}; also open in Pipe`:`in ${label('pipe',st.task.pipe)}`;
+  const where=hose?`Stations and parts to keep clear of are in ${label('hose','route')}; also open in Pipe.`:`Open in ${label('pipe',st.task.pipe)}.`;
   document.addEventListener('asm:loaded',e=>{const a=e.detail;if(!a||a.name!==f.name)return;
     if(hose&&typeof bcFromAsm==='function')bcFromAsm(a);
-    say(`${a.done||'Open.'} ${f.name}: ${where}.`);
+    say(`Opened in ${(a.secs||0).toFixed(1)} s. ${where}`);
     $('shAsm').hidden=false;$('shAsmTxt').textContent=asmLine(a);},{once:true});
   asmLoad(f);}
 window.openAssembly=openAssembly;window.goTask=go;
