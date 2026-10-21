@@ -168,7 +168,7 @@ Status: **DONE** = in `main` or on `claude/coordinate-support-memory-5m5bwf`; **
 | Q1 | Route through the clamps you have, no route in the file | **DONE** |
 | Q2 | Start / end when the file has no hint | **PARTLY** |
 | Q3 | Pick parts in 3D (Library, start / end, station, side) | **PARTLY** (Library add from the list only) |
-| Q4 | Big STEP files offline | **PARTLY** + **BRANCH** (worker parse) |
+| Q4 | Big STEP files offline | **DONE** for reading (worker + memory); solvers still on the page |
 | Q5 | Show CSYS in 3D | **PARTLY** |
 | Q6 | Make new CSYS in the app, export to Creo | **NOT STARTED** |
 | Q7 | Suggest where to add clamps | **NOT STARTED** (requirements noted) |
@@ -199,8 +199,17 @@ Status: **DONE** = in `main` or on `claude/coordinate-support-memory-5m5bwf`; **
 - **On branch `claude/app-function-visibility-llqw97` (2026-10-08), not merged:** STEP parse in a **Web Worker** with a progress
   bar (page stays responsive), per-part edge cloud and exact world boxes, `tests/asm-cloud.test.js`. It branched from main
   before Phases 12–13 and 0–3 changed `js/step-asm.js` a lot, so it needs a careful merge, not a straight one.
+- **Built 2026-10-21**, measured on the user's 20 MB Creo frame assembly (312 000 entities, 338 solids, 769 CSYS):
+  - memory kept after reading **239 → 76 MB**; peak while reading **~250 → ~120 MB** (about 6× the file). The result's methods
+    used to keep the whole entity table alive; entities are now indexed without decoding and decoded per part.
+  - **read in a Web Worker** (`StepAsm.parseAsync`, built from `step-asm.js` as a Blob, so it works from `file://`), progress in
+    the status line ("reading parts 59 %"). Longest page freeze **2.0 s → 0.4 s** (the 0.4 s is unpacking the result on the
+    page); total 2.2 → 4.2 s. Falls back to the page when Workers are missing. Output fingerprinted identical before / after.
+  - Rough limits now: a browser tab holds ~4 GB, so files up to ~500 MB should read; past that the next step is reading
+    only the parts near the route.
+  - The old branch's edge cloud is not ported (nothing uses it yet); its worker idea is.
 - Not done: Check / Alternatives / clearance still run on the page's main thread (in short chunks); reading only the parts
-  near the route; measured times on a large file. Needs from the user: typical and largest STEP size.
+  near the route.
 
 ### Q5 — Show CSYS (PARTLY)
 - Done: clamp bores drawn as two rings + axis line with the CSYS name; stations labelled; CSYS listed as the frame for .pts.

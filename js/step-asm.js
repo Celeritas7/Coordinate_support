@@ -4,7 +4,7 @@
  * cross-checked against the part's datum curves when Creo exported them.
  * No DOM. Browser: window.StepAsm. Node: require('./step-asm.js').
  */
-(function (root) {
+(function factory(root) {
 "use strict";
 const sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]],add=(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]],mul=(a,s)=>[a[0]*s,a[1]*s,a[2]*s],
 dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2],cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],
@@ -219,7 +219,10 @@ function nearest(ch,p){let bd=Infinity,bq=null,bs=0,s0=0;
 function parse(text,opts){
   opts=opts||{};const force=opts.pipe||{};
   // E: id → raw text. D: decoded entities, emptied after each part is read so the peak follows one part, not the file
-  const E=tokenize(text),D=new Map();
+  const progress=typeof opts.progress==='function'?opts.progress:null,clock=()=>typeof performance!=='undefined'?performance.now():Date.now();
+  let told=0;const tell=(stage,f)=>{if(!progress)return;const t=clock();if(f>0&&f<1&&t-told<100)return;told=t;progress(stage,f);};
+  tell('Reading entities',0);
+  const E=tokenize(text),D=new Map();tell('Reading entities',1);
   const get=id=>{let e=D.get(id);if(e)return e;const raw=E.get(id);if(raw==null)return null;e=decode({raw});D.set(id,e);return e;};
   const has=(e,k)=>!!e&&e.kinds.includes(k),A=(e,k)=>e.argsOf[k]||e.args;
   // index by entity kind without decoding: most entities (edges, points of faces nobody asks about) are never read, and
@@ -342,7 +345,7 @@ function parse(text,opts){
   const repOwner=new Map();for(const P of products.values()){const seen=new Set(),q=P.reps.slice();while(q.length){const r=q.pop();if(seen.has(r))continue;seen.add(r);for(const x of(srr.get(r)||[]))q.push(x);}P.reps=[...seen];P.reps.forEach(r=>repOwner.set(r,P.pd));}
 
   const partCache=new Map();
-  function part(pd){if(partCache.has(pd))return partCache.get(pd);const P=products.get(pd);
+  function part(pd){if(partCache.has(pd))return partCache.get(pd);const P=products.get(pd);tell('Reading parts',partCache.size/products.size);
     const items=[];for(const r of P.reps){const e=get(r);if(!e)continue;const k=e.kinds.find(k=>/REPRESENTATION$/.test(k));if(!k)continue;const a=e.argsOf[k];if(a&&a[1]&&a[1][0]==='(')items.push(...refs(a[1]));}
     const g={name:P.name,pd,csys:[],points:[],curves:[],solids:[]},seen=new Set();
     const take=id=>{if(seen.has(id))return;seen.add(id);const e=get(id);if(!e)return;
@@ -423,8 +426,18 @@ function parse(text,opts){
         const h={inst:idx,name:inst.name,label:inst.label,csys:on.length?on[0].name:null,c,d:g.d,r:rmin,D:2*rmin,length:L};holes.push(h);
         if(on.length)fixings.push(h);}});});
 
+  // the methods below close over this whole function: free the entity table (most of the memory on a big file) first
+  const nEnt=E.size;E.clear();D.clear();byKind.clear();
+  tell('Done',1);
+  return attach({product,units,degrees,entities:nEnt,products:[...products.values()].map(P=>({pd:P.pd,name:P.name,pid:P.pid})),instances,csys,points,pipes,fixings,holes,
+    summary:{parts:products.size,instances:instances.length,solids:instances.reduce((s,i)=>s+i.solids,0),pipes:pipes.length,fixings:fixings.length,csys:csys.length,points:points.length}});
+}
+
+// methods on a parse result, kept outside parse() so a result made in a Web Worker (plain data) gets them back
+function attach(r){
+  const{csys,pipes,fixings}=r;
   // which named frame a .pts file is written in: the one that lands its points on the centreline or its corners
-  function matchFrame(pts,pipe){let best=null;
+  r.matchFrame=function(pts,pipe){let best=null;
     const cands=[{name:'file origin',M:F.id()}].concat(csys.map(c=>({name:c.name,M:{o:c.o,x:c.x,y:c.y,z:c.z}})));
     const distQ=p=>Math.min(...pipe.Q.map(q=>len(sub(q,p))));
     for(const c of cands){const errs=pts.map(p=>{const w=F.pt(c.M,p);return Math.min(nearest(pipe.chain,w).d,distQ(w));}).sort((a,b)=>a-b);
@@ -432,22 +445,46 @@ function parse(text,opts){
     return best;}
 
   // the clamps that matter for one pipe: bore fits its OD (±1.5 mm), not its own end fitting, not holding another pipe
-  function clampsFor(pi){const p=pipes[pi];if(!p)return[];
+  r.clampsFor=function(pi){const p=pipes[pi];if(!p)return[];
     const through=(q,x)=>{const v=nearest(q.chain,x.c);return v.d<=0.5;};
     return fixings.map((x,i)=>{const dist=nearest(p.chain,x.c).d,fits=Math.abs(x.D-p.OD)<=1.5,passes=dist<=0.5;
       const end=passes&&Math.min(len(sub(x.c,p.info.start)),len(sub(x.c,p.info.end)))<x.length/2+p.OD;
       const other=pipes.find((q,j)=>j!==pi&&through(q,x));
       return{i,fix:x,dist,fits,passes,end,holds:other?other.name:null,use:fits&&!end&&!other};})
       .filter(c=>c.fits).sort((a,b)=>(b.use-a.use)||(a.dist-b.dist));}
-
-  // the methods below close over this whole function: free the entity table (most of the memory on a big file) first
-  const nEnt=E.size;E.clear();D.clear();byKind.clear();
-  return{product,units,degrees,entities:nEnt,products:[...products.values()].map(P=>({pd:P.pd,name:P.name,pid:P.pid})),instances,csys,points,pipes,fixings,holes,clampsFor,
-    matchFrame,toFrame:F.toLocal,fromFrame:F.pt,nearest,
-    summary:{parts:products.size,instances:instances.length,solids:instances.reduce((s,i)=>s+i.solids,0),pipes:pipes.length,fixings:fixings.length,csys:csys.length,points:points.length}};
+  r.toFrame=F.toLocal;r.fromFrame=F.pt;r.nearest=nearest;
+  return r;
 }
 
-const API={parse,chain,describe,sample,nearest,F};
+// ---------- parse in a Web Worker, with progress ----------
+// The worker is built from this file's own source (a Blob URL), so it also runs when index.html is opened from disk.
+// The page stays live while a big file is read. Without Worker support (or if the worker fails to start) it parses
+// on the page. opts.progress(stage, fraction) is called from either.
+const WORKER_MAIN=`self.onmessage=function(ev){try{
+  var r=StepAsm.parse(ev.data.text,{pipe:ev.data.pipe,progress:function(stage,f){self.postMessage({type:'progress',stage:stage,f:f});}});
+  var out={};for(var k in r)if(typeof r[k]!=='function')out[k]=r[k];
+  self.postMessage({type:'done',r:out});
+}catch(e){self.postMessage({type:'error',message:String(e&&e.message||e)});}};`;
+let workerURL=null;
+function parseAsync(text,opts){opts=opts||{};
+  return new Promise((resolve,reject)=>{
+    const onPage=()=>setTimeout(()=>{try{resolve(parse(text,opts));}catch(e){reject(e);}},20);
+    let w=null;
+    try{if(!opts.noWorker&&typeof Worker!=='undefined'&&typeof Blob!=='undefined'&&typeof URL!=='undefined'&&URL.createObjectURL){
+      if(!workerURL)workerURL=URL.createObjectURL(new Blob(['('+factory.toString()+')(self);\n'+WORKER_MAIN],{type:'text/javascript'}));
+      w=new Worker(workerURL);}}catch(e){w=null;}
+    if(!w)return onPage();
+    let heard=false;
+    w.onmessage=ev=>{const m=ev.data;heard=true;
+      if(m.type==='progress'){if(opts.progress)opts.progress(m.stage,m.f);}
+      else if(m.type==='done'){w.terminate();resolve(attach(m.r));}
+      else{w.terminate();reject(new Error(m.message));}};
+    w.onerror=ev=>{if(ev&&ev.preventDefault)ev.preventDefault();w.terminate();if(heard)reject(new Error((ev&&ev.message)||'STEP worker failed'));else onPage();};
+    w.postMessage({text:String(text),pipe:opts.pipe||{}});
+  });
+}
+
+const API={parse,parseAsync,attach,chain,describe,sample,nearest,F};
 if(typeof module!=="undefined"&&module.exports)module.exports=API;
 root.StepAsm=API;
 })(typeof globalThis!=="undefined"?globalThis:this);
