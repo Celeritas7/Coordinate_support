@@ -170,7 +170,7 @@ Status: **DONE** = in `main` or on `claude/coordinate-support-memory-5m5bwf`; **
 | Q3 | Pick parts in 3D (Library, start / end, station, side) | **DONE** |
 | Q4 | Big STEP files offline | **DONE** for reading (worker + memory); solvers still on the page |
 | Q5 | Show CSYS in 3D | **DONE** |
-| Q6 | Make new CSYS in the app, export to Creo | **NOT STARTED** |
+| Q6 | Make new CSYS in the app, export to Creo | **DONE** (Creo import still to try) |
 | Q7 | Suggest where to add clamps | **NOT STARTED** (requirements noted) |
 
 ### Q1 — Route through existing clamps (DONE)
@@ -219,11 +219,16 @@ Click a part or a CSYS in the 3D view (Q5); the panel offers what fits the open 
   The click costs 1–25 ms on the frame (only parts whose box the ray passes are tested).
 - Other modules add buttons to the panel with `avPickActions(fn)`: that is how Q3 / Q2 / Q6 hang their actions on it.
 
-### Q6 — Make CSYS in the app, export for Creo (NOT STARTED)
-- Already there to build on: STEP export of route points + one frame CSYS (`cad-io.js`).
-- To build: new CSYS at a clicked point / hole / suggested clamp position / route station, Z along the bore or the route
-  tangent, named by the user; listed, editable, deleted; exported as `AXIS2_PLACEMENT_3D` in a STEP to import into Creo.
-- Depends on Q3 (click to place) and Q5 (to see them).
+### Q6 — Make CSYS in the app, export for Creo (DONE 2026-10-21, `js/csys-make.js`)
+- **New CSYS here** in the pick panel: on a part → at its nearest hole's centre, Z along the bore (else the clicked point, Z up);
+  on a CSYS → at its hole (or a copy of it). Also **New at X Y Z** typed. Names `<part>_CS1`, `<csys>_RS1`, `RS_CS1`, never one
+  the file already has.
+- **CSYS made here (n)** under the assembly line: rename, origin and Z typed, **flip Z**, **X +90°**, show, delete; saved per file.
+  Drawn in 3D with amber names, pickable (Flip Z · X +90° · Delete, and Use as start / end / station).
+- **Download .stp for Creo**: AP203, mm, assembly coordinates, each CSYS a named `AXIS2_PLACEMENT_3D`; assemble it at the
+  default placement. **Copy table** gives name, origin, Z, X as text. `tests/csys-make.test.js`: frames orthonormal, flip / turn,
+  the file read back by both STEP readers to 1e-9.
+- Not checked: the import in Creo itself (no Creo here) — first thing to try with the user.
 
 ### Q7 — Suggest extra clamps (NOT STARTED)
 - After routing through the existing clamps: spans longer than the max spacing, and both sides of bends → suggested clamp

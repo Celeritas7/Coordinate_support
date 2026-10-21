@@ -48,14 +48,16 @@ window.asmOverlay=(content,g)=>{
     if(AV.pick&&AV.pick.kind==='part'){const [s,c]=G.ranges[AV.pick.inst]||[0,0];
       if(c){const hg=new THREE.BufferGeometry();hg.setAttribute('position',G.g.getAttribute('position'));hg.setDrawRange(s*2,c*2);
         const hl=new THREE.LineSegments(hg,new THREE.LineBasicMaterial({color:new THREE.Color(css('--alt1'))}));hl.userData.keep=true;content.add(hl);}}}
-  const C=csysList(r),L=axLen();AV.shown=C;
+  // CSYS made here (csys-make.js) are always drawn, named, and pickable
+  const made=(typeof csysMade==='function'?csysMade():[]).map((c,i)=>({...c,made:true,i,inst:null}));
+  const C=csysList(r).concat(made),L=axLen();AV.shown=C;
   if(C.length){const pos=new Float32Array(C.length*18),col=new Float32Array(C.length*18);
     const cx=[new THREE.Color('#E03131'),new THREE.Color('#2F9E44'),new THREE.Color('#1971C2')];
     C.forEach((c,i)=>{[c.x,c.y,c.z].forEach((a,j)=>{const o=i*18+j*6;
       pos.set([c.o[0],c.o[1],c.o[2],c.o[0]+a[0]*L,c.o[1]+a[1]*L,c.o[2]+a[2]*L],o);col.set([cx[j].r,cx[j].g,cx[j].b,cx[j].r,cx[j].g,cx[j].b],o);});});
     const tg=new THREE.BufferGeometry();tg.setAttribute('position',new THREE.BufferAttribute(pos,3));tg.setAttribute('color',new THREE.BufferAttribute(col,3));
     content.add(new THREE.LineSegments(tg,new THREE.LineBasicMaterial({vertexColors:true})));
-    if(C.length<=60)C.forEach(c=>g.addTag(c.o,c.name,'t'));}
+    if(C.length-made.length<=60)C.forEach(c=>{if(!c.made)g.addTag(c.o,c.name,'t');});made.forEach(c=>g.addTag(c.o,c.name,'warn'));}
   if(AV.pick&&AV.pick.kind==='csys'){const c=AV.pick.c;g.addTag(c.o,c.name,'');
     const m=new THREE.Mesh(g.sg,new THREE.MeshBasicMaterial({color:new THREE.Color(css('--alt1'))}));
     m.position.set(...c.o);m.scale.setScalar(L*0.15);content.add(m);}
@@ -98,7 +100,7 @@ function panel(){
   if(!p||!r){el.hidden=true;el.innerHTML='';return;}
   const inst=r.instances[p.inst]||{},bb=inst.bbox;let h='';
   if(p.kind==='csys'){const c=p.c;
-    h=`<b>${esc(c.name)}</b> <span class="unit">coordinate system</span><div class="unit">in ${esc(inst.label||inst.name||'')}</div>
+    h=`<b>${esc(c.name)}</b> <span class="unit">coordinate system</span><div class="unit">${c.made?'made here (CSYS made here, for export to Creo)':'in '+esc(inst.label||inst.name||'')}</div>
       <div class="avxyz">origin ${vec(c.o)}<br><span style="color:#E03131">X</span> ${vec(c.x)}<br><span style="color:#2F9E44">Y</span> ${vec(c.y)}<br><span style="color:#1971C2">Z</span> ${vec(c.z)}</div>
       ${c.hole?`<div class="unit">on a Ø${f1(c.hole.D)} × ${f1(c.hole.length)} mm hole</div>`:''}`;}
   else h=`<b>${esc(inst.name||'part')}</b> <span class="unit">part</span><div class="unit">${esc(inst.label||'')}</div>

@@ -26,6 +26,12 @@
     <div class="shasm" id="shAsm" hidden><span class="unit">Assembly:</span> <span id="shAsmTxt"></span> <button type="button" class="linkish" id="shAsmGo">pipes</button>
       <span class="avctl"><label class="chk"><input type="checkbox" id="avParts" checked> parts in 3D</label>
       <label>CSYS <select id="avCsys"><option value="off">none</option><option value="fix" selected>on holes</option><option value="all">all</option></select></label></span></div>
+    <details class="mkbox" id="mkBox" hidden><summary>CSYS made here (<span id="mkN">0</span>)</summary>
+      <div id="mkList"></div>
+      <div class="mkadd"><label>New at <input id="mkXYZ" placeholder="X Y Z" spellcheck="false"></label> <button type="button" id="mkAdd">Add</button>
+        <button type="button" id="mkExport">Download .stp for Creo</button> <button type="button" id="mkCopy">Copy table</button></div>
+      <div class="status" id="mkStatus"></div>
+    </details>
     <input type="file" id="shFile" multiple accept=".pts,.txt,.csv,.ibl,.igs,.iges,.stp,.step" hidden>
   </header>
 
@@ -426,5 +432,6 @@
 <script src="js/alt-ui.js"></script>
 <script src="js/shell.js"></script>
 <script src="js/asm-view.js"></script>
+<script src="js/csys-make.js"></script>
 </body>
 </html>

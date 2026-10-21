@@ -238,3 +238,10 @@ textarea[data-drop]{outline:2px dashed var(--ok);outline-offset:1px}
 .avpick .avrow button{border:1px solid var(--rule);border-radius:4px;background:var(--field);color:var(--ink);font:500 12px var(--sans);padding:2px 8px;cursor:pointer}
 .avpick .avrow button[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
 .avpick .avmsg{margin-top:6px;color:var(--muted)}
+/* CSYS made here (csys-make.js) */
+.mkbox{font-size:12.5px;margin:0 0 8px}.mkbox summary{cursor:pointer}
+.mkrow{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;padding:5px 0;border-bottom:1px solid var(--rule)}
+.mkrow input{font:12px var(--mono,ui-monospace,monospace);padding:2px 4px;border:1px solid var(--rule);border-radius:3px;background:var(--field);color:var(--ink)}
+.mkrow .mkname{width:11em;font-weight:600}.mkrow .mko,.mkrow .mkz{width:15em}
+.mkrow .mkbtn{display:flex;gap:4px}.mkrow button,.mkadd button{border:1px solid var(--rule);border-radius:4px;background:var(--field);color:var(--ink);font:500 12px var(--sans);padding:2px 8px;cursor:pointer}
+.mkadd{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px}.mkadd input{width:14em}
