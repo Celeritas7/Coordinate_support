@@ -33,7 +33,7 @@ function tokenize(text){
     if(!any||s[j]!=='='){i=h+1;continue;}
     j++;let depth=0,q=false,k=j;
     for(;k<n;k++){const c=s[k];if(q){if(c==="'")q=false;continue;}if(c==="'")q=true;else if(c==='(')depth++;else if(c===')')depth--;else if(c===';'&&depth===0)break;}
-    ents.set(id,{raw:s.slice(j,k).trim()});i=k+1;
+    ents.set(id,s.slice(j,k).trim());i=k+1;
   }
   return ents;
 }
@@ -218,9 +218,16 @@ function nearest(ch,p){let bd=Infinity,bq=null,bs=0,s0=0;
 // opts.pipe: {partName: true|false} — user override of pipe detection (true = this is the pipe, false = not a pipe)
 function parse(text,opts){
   opts=opts||{};const force=opts.pipe||{};
-  const E=tokenize(text);const get=id=>{const e=E.get(id);return e?decode(e):null;};
+  // E: id → raw text. D: decoded entities, emptied after each part is read so the peak follows one part, not the file
+  const E=tokenize(text),D=new Map();
+  const get=id=>{let e=D.get(id);if(e)return e;const raw=E.get(id);if(raw==null)return null;e=decode({raw});D.set(id,e);return e;};
   const has=(e,k)=>!!e&&e.kinds.includes(k),A=(e,k)=>e.argsOf[k]||e.args;
-  const byKind=new Map();for(const [id,e] of E){decode(e);for(const k of e.kinds){if(!byKind.has(k))byKind.set(k,[]);byKind.get(k).push(id);}}
+  // index by entity kind without decoding: most entities (edges, points of faces nobody asks about) are never read, and
+  // decoding them all cost most of the time and memory on a big assembly. Complex "(A(..)B(..))" ones are decoded here.
+  const byKind=new Map(),index=(k,id)=>{let L=byKind.get(k);if(!L)byKind.set(k,L=[]);L.push(id);};
+  for(const [id,raw] of E){
+    if(raw[0]==='('){for(const k of get(id).kinds)index(k,id);continue;}
+    const p=raw.indexOf('(');index(p<0?raw:raw.slice(0,p).trim(),id);}
   const list=k=>byKind.get(k)||[];
   let unitScale=1,units='MM';
   for(const id of list('CONVERSION_BASED_UNIT')){if(/INCH/i.test(get(id).raw)){unitScale=25.4;units='INCH';}}
@@ -345,7 +352,7 @@ function parse(text,opts){
       else if(has(e,'TRIMMED_CURVE')||has(e,'B_SPLINE_CURVE_WITH_KNOTS')||has(e,'COMPOSITE_CURVE'))g.curves.push(...curveItem(id));
       else if(has(e,'MANIFOLD_SOLID_BREP')||has(e,'BREP_WITH_VOIDS')){const s=solid(id);if(s)g.solids.push(s);}};
     items.forEach(take);
-    const pr=pipeOf(g);g.pipe=pr.pipe;g.pipeWhy=pr.why;g.pipeForced=pr.forced;g.pipeBest=pr.best||null;partCache.set(pd,g);return g;}
+    const pr=pipeOf(g);g.pipe=pr.pipe;g.pipeWhy=pr.why;g.pipeForced=pr.forced;g.pipeBest=pr.best||null;partCache.set(pd,g);D.clear();return g;}
 
   // the swept solid: longest recoverable centreline; cylinders + tori (+ end planes), or tube-shaped spline faces for a hose.
   // force[name]===true takes the best candidate whatever its size; false skips the part. why = reason it is (not) a pipe
@@ -433,8 +440,10 @@ function parse(text,opts){
       return{i,fix:x,dist,fits,passes,end,holds:other?other.name:null,use:fits&&!end&&!other};})
       .filter(c=>c.fits).sort((a,b)=>(b.use-a.use)||(a.dist-b.dist));}
 
-  return{product,units,degrees,entities:E.size,products:[...products.values()].map(P=>({pd:P.pd,name:P.name,pid:P.pid})),instances,csys,points,pipes,fixings,holes,clampsFor,
-    matchFrame,toFrame:F.toLocal,fromFrame:F.pt,nearest,debug:{solidPieces,part},
+  // the methods below close over this whole function: free the entity table (most of the memory on a big file) first
+  const nEnt=E.size;E.clear();D.clear();byKind.clear();
+  return{product,units,degrees,entities:nEnt,products:[...products.values()].map(P=>({pd:P.pd,name:P.name,pid:P.pid})),instances,csys,points,pipes,fixings,holes,clampsFor,
+    matchFrame,toFrame:F.toLocal,fromFrame:F.pt,nearest,
     summary:{parts:products.size,instances:instances.length,solids:instances.reduce((s,i)=>s+i.solids,0),pipes:pipes.length,fixings:fixings.length,csys:csys.length,points:points.length}};
 }
 
