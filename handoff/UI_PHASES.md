@@ -154,3 +154,75 @@ Only after 1–4, because they decide what the strip needs to hold.
 ## What to hand each session
 - **Claude Design:** this file, `handoff/PREP_files_and_ui.md`, the screenshots in `handoff/shots/`, the phase's acceptance list.
 - **Claude Code:** this file, the phase number, the design's mockup / checklist, and the sample set in `samples/`.
+
+---
+
+## Phases from the user's questions (2026-10-21)
+The user's job: **no route yet, only the clamps that exist** (clamp type mostly fixed by location); route through them, see where
+more clamps are needed, pick things in 3D, make CSYS for Creo, and keep big STEP files workable offline.
+Status: **DONE** = in `main` or on `claude/coordinate-support-memory-5m5bwf`; **BRANCH** = built but only on another branch;
+**PARTLY** / **NOT STARTED** as written.
+
+| # | Phase | Status |
+|---|-------|--------|
+| Q1 | Route through the clamps you have, no route in the file | **DONE** |
+| Q2 | Start / end when the file has no hint | **PARTLY** |
+| Q3 | Pick parts in 3D (Library, start / end, station, side) | **PARTLY** (Library add from the list only) |
+| Q4 | Big STEP files offline | **PARTLY** + **BRANCH** (worker parse) |
+| Q5 | Show CSYS in 3D | **PARTLY** |
+| Q6 | Make new CSYS in the app, export to Creo | **NOT STARTED** |
+| Q7 | Suggest where to add clamps | **NOT STARTED** (requirements noted) |
+
+### Q1 — Route through existing clamps (DONE)
+- Hose · Stations from clamps lists every bore that fits the hose Ø (−0.2 / +1.5) with a CSYS or a Library match, orders them
+  (nearest neighbour + 2-opt), Check routes through them keeping clear of the ticked parts. Phases 1–3 above.
+- Pipe · Through clamps does the same for an existing pipe.
+- Not checked in this session: the samples are local only.
+
+### Q2 — Start / end without hints in the file (PARTLY)
+- Done: **Start** / **End** pickers among the listed clamps; a pipe's end fittings become Start / End by themselves; start / end
+  directions can be typed under "Fix end directions".
+- Not done: a start or end that is **not a clamp** (connector port, bulkhead): today it needs a CSYS on it in Creo, or typed
+  coordinates. Comes with Q3 (click a face / hole → Use as start) and Q6 (make a CSYS there).
+
+### Q3 — Pick in 3D (PARTLY)
+- Done: **Add to library** on a clamp-list row (`FixLib.addFromPart`).
+- Not done: clicking a part in the 3D view. No part raycasting today (only the Refine point drag). Parts are drawn as boxes /
+  face boxes, not meshes, so picking would hit their boxes first (good enough for clamps and brackets; exact once faces are
+  tessellated, ROADMAP Phase 13).
+- Click → menu: Add to library · Use as start / end · Use as station · Keep clear on / off · Pass it above / below / left / right
+  (that is Phase 4b step 3).
+- Needs: Claude Design for the menu; nothing else.
+
+### Q4 — Big STEP files, offline (PARTLY + BRANCH)
+- Done: everything runs on the user's computer; nothing is uploaded. The assembly is read once per session (Phase 2).
+- **On branch `claude/app-function-visibility-llqw97` (2026-10-08), not merged:** STEP parse in a **Web Worker** with a progress
+  bar (page stays responsive), per-part edge cloud and exact world boxes, `tests/asm-cloud.test.js`. It branched from main
+  before Phases 12–13 and 0–3 changed `js/step-asm.js` a lot, so it needs a careful merge, not a straight one.
+- Not done: Check / Alternatives / clearance still run on the page's main thread (in short chunks); reading only the parts
+  near the route; measured times on a large file. Needs from the user: typical and largest STEP size.
+
+### Q5 — Show CSYS (PARTLY)
+- Done: clamp bores drawn as two rings + axis line with the CSYS name; stations labelled; CSYS listed as the frame for .pts.
+- Not done: CSYS drawn as **X / Y / Z arrows**; a toggle to show every CSYS in the file (not only clamp ones); click a CSYS → name,
+  position, axes.
+
+### Q6 — Make CSYS in the app, export for Creo (NOT STARTED)
+- Already there to build on: STEP export of route points + one frame CSYS (`cad-io.js`).
+- To build: new CSYS at a clicked point / hole / suggested clamp position / route station, Z along the bore or the route
+  tangent, named by the user; listed, editable, deleted; exported as `AXIS2_PLACEMENT_3D` in a STEP to import into Creo.
+- Depends on Q3 (click to place) and Q5 (to see them).
+
+### Q7 — Suggest extra clamps (NOT STARTED)
+- After routing through the existing clamps: spans longer than the max spacing, and both sides of bends → suggested clamp
+  positions on the route; each moved onto the nearest part it can mount on (bracket, rail, plate) within reach; clamp **type
+  from a location rule** (by part, zone or Ø) and from the Library; access for hand and tool scored.
+- Requirements already written: ROADMAP Phase 18 (spacing cable 150 / hose 300 mm, clamps either side of a bend) and
+  "Clamp placement on a mounting plate" on branch `claude/app-function-visibility-llqw97` (allowed positions only, no
+  interference, ease of clamping ranks).
+- Output: suggested clamps as CSYS (Q6) for Creo, and as stations for a re-route.
+- Needs from the user: max spacing (hose / cable / pipe), the clamp-type-by-location rule.
+
+### Suggested order
+Q3 (pick in 3D) → Q5 (show CSYS) → Q6 (make CSYS) → Q7 (suggest clamps) ; Q4 worker merge alongside, before files get large.
+Q2's last gap closes with Q3 + Q6.
