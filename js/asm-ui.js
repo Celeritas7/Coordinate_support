@@ -77,14 +77,22 @@ function asmTexts(){const F=asmFrame();
 // parse (again) with the saved overrides and replace this file's runs. The parse runs in a Web Worker (StepAsm.parseAsync)
 // so the page stays live on a big file; a newer read replaces an older one still running.
 let asmSeq=0;
+// while reading: one line ("Reading frame_asm.stp, 20.3 MB: parts 59 %") and a 2 px bar under the Pipe status and the header
+// status; f = null removes the bars. The stage "reading the file" has no %, "parts" has
+function asmProgress(line,f){['statusPipe','shStatus'].forEach(id=>{const el=$(id);if(!el)return;let b=el.nextElementSibling;
+  if(f==null){if(b&&b.classList.contains('pbar'))b.remove();return;}
+  if(!b||!b.classList.contains('pbar')){b=document.createElement('div');b.className='pbar';b.innerHTML='<i></i>';el.after(b);}
+  b.firstChild.style.width=Math.round(f*100)+'%';if(id==='statusPipe')cadSay(id,line);else el.textContent=line;});}
 function asmApply(note){
-  const t0=performance.now(),A=ASM,id=++asmSeq,mb=(A.text.length/1e6).toFixed(1);
-  cadSay('statusPipe',`Reading ${A.name} (${mb} MB)...`);
-  StepAsm.parseAsync(A.text,{pipe:A.ov,progress:(stage,f)=>{if(id===asmSeq)cadSay('statusPipe',`Reading ${A.name} (${mb} MB): ${stage.toLowerCase()}${f>0&&f<1?` ${Math.round(f*100)} %`:''}...`);}})
-    .then(r=>{if(id===asmSeq&&ASM===A)asmApplied(r,note,t0);},e=>{if(id===asmSeq)cadSay('statusPipe',`${A.name}: ${e.message}`,true);});
+  const t0=performance.now(),A=ASM,id=++asmSeq,mb=(A.text.length/1e6).toFixed(1),head=`Reading ${A.name}, ${mb} MB`;
+  asmProgress(`${head}: reading the file`,0);
+  StepAsm.parseAsync(A.text,{pipe:A.ov,progress:(stage,f)=>{if(id!==asmSeq)return;const pc=stage==='parts';
+    asmProgress(`${head}: ${stage}${pc?` ${Math.round(f*100)} %`:''}`,pc?0.1+0.9*f:0.05);}})
+    .then(r=>{if(id===asmSeq&&ASM===A){asmProgress('',null);asmApplied(r,note,t0);}},e=>{if(id===asmSeq){asmProgress('',null);cadSay('statusPipe',`${A.name}: ${e.message}`,true);}});
 }
 function asmApplied(r,note,t0){
   ASM.r=r;TH.pick={};TH.last=null;TH.cmp=null;const ms=Math.round(performance.now()-t0),s=r.summary,parts=r.instances.filter(i=>i.solids).length;
+  ASM.done=`Open: ${parts} parts, ${r.csys.length} CSYS, ${r.pipes.length} pipe${r.pipes.length===1?'':'s'}, ${(ms/1000).toFixed(1)} s.`;
   runs=runs.filter(x=>!(x.asm&&x.asm.file===ASM.name));
   const nOv=Object.keys(ASM.ov).length,tree=`${parts} part${parts===1?'':'s'} with solids (${s.solids} solid${s.solids===1?'':'s'}), ${s.csys} coordinate systems${nOv?`, ${nOv} part${nOv>1?'s':''} marked by hand`:''}`;
   const nH=r.pipes.filter(p=>p.kind==='hose').length,nP=r.pipes.length-nH,found=[nP?`${nP} pipe${nP===1?'':'s'}`:'',nH?`${nH} hose${nH===1?'':'s'}`:''].filter(Boolean).join(', ');
@@ -97,7 +105,7 @@ function asmApplied(r,note,t0){
   cadSay('statusPipe',`${note?note+' ':''}${ASM.name}: ${tree}; ${found}: ${r.pipes.map(p=>`${p.name} ${AsmTree.pipeText(p)}`).join('; ')}. Read in ${ms} ms.`);
 }
 function asmLoad(file){
-  cadSay('statusPipe',`Reading ${file.name}...`);
+  asmProgress(`Reading ${file.name}, ${(file.size/1e6).toFixed(1)} MB: reading the file`,0);
   file.text().then(text=>{ASM={name:file.name,text,ov:AsmTree.load(file.name),r:null};$('asmParts').open=false;asmApply();});
 }
 function asmTree(){if(!ASM||!ASM.r)return;const n=new Set(ASM.r.instances.filter(i=>i.solids).map(i=>i.pd)).size;$('asmPartsN').textContent=`(${n} different)`;
@@ -139,8 +147,8 @@ function thRender(){if(!ASM)return;const pi=thPipe(),p=ASM.r.pipes[pi];if(!p)ret
 (window.AV_ACTIONS=window.AV_ACTIONS||[]).push((p,r)=>{if(typeof FixLib==='undefined')return[];
   const inst=p.kind==='csys'?(p.c.hole?p.c.hole.inst:null):p.inst;if(inst==null)return[];const I=r.instances[inst];
   const known=FixLib.match(p.kind==='csys'?p.c.name:'',I.label,I.part&&I.part.name);
-  return[known?{order:2,label:`In the Library (${known.type})`,go:()=>{if(typeof showPanel==='function')showPanel('lib');return'';}}
-    :{order:2,label:'Add to library',go:()=>{const e=FixLib.addFromPart(r,inst);return e?`${I.name} added to the Library as a ${e.type}, bore Ø${e.boreMin}–${e.boreMax}. Edit it under Library.`:'Not added.';}}];});
+  return[known?{fact:`In the Library as ${known.type}`}
+    :{group:'Creo · Library',order:4,label:'Add to library',go:()=>{const e=FixLib.addFromPart(r,inst);return e?`${I.name} added to the Library as a ${e.type}, bore Ø${e.boreMin}–${e.boreMax}. Edit it under Library.`:'Not added.';}}];});
 // Library links and one-click add inside the clamp list
 function thLibWire(box){
   box.querySelectorAll('[data-golib]').forEach(b=>b.onclick=()=>{if(typeof showPanel==='function')showPanel('lib');});

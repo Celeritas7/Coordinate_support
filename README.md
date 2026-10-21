@@ -5,6 +5,7 @@ Hose and cable routing checks for Creo: bend radius on one route, clearance betw
 ## Files
 - index.html - the app (markup only)
 - css/route-studio.css - styles, light and dark theme
+  - `--axis-x` / `--axis-y` / `--axis-z` (#E03131 / #2F9E44 / #1971C2, same in both themes) are an intentional addition to the palette: the CSYS X / Y / Z arrows in 3D and the axis letters in the pick panel. Picked parts and the picked CSYS ring use `--ink`, so they never read as Alternative A1 (`--alt1`).
 - js/route-studio.js - geometry, optimiser, 3D view, bend / clearance / bundle tabs
 - js/analysis.js - Analyse tab and Issues list
 - js/refine.js - Refine tab: re-fit, Fix / Fix all / Step through, delete, drag in 3D

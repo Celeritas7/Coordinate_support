@@ -84,14 +84,15 @@ function openAssembly(f){
   const hose=st.mod==='hose'&&st.task.hose==='route'&&$('shape').value!=='arc';
   if(!hose)go('pipe',st.task.pipe==='clamps'||st.task.pipe==='offset'?st.task.pipe:'asm');
   else{$('csBox').open=true;$('cdBox').open=true;}
+  const where=hose?`stations and parts to keep clear of in ${label('hose','route')}; also open in Pipe`:`in ${label('pipe',st.task.pipe)}`;
   document.addEventListener('asm:loaded',e=>{const a=e.detail;if(!a||a.name!==f.name)return;
     if(hose&&typeof bcFromAsm==='function')bcFromAsm(a);
+    say(`${a.done||'Open.'} ${f.name}: ${where}.`);
     $('shAsm').hidden=false;$('shAsmTxt').textContent=asmLine(a);},{once:true});
-  asmLoad(f);
-  say(`${f.name}: assembly → ${hose?label('hose','route')+' (stations from its clamps, its parts to keep clear of); also open in Pipe':label('pipe',st.task.pipe)}.`);}
+  asmLoad(f);}
 window.openAssembly=openAssembly;window.goTask=go;
-function asmLine(a){const r=a.r;if(!r)return a.name;const parts=r.instances.filter(i=>i.solids).length,fx=(r.fixings||[]).length;
-  return`${a.name} · ${r.pipes.length} pipe${r.pipes.length===1?'':'s'} · ${parts} parts · ${fx} hole${fx===1?'':'s'} with a coordinate system`;}
+function asmLine(a){const r=a.r;if(!r)return a.name;const parts=r.instances.filter(i=>i.solids).length;
+  return`${a.name} · ${parts} parts · ${r.csys.length} CSYS`;}
 $('shAsmGo').onclick=()=>go('pipe',st.task.pipe==='clamps'||st.task.pipe==='offset'?st.task.pipe:'asm');
 $('shOpen').onclick=()=>$('shFile').click();
 $('shFile').onchange=e=>{open(e.target.files);e.target.value='';};

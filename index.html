@@ -23,15 +23,7 @@
         <a class="shbtn" href="inspector.html" target="_blank" title="Check what a Creo export contains">Inspector</a><button type="button" id="shTheme" class="shbtn" title="Switch light / dark">Dark</button></div></div>
     <div class="modsw" role="tablist" aria-label="Module"><button type="button" role="tab" data-mod="hose">Hose / Cable</button><button type="button" role="tab" data-mod="pipe">Pipe</button><button type="button" role="tab" data-mod="bundle">Bundle</button><button type="button" role="tab" data-mod="library">Library</button></div>
     <div class="shstatus" id="shStatus">Drop .stp, .igs or .pts files anywhere on the page.</div>
-    <div class="shasm" id="shAsm" hidden><span class="unit">Assembly:</span> <span id="shAsmTxt"></span> <button type="button" class="linkish" id="shAsmGo">pipes</button>
-      <span class="avctl"><label class="chk"><input type="checkbox" id="avParts" checked> parts in 3D</label>
-      <label>CSYS <select id="avCsys"><option value="off">none</option><option value="fix" selected>on holes</option><option value="all">all</option></select></label></span></div>
-    <details class="mkbox" id="mkBox" hidden><summary>CSYS made here (<span id="mkN">0</span>)</summary>
-      <div id="mkList"></div>
-      <div class="mkadd"><label>New at <input id="mkXYZ" placeholder="X Y Z" spellcheck="false"></label> <button type="button" id="mkAdd">Add</button>
-        <button type="button" id="mkExport">Download .stp for Creo</button> <button type="button" id="mkCopy">Copy table</button></div>
-      <div class="status" id="mkStatus"></div>
-    </details>
+    <div class="shasm" id="shAsm" hidden><span class="unit">Assembly:</span> <span id="shAsmTxt"></span> · <button type="button" class="linkish" id="shAsmGo">pipes</button><span id="shMk" hidden> · <button type="button" class="linkish" id="shMkGo"></button></span></div>
     <input type="file" id="shFile" multiple accept=".pts,.txt,.csv,.ibl,.igs,.iges,.stp,.step" hidden>
   </header>
 
@@ -95,10 +87,11 @@
         <div><label for="cdReach">Look within <span class="unit">mm</span></label><input id="cdReach" type="number" value="60" min="10" step="10" inputmode="decimal"></div>
       </div>
       <label class="chk"><input type="checkbox" id="cdUse" checked>Check the gap to the ticked parts</label>
-      <label class="chk"><input type="checkbox" id="cdPush">Push the route away from them <span class="unit">(trial: pushes off face boxes; curved faces other than cylinders still get generous boxes and can force tight bends)</span></label>
+      <label class="chk"><input type="checkbox" id="cdPush">Push the route away from them</label>
+      <p class="hint pushnote">Trial: pushes off face boxes; curved faces other than cylinders still get generous boxes and can force tight bends.</p>
       <div class="status" id="statusCad"></div>
       <div id="cdParts" class="cdparts"></div>
-      <p class="hint">Flat and cylindrical faces are read with their real outline and holes, so the gap to them is exact (a hose through a hole or past a plate edge sees that edge); other faces count as a box. Small parts (80 mm or less in every direction) at a station or on the station line are taken as clips and clamps and left unticked: the hose may touch them. A bracket up to 300 mm that the clip at a station is fixed to is that clip's mount and left unticked too (a hose in the clip always reaches it). Larger parts are frame, even at a station. In a STEP assembly, parts read as pipes (or marked pipe in the part tree) are listed as existing pipes, unticked. Tick or untick any part. A 23 MB IGES takes about 10 s to read.</p>
+      <details class="adv howread"><summary>How parts are read</summary><p class="hint">Flat and cylindrical faces are read with their real outline and holes, so the gap to them is exact (a hose through a hole or past a plate edge sees that edge); other faces count as a box. Small parts (80 mm or less in every direction) at a station or on the station line are taken as clips and clamps and left unticked: the hose may touch them. A bracket up to 300 mm that the clip at a station is fixed to is that clip's mount and left unticked too (a hose in the clip always reaches it). Larger parts are frame, even at a station. In a STEP assembly, parts read as pipes (or marked pipe in the part tree) are listed as existing pipes, unticked. Tick or untick any part. A 23 MB IGES takes about 10 s to read.</p></details>
     </details>
     </div>
     <p class="hint" id="arcHint" hidden>Lines + arcs: the .pts file holds only the corner points of a polyline. In Creo, build the curve with Curve through points, Single radius, and type the radius from the file header. The corners are moved until every arc and straight passes through your points; the radius is pushed from Min radius up toward Min radius × Safety factor.</p>
@@ -115,7 +108,7 @@
     <div class="status" id="statusBend"></div>
     <div id="altBox">
       <button class="go ghost" id="runAlt" type="button">Alternatives</button>
-      <p class="hint">Other ways round the obstacles: each box the straight line between two stations hits can be passed on four sides; every mix of sides is shaped like the generated route, and the best 3 distinct ones are drawn in 3D. Obstacles: the ticked parts under “Keep clear of CAD parts” (hose Ø / 2 + gap there is the cable radius) and any boxes typed below.</p>
+      <p class="hint">Other ways round the obstacles: each box the straight line between two stations hits can be passed on four sides; every mix of sides is shaped like the generated route, and the best 3 distinct ones are drawn in 3D. Obstacles: the ticked parts under “Keep clear of CAD parts” (hose Ø / 2 + gap there is the cable radius) and any boxes typed below. Left and right are judged along each leg, start to end.</p>
       <details class="adv"><summary>Obstacle boxes typed by hand</summary>
         <label for="altObs" style="margin-top:8px">Obstacles <span class="unit">(id  Xmin Ymin Zmin  Xmax Ymax Zmax)</span></label>
         <textarea id="altObs" rows="2" spellcheck="false" wrap="off"></textarea>
@@ -131,7 +124,7 @@
         <div><label for="sgNear">Near a bend <span class="unit">mm</span></label><input id="sgNear" type="number" value="60" min="0" step="5"></div></div>
       <div class="fields c2"><div><label for="sgReach">Mount reach <span class="unit">mm</span></label><input id="sgReach" type="number" value="60" min="0" step="5"></div>
         <div><label class="chk" style="margin-top:22px"><input type="checkbox" id="sgBends" checked> clamp either side of a bend</label></div></div>
-      <button class="go ghost" id="sgRun" type="button">Suggest for the selected route</button>
+      <button class="go ghost" id="sgRun" type="button">Suggest clamps for the selected route</button>
       <div class="status" id="sgStatus"></div>
       <div id="sgList" class="sglist"></div>
     </details>
@@ -360,11 +353,14 @@
         <button type="button" id="cRad" aria-pressed="true">Colour by radius</button>
         <button type="button" id="cRun" aria-pressed="false">By run</button>
       </div>
+      <div class="seg" id="avCsys" role="radiogroup" aria-label="CSYS shown" hidden>
+        <button type="button" role="radio" data-v="off" aria-checked="false">No CSYS</button><button type="button" role="radio" data-v="fix" aria-checked="true">On holes</button><button type="button" role="radio" data-v="all" aria-checked="false">All</button>
+      </div>
+      <button type="button" id="avParts" aria-pressed="true" title="Part outlines in the 3D view" hidden>Parts</button>
     </div>
-    <div class="legend" id="legend"></div>
-    <div class="help">Drag to rotate, shift-drag to pan, scroll to zoom, double-click to reset view, click a part or CSYS to pick it</div>
+    <div class="help">Drag to rotate, shift-drag to pan, scroll to zoom, double-click to reset view, click a part or CSYS to pick it; the lists in the sidebar pick too.</div>
     <div id="tags"></div>
-    <div class="avpick" id="avPick" hidden></div>
+    <div class="bl"><div class="avpick" id="avPick" hidden></div><div class="legend" id="legend"></div></div>
   </div>
   <div class="dock">
     <div class="docktabs" role="tablist">
@@ -372,6 +368,7 @@
       <button role="tab" id="dClr" aria-selected="false">Clearance</button>
       <button role="tab" id="dCmp" aria-selected="false">Compare</button>
       <button role="tab" id="dPts" aria-selected="false">Points</button>
+      <button role="tab" id="dCsys" aria-selected="false" hidden>CSYS</button>
       <button role="tab" id="dBun" aria-selected="false">Bundle</button>
       <button role="tab" id="dIss" aria-selected="false">Issues</button>
       <button role="tab" id="dRef" aria-selected="false">Refine</button>
@@ -401,6 +398,13 @@
         <div class="ptshead" style="margin:0"><span class="right"><button type="button" class="rfgo" id="rfGo">Re-fit span</button><button type="button" id="rfDel" title="Delete the point in Point #">Delete point</button></span><span class="status" id="statusRef" style="margin:0"></span></div>
         <div class="rfstep" id="rfStep" hidden><span id="rfStepTxt"></span><span class="right"><button type="button" class="rfgo" id="rfAccept">Accept</button><button type="button" id="rfSkip">Skip</button><button type="button" id="rfStop">Stop</button></span></div>
         <div class="rfsum" id="rfSum"></div>
+      </div></div>
+      <div class="pane" id="paneCsys"><div class="pts">
+        <div class="ptshead"><span class="lbl">CSYS made here (<span id="mkN">0</span>)</span>
+          <span class="right"><button type="button" id="mkExport">Download .stp for Creo</button><button type="button" id="mkCopy">Copy table</button></span></div>
+        <div id="mkList"></div>
+        <div class="mkadd"><label>New at <input id="mkXYZ" placeholder="X Y Z" spellcheck="false"></label> <button type="button" id="mkAdd">Add</button></div>
+        <div class="status" id="mkStatus"></div>
       </div></div>
       <div class="pane" id="panePts"><div class="pts">
         <div class="ptshead"><span class="lbl" id="ptsname">Points</span>

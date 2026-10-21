@@ -47,29 +47,42 @@ if(typeof module!=="undefined"&&module.exports)module.exports=API;
 root.CsysMake=API;
 
 // ---------------- UI ----------------
-if(typeof document==='undefined'||!document.getElementById('mkBox'))return;
+// the list is the dock tab CSYS (beside Points); the header line links to it
+if(typeof document==='undefined'||!document.getElementById('paneCsys'))return;
 const MK={list:[]};
 const key=()=>'rs.csysMade.'+(typeof ASM!=='undefined'&&ASM?ASM.name:'');
 const save=()=>store.set(key(),JSON.stringify(MK.list));
 const load=()=>{try{MK.list=JSON.parse(store.get(key())||'[]');}catch(e){MK.list=[];}};
-const f3=v=>(Math.abs(v)<5e-4?0:v).toFixed(3),xyz=a=>a.map(f3).join(' ');
-const nums=t=>{const v=String(t).replace(/,/g,' ').trim().split(/\s+/).map(Number);return v.length===3&&v.every(Number.isFinite)?v:null;};
+const f3=v=>(Math.abs(v)<5e-4?0:v).toFixed(3).replace('-','−'),xyz=a=>a.map(f3).join(' ');
+const nums=t=>{const v=String(t).replace(/[−–]/g,'-').replace(/,/g,' ').trim().split(/\s+/).map(Number);return v.length===3&&v.every(Number.isFinite)?v:null;};
+// axis words: +X … −Z; a vector within 0.999 of one is that axis
+const AXES=[['+X',[1,0,0]],['−X',[-1,0,0]],['+Y',[0,1,0]],['−Y',[0,-1,0]],['+Z',[0,0,1]],['−Z',[0,0,-1]]];
+const axisOf=v=>{const l=Math.hypot(...v)||1,a=AXES.find(([,e])=>(e[0]*v[0]+e[1]*v[1]+e[2]*v[2])/l>=0.999);return a?a[0]:null;};
 // asm-view.js draws these and lets them be picked
 root.csysMade=()=>MK.list;
+const showTab=()=>{dock='csys';showPane();};
+{const sp=showPane;showPane=function(){$('paneCsys').dataset.on=dock==='csys'?1:0;$('dCsys').setAttribute('aria-selected',dock==='csys');sp();};}
+$('dCsys').onclick=showTab;$('shMkGo').onclick=showTab;
 
-function render(){
-  $('mkN').textContent=MK.list.length;$('mkExport').disabled=$('mkCopy').disabled=!MK.list.length;
-  $('mkList').innerHTML=MK.list.map((c,i)=>`<div class="mkrow" data-i="${i}">
-    <input class="mkname" value="${esc(c.name)}" aria-label="Name" title="Name (Creo shows it as the CSYS name)">
-    <label>origin <input class="mko" value="${xyz(c.o)}" spellcheck="false"></label>
-    <label>Z <input class="mkz" value="${xyz(c.z)}" spellcheck="false"></label>
-    <span class="unit">X ${xyz(c.x)}</span>
-    <span class="mkbtn"><button type="button" data-flip>flip Z</button><button type="button" data-turn>X +90°</button><button type="button" data-show>show</button><button type="button" data-del>delete</button></span></div>`).join('')||
+function render(){const n=MK.list.length;
+  $('mkN').textContent=n;$('mkExport').disabled=$('mkCopy').disabled=!n;
+  $('shMk').hidden=!n;$('shMkGo').textContent=`${n} CSYS made here`;if(n)$('dCsys').hidden=false;
+  $('mkList').innerHTML=MK.list.map((c,i)=>{const za=axisOf(c.z),xa=axisOf(c.x);
+    return`<div class="mkrow" data-i="${i}">
+    <div class="mk1"><input class="mkname" value="${esc(c.name)}" aria-label="Name" title="Name (Creo shows it as the CSYS name); click to edit">
+      <button type="button" data-show>show</button><button type="button" data-flip>flip Z</button><button type="button" data-turn>X +90°</button><button type="button" class="mkdel" data-del aria-label="Delete ${esc(c.name)}" title="Delete">×</button></div>
+    <div class="mk2"><label>at <input class="mko" value="${xyz(c.o)}" spellcheck="false" aria-label="Origin X Y Z"></label>
+      <label>· Z <select class="mkzs" aria-label="Z axis">${AXES.map(([w])=>`<option${w===za?' selected':''}>${w}</option>`).join('')}<option value="typed"${za?'':' selected'}>typed…</option></select></label>
+      <input class="mkz" value="${xyz(c.z)}" spellcheck="false" aria-label="Z as dX dY dZ"${za?' hidden':''}>
+      <span>· X ${xa||xyz(c.x)}</span></div></div>`;}).join('')||
     '<p class="hint">None yet. Click a part, hole or CSYS in the 3D view and choose “New CSYS here”, or type a point below.</p>';
   $('mkList').querySelectorAll('.mkrow').forEach(row=>{const i=+row.dataset.i,c=MK.list[i];
     row.querySelector('.mkname').onchange=e=>{c.name=CsysMake.stepName(e.target.value);done(`Renamed to ${c.name}.`);};
     row.querySelector('.mko').onchange=e=>{const v=nums(e.target.value);if(!v)return say('Origin: three numbers, X Y Z.',true);c.o=v;done(`${c.name} moved.`);};
-    row.querySelector('.mkz').onchange=e=>{const v=nums(e.target.value);if(!v||Math.hypot(...v)<1e-9)return say('Z: three numbers, not all 0.',true);Object.assign(c,CsysMake.frame(c.o,v,c.x));done(`${c.name}: Z turned.`);};
+    const setZ=v=>{Object.assign(c,CsysMake.frame(c.o,v,c.x));done(`${c.name}: Z along ${axisOf(c.z)||xyz(c.z)}.`);};
+    row.querySelector('.mkzs').onchange=e=>{const w=e.target.value;if(w==='typed'){const z=row.querySelector('.mkz');z.hidden=false;z.focus();z.select();return;}
+      setZ(AXES.find(a=>a[0]===w)[1]);};
+    row.querySelector('.mkz').onchange=e=>{const v=nums(e.target.value);if(!v||Math.hypot(...v)<1e-9)return say('Z: three numbers, not all 0.',true);setZ(v);};
     row.querySelector('[data-flip]').onclick=()=>{Object.assign(c,CsysMake.flip(c));done(`${c.name}: Z flipped.`);};
     row.querySelector('[data-turn]').onclick=()=>{Object.assign(c,CsysMake.turn(c,90));done(`${c.name}: X turned 90° about Z.`);};
     row.querySelector('[data-show]').onclick=()=>{orbit.target.set(...c.o);orbit.dist=Math.max(diag*0.08,150);draw();if(typeof asmSetPick==='function')asmSetPick({kind:'csys',c:{...c,made:true,i},inst:null});};
@@ -77,29 +90,31 @@ function render(){
 const say=(m,bad)=>{const e=$('mkStatus');e.textContent=m;e.style.color=bad?'var(--bad)':'';};
 function done(msg){save();render();if(typeof asmPanel==='function'){const p=asmPick&&asmPick();if(p&&p.c&&p.c.made)asmSetPick(null);}rebuild(false);if(msg)say(msg);}
 function make(o,z,x,base){const c={name:CsysMake.freeName(base||'RS_CS',MK.list.map(c=>c.name).concat(typeof ASM!=='undefined'&&ASM&&ASM.r?ASM.r.csys.map(c=>c.name):[])),...CsysMake.frame(o,z,x)};
-  MK.list.push(c);$('mkBox').open=true;done(`${c.name} made at ${xyz(c.o)}, Z ${xyz(c.z)}.`);return c;}
+  MK.list.push(c);done(`${c.name} made at ${xyz(c.o)}, Z ${axisOf(c.z)||xyz(c.z)}.`);return c;}
 root.csysMake=make;
 
 // pick panel (asm-view.js): a new CSYS at the picked hole / CSYS / point; edit a made one
-(root.AV_ACTIONS=root.AV_ACTIONS||[]).push((p,r)=>{
+(root.AV_ACTIONS=root.AV_ACTIONS||[]).push((p,r)=>{if(p.kind!=='csys'&&p.kind!=='part')return[];
+  const G='Creo · Library';
   if(p.kind==='csys'&&p.c.made){const c=MK.list[p.c.i];if(!c)return[];
-    return[{order:3,label:'Flip Z',go:()=>{Object.assign(c,CsysMake.flip(c));save();render();p.c={...c,made:true,i:p.c.i};return`${c.name}: Z flipped.`;}},
-      {order:3,label:'X +90°',go:()=>{Object.assign(c,CsysMake.turn(c,90));save();render();p.c={...c,made:true,i:p.c.i};return`${c.name}: X turned 90° about Z.`;}},
-      {order:3,label:'Delete',go:()=>{MK.list.splice(p.c.i,1);done(`${c.name} deleted.`);return'';}}];}
-  return[{order:3,label:'New CSYS here',title:'A coordinate system at the hole centre (Z along its axis), at this CSYS, or at the clicked point; listed under “CSYS made here” for export to Creo',
+    return[{group:G,order:3,label:'Flip Z',go:()=>{Object.assign(c,CsysMake.flip(c));save();render();p.c={...c,made:true,i:p.c.i};return`${c.name}: Z flipped.`;}},
+      {group:G,order:3,label:'X +90°',go:()=>{Object.assign(c,CsysMake.turn(c,90));save();render();p.c={...c,made:true,i:p.c.i};return`${c.name}: X turned 90° about Z.`;}},
+      {group:G,order:3,label:'Delete',go:()=>{MK.list.splice(p.c.i,1);done(`${c.name} deleted.`);return'';}}];}
+  return[{group:G,order:3,label:'New CSYS here',title:'A coordinate system at the hole centre (Z along its axis), at this CSYS, or at the clicked point; listed in the CSYS tab for export to Creo',
     go:()=>{let o,z,x,base;
       if(p.kind==='csys'){const h=p.c.hole;o=h?h.c:p.c.o;z=h?h.d:p.c.z;x=p.c.x;base=`${CsysMake.stepName(p.c.name)}_RS`;}
       else{const near=r.holes.filter(h=>h.inst===p.inst).map(h=>({h,e:Math.hypot(...[0,1,2].map(k=>h.c[k]-p.p[k]))})).sort((a,b)=>a.e-b.e)[0];
         const I=r.instances[p.inst]||{};base=`${CsysMake.stepName(I.name||'PART')}_CS`;
         if(near&&near.e<=Math.max(30,3*near.h.r)){o=near.h.c;z=near.h.d;}else{o=p.p;z=[0,0,1];}}
-      const c=make(o,z,x,base);return`${c.name} made (listed under “CSYS made here”).`;}}];});
+      const c=make(o,z,x,base);return`${c.name} made (listed in the CSYS tab).`;}}];});
 
 $('mkAdd').onclick=()=>{const v=nums($('mkXYZ').value);if(!v)return say('Type a point as X Y Z (mm, assembly coordinates).',true);make(v,[0,0,1],null);};
-$('mkExport').onclick=()=>{const nm=(typeof ASM!=='undefined'&&ASM?ASM.name.replace(/\.[^.]+$/,''):'route')+'_csys';
+$('mkExport').onclick=()=>{const asm=typeof ASM!=='undefined'&&ASM?ASM.name.replace(/\.[^.]+$/,''):'',nm=(asm||'route')+'_csys',n=MK.list.length;
   cadDownload(nm+'.stp',CsysMake.stepText(nm,MK.list),'application/step');
-  say(`${nm}.stp: ${MK.list.length} coordinate system${MK.list.length===1?'':'s'}, mm, assembly coordinates. In Creo: Assemble (or Insert › Shared Data › From File) at the default placement.`);};
-$('mkCopy').onclick=()=>{const t=MK.list.map(c=>`${c.name}\t${xyz(c.o)}\tZ ${xyz(c.z)}\tX ${xyz(c.x)}`).join('\n');
+  say(`${nm}.stp: ${n} coordinate system${n===1?'':'s'}, mm, assembly coordinates. In Creo, assemble it into ${asm||'the assembly'} at the default placement; the systems appear under its name.`);};
+// plain ASCII minus for a spreadsheet
+$('mkCopy').onclick=()=>{const a=v=>v.map(q=>(Math.abs(q)<5e-4?0:q).toFixed(3)).join(' '),t=MK.list.map(c=>`${c.name}\t${a(c.o)}\tZ ${a(c.z)}\tX ${a(c.x)}`).join('\n');
   (navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>say('Copied as a table (name, origin, Z, X).'),()=>say('Copy failed: select the list by hand.',true));};
-document.addEventListener('asm:loaded',()=>{load();render();$('mkBox').hidden=false;});
+document.addEventListener('asm:loaded',()=>{load();render();$('dCsys').hidden=false;});
 load();render();
 })(typeof globalThis!=="undefined"?globalThis:this);

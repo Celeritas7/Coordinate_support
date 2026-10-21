@@ -2,9 +2,13 @@
 // Loaded after route-studio.js (rebuild, content, camera, orbit, addTag) and asm-ui.js (ASM). The outlines are the face loops
 // StepAsm already reads, placed per instance into one LineSegments: one draw call even for a big frame. Segment → instance is
 // kept, so a click on a line names the part. CSYS shown: 'off' | 'fix' (the ones on a hole) | 'all'.
-// Pick actions: other modules push fn(pick, r) → [{label, go(pick) → message?, row?, on?, title?}] onto window.AV_ACTIONS
-// (they load before this file). Items with a row are shown as one labelled group of toggles (on = pressed).
+// Pick actions: other modules push fn(pick, r) → [{label, go(pick) → message?, group?, row?, on?, title?, primary?} | {fact}]
+// onto window.AV_ACTIONS (they load before this file). Actions are shown in labelled groups (AV_GROUPS order); items with a
+// row are one segmented control (on = checked); {fact} items are muted fact lines under the header.
+// Other pickable points (Suggest extra clamps): fn() → [{o, pick}] on window.AV_POINTS; a pick of another kind brings its
+// own header from window.AV_FACTS[kind](pick) → {name, kind, parent, grid:[html cells], facts:[text], lines (one fact per line)}.
 const AV={parts:true,csys:'fix',r:null,geo:null,pick:null,actions:window.AV_ACTIONS||(window.AV_ACTIONS=[]),msg:''};
+const AV_GROUPS=['Route','Keep clear of it','Route passes it','Creo · Library'];
 {
 const X=(M,p)=>[M.o[0]+M.x[0]*p[0]+M.y[0]*p[1]+M.z[0]*p[2],M.o[1]+M.x[1]*p[0]+M.y[1]*p[1]+M.z[1]*p[2],M.o[2]+M.x[2]*p[0]+M.y[2]*p[1]+M.z[2]*p[2]];
 const asm=()=>typeof ASM!=='undefined'&&ASM&&ASM.r?ASM.r:null;
@@ -45,24 +49,27 @@ window.asmOverlay=(content,g)=>{
   (window.VIEW_OVERLAYS||[]).forEach(f=>{try{f(content,g);}catch(e){console.error(e);}});
   const r=asm();if(!r)return;
   if(AV.parts){const G=geometry(r);
-    if(G.n){const lines=new THREE.LineSegments(G.g,new THREE.LineBasicMaterial({color:new THREE.Color(css('--muted')),transparent:true,opacity:0.35}));
+    // fainter under a route, so the route reads first
+    if(G.n){const lines=new THREE.LineSegments(G.g,new THREE.LineBasicMaterial({color:new THREE.Color(css('--muted')),transparent:true,opacity:visible().length?0.2:0.35}));
       lines.userData.keep=true;lines.userData.asm=true;content.add(lines);AV.lines=lines;}
     if(AV.pick&&AV.pick.kind==='part'){const [s,c]=G.ranges[AV.pick.inst]||[0,0];
       if(c){const hg=new THREE.BufferGeometry();hg.setAttribute('position',G.g.getAttribute('position'));hg.setDrawRange(s*2,c*2);
-        const hl=new THREE.LineSegments(hg,new THREE.LineBasicMaterial({color:new THREE.Color(css('--alt1'))}));hl.userData.keep=true;content.add(hl);}}}
+        const hl=new THREE.LineSegments(hg,new THREE.LineBasicMaterial({color:new THREE.Color(css('--ink'))}));hl.userData.keep=true;content.add(hl);}}}
   // CSYS made here (csys-make.js) are always drawn, named, and pickable
   const made=(typeof csysMade==='function'?csysMade():[]).map((c,i)=>({...c,made:true,i,inst:null}));
   const C=csysList(r).concat(made),L=axLen();AV.shown=C;
   if(C.length){const pos=new Float32Array(C.length*18),col=new Float32Array(C.length*18);
-    const cx=[new THREE.Color('#E03131'),new THREE.Color('#2F9E44'),new THREE.Color('#1971C2')];
+    const cx=['--axis-x','--axis-y','--axis-z'].map(k=>new THREE.Color(css(k)));
     C.forEach((c,i)=>{[c.x,c.y,c.z].forEach((a,j)=>{const o=i*18+j*6;
       pos.set([c.o[0],c.o[1],c.o[2],c.o[0]+a[0]*L,c.o[1]+a[1]*L,c.o[2]+a[2]*L],o);col.set([cx[j].r,cx[j].g,cx[j].b,cx[j].r,cx[j].g,cx[j].b],o);});});
     const tg=new THREE.BufferGeometry();tg.setAttribute('position',new THREE.BufferAttribute(pos,3));tg.setAttribute('color',new THREE.BufferAttribute(col,3));
     content.add(new THREE.LineSegments(tg,new THREE.LineBasicMaterial({vertexColors:true})));
-    if(C.length-made.length<=60)C.forEach(c=>{if(!c.made)g.addTag(c.o,c.name,'t');});made.forEach(c=>g.addTag(c.o,c.name,'warn'));}
-  if(AV.pick&&AV.pick.kind==='csys'){const c=AV.pick.c;g.addTag(c.o,c.name,'');
-    const m=new THREE.Mesh(g.sg,new THREE.MeshBasicMaterial({color:new THREE.Color(css('--alt1'))}));
-    m.position.set(...c.o);m.scale.setScalar(L*0.15);content.add(m);}
+    // a made CSYS at the picked origin: its tag drops below the pick tag
+    const pc=AV.pick&&AV.pick.kind==='csys'?AV.pick.c:null,same=c=>pc&&Math.hypot(...[0,1,2].map(k=>c.o[k]-pc.o[k]))<0.5;
+    if(C.length-made.length<=60)C.forEach(c=>{if(!c.made&&!(pc&&!pc.made&&pc.name===c.name))g.addTag(c.o,c.name,'t');});
+    made.forEach(c=>{if(!(pc&&pc.made&&pc.i===c.i))g.addTag(c.o,c.name,'warn'+(same(c)?' low':''));});}
+  // the pick: an ink ring of fixed screen size and its name, always drawn
+  if(AV.pick&&AV.pick.kind==='csys'){const c=AV.pick.c;g.addTag(c.o,'','ring pick');g.addTag(c.o,c.name,'pick');}
 };
 
 // ---------- picking: a click (not a drag) on the view ----------
@@ -70,11 +77,13 @@ const cv=$('gl');let down=null;
 cv.addEventListener('pointerdown',e=>{down={x:e.clientX,y:e.clientY};});
 cv.addEventListener('pointerup',e=>{if(!down)return;const moved=Math.hypot(e.clientX-down.x,e.clientY-down.y);down=null;if(moved<4)pickAt(e);});
 function pickAt(e){
-  const r=asm();if(!r)return;
-  const rc=cv.getBoundingClientRect(),px=e.clientX-rc.left,py=e.clientY-rc.top;
-  // a CSYS origin within 10 px wins
-  let best=null;(AV.shown||[]).forEach(c=>{const v=new THREE.Vector3(...c.o).project(camera);if(v.z>1)return;
-    const d=Math.hypot((v.x+1)/2*rc.width-px,(1-v.y)/2*rc.height-py);if(d<10&&(!best||d<best.d))best={d,c};});
+  const r=asm(),rc=cv.getBoundingClientRect(),px=e.clientX-rc.left,py=e.clientY-rc.top;
+  const px2=o=>{const v=new THREE.Vector3(...o).project(camera);return v.z>1?Infinity:Math.hypot((v.x+1)/2*rc.width-px,(1-v.y)/2*rc.height-py);};
+  // a point from another module (a suggested clamp), then a CSYS origin, within 10 px
+  let pt=null;(window.AV_POINTS||[]).forEach(f=>{try{f().forEach(q=>{const d=px2(q.o);if(d<10&&(!pt||d<pt.d))pt={d,pick:q.pick};});}catch(x){console.error(x);}});
+  if(pt)return setPick(pt.pick);
+  if(!r)return;
+  let best=null;(AV.shown||[]).forEach(c=>{const d=px2(c.o);if(d<10&&(!best||d<best.d))best={d,c};});
   if(best)return setPick({kind:'csys',c:best.c,inst:best.c.inst});
   if(AV.parts&&AV.lines){const hit=pickLine(r,px/rc.width*2-1,-(py/rc.height)*2+1,orbit.dist*Math.tan(camera.fov*Math.PI/360)*2/rc.height*6);
     if(hit)return setPick({kind:'part',inst:hit.inst,p:hit.p});}
@@ -93,36 +102,62 @@ function pickLine(r,nx,ny,tol){
       if(!best||t<best.t-tol)best={t,inst:ii,p:onSeg.toArray()};}});
   return best;
 }
-function setPick(p){AV.pick=p;AV.msg='';panel();rebuild(false);document.dispatchEvent(new CustomEvent('asm:pick',{detail:p}));}
+function setPick(p){AV.pick=p;AV.msg='';panel();rebuild(false);
+  // keyboard: the first action takes focus when the panel opens
+  const b=p&&$('avPick').querySelector('.avgrp button');if(b)b.focus({preventScroll:true});
+  document.dispatchEvent(new CustomEvent('asm:pick',{detail:p}));}
 window.asmPick=()=>AV.pick;window.asmSetPick=setPick;
 
-const f1=v=>v.toFixed(1),vec=a=>`(${a.map(v=>(Math.abs(v)<5e-7?0:v).toFixed(3)).join(', ')})`;
+const f1=v=>v.toFixed(1),vec=a=>a.map(v=>(Math.abs(v)<5e-7?0:v).toFixed(3)).join('  '),last=n=>String(n||'').split(' / ').pop();
+const axisCell=(k,v)=>`<span style="color:var(--axis-${k})">${k.toUpperCase()}</span><span>${vec(v)}</span>`;
+// header of a pick: {name, kind, parent, grid, facts}
+function facts(p,r){
+  if(window.AV_FACTS&&AV_FACTS[p.kind])return AV_FACTS[p.kind](p);
+  const inst=r.instances[p.inst]||{},bb=inst.bbox;
+  if(p.kind==='csys'){const c=p.c;
+    return{name:c.name,kind:'coordinate system',parent:c.made?'made here':last(inst.label||inst.name||''),
+      grid:[`<span>origin</span><span>${vec(c.o)}</span>`,axisCell('x',c.x),axisCell('y',c.y),axisCell('z',c.z)],
+      facts:[c.hole?`On a Ø${f1(c.hole.D)} × ${f1(c.hole.length)} mm hole`:'',c.made?'Listed under CSYS made here, for export to Creo':''].filter(Boolean)};}
+  const path=String(inst.label||'').split(' / ');
+  return{name:inst.name||'part',kind:'part',parent:path.length>1?path[path.length-2]:'',
+    grid:[`<span>clicked</span><span>${vec(p.p)}</span>`],facts:[bb?`${bb.max.map((v,k)=>Math.round(v-bb.min[k])).join(' × ')} mm`:''].filter(Boolean)};
+}
 function panel(){
   const el=$('avPick'),p=AV.pick,r=asm();
-  if(!p||!r){el.hidden=true;el.innerHTML='';return;}
-  const inst=r.instances[p.inst]||{},bb=inst.bbox;let h='';
-  if(p.kind==='csys'){const c=p.c;
-    h=`<b>${esc(c.name)}</b> <span class="unit">coordinate system</span><div class="unit">${c.made?'made here (CSYS made here, for export to Creo)':'in '+esc(inst.label||inst.name||'')}</div>
-      <div class="avxyz">origin ${vec(c.o)}<br><span style="color:#E03131">X</span> ${vec(c.x)}<br><span style="color:#2F9E44">Y</span> ${vec(c.y)}<br><span style="color:#1971C2">Z</span> ${vec(c.z)}</div>
-      ${c.hole?`<div class="unit">on a Ø${f1(c.hole.D)} × ${f1(c.hole.length)} mm hole</div>`:''}`;}
-  else h=`<b>${esc(inst.name||'part')}</b> <span class="unit">part</span><div class="unit">${esc(inst.label||'')}</div>
-      ${bb?`<div class="unit">${bb.max.map((v,k)=>Math.round(v-bb.min[k])).join(' × ')} mm</div>`:''}<div class="avxyz">clicked at ${vec(p.p)}</div>`;
-  // order: lower first (stations 1, Library 2, toggles 5 by default)
-  const acts=[].concat(...AV.actions.map(fn=>{try{return fn(p,r)||[];}catch(x){console.error(x);return[];}})).sort((a,b)=>(a.order||5)-(b.order||5));
-  const btn=(a,i)=>`<button type="button" data-a="${i}"${a.row?` aria-pressed="${!!a.on}"`:''}${a.title?` title="${esc(a.title)}"`:''}>${esc(a.label)}</button>`;
-  const rows=[...new Set(acts.filter(a=>a.row).map(a=>a.row))];
-  el.innerHTML=h+`<div class="avacts">${acts.map((a,i)=>a.row?'':btn(a,i)).join('')}<button type="button" data-x>Close</button></div>`+
-    rows.map(rw=>`<div class="avrow"><span class="unit">${esc(rw)}</span>${acts.map((a,i)=>a.row===rw?btn(a,i):'').join('')}</div>`).join('')+
-    (AV.msg?`<div class="avmsg">${esc(AV.msg)}</div>`:'');
+  if(!p||(!r&&!(window.AV_FACTS&&AV_FACTS[p.kind]))){el.hidden=true;el.innerHTML='';return;}
+  const all=[].concat(...AV.actions.map(fn=>{try{return fn(p,r)||[];}catch(x){console.error(x);return[];}}));
+  const F=facts(p,r),acts=all.filter(a=>!a.fact),line=F.facts.concat(all.filter(a=>a.fact).map(a=>a.fact));
+  if(line.length>1&&!F.lines)line[0]+=' · '+line.splice(1).map(t=>t.charAt(0).toLowerCase()+t.slice(1)).join(' · ');
+  // groups in AV_GROUPS order, then any other; inside a group by order (lower first)
+  const gname=a=>a.group||a.row||'Creo · Library',rank=g=>{const i=AV_GROUPS.findIndex(x=>g===x||g.startsWith(x+' ('));return i<0?99:i;};
+  const names=[...new Set(acts.map(gname))].sort((a,b)=>rank(a)-rank(b));
+  const btn=a=>`<button type="button" data-a="${acts.indexOf(a)}"${a.primary?' class="primary"':''}${a.title?` title="${esc(a.title)}"`:''}>${esc(a.label)}</button>`;
+  const radio=a=>`<button type="button" role="radio" aria-checked="${!!a.on}" tabindex="${a.on?0:-1}" data-a="${acts.indexOf(a)}"${a.title?` title="${esc(a.title)}"`:''}>${esc(a.label)}</button>`;
+  const grp=g=>{const A=acts.filter(a=>gname(a)===g).sort((a,b)=>(a.order||5)-(b.order||5)),rows=A.filter(a=>a.row),plain=A.filter(a=>!a.row);
+    return`<div class="avgrp"><span class="unit">${esc(g)}</span>${plain.length?`<div class="avacts">${plain.map(btn).join('')}</div>`:''}${rows.length?`<div class="seg" role="radiogroup" aria-label="${esc(g)}">${rows.map(radio).join('')}</div>`:''}</div>`;};
+  el.innerHTML=`<div class="avhead"><span><b>${esc(F.name)}</b> <span class="unit">· ${esc(F.kind)}${F.parent?' · '+esc(F.parent):''}</span></span><button type="button" class="avx" data-x aria-label="Close (Esc)" title="Close (Esc)">×</button></div>`+
+    (F.grid.length?`<div class="avgrid">${F.grid.join('')}</div>`:'')+line.map(t=>`<div class="avfact">${esc(t)}</div>`).join('')+
+    names.map(grp).join('')+(AV.msg?`<div class="avmsg">${esc(AV.msg)}</div>`:'');
   el.hidden=false;
-  el.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>{const m=acts[+b.dataset.a].go(p);AV.msg=typeof m==='string'?m:'';panel();rebuild(false);});
+  const run=(b,focus)=>{const a=acts[+b.dataset.a];if(!a||!a.go)return;const m=a.go(p);if(AV.pick!==p)return;AV.msg=typeof m==='string'?m:'';panel();rebuild(false);
+    if(focus){const nb=el.querySelector(`[data-a="${b.dataset.a}"]`);if(nb)nb.focus();}};
+  el.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>run(b,b.getAttribute('role')==='radio'));
+  // segmented control: arrow keys move the choice
+  el.querySelectorAll('[role=radiogroup]').forEach(g=>g.onkeydown=e=>{const B=[...g.querySelectorAll('[role=radio]')],i=B.indexOf(document.activeElement);
+    const d=e.key==='ArrowRight'||e.key==='ArrowDown'?1:e.key==='ArrowLeft'||e.key==='ArrowUp'?-1:0;if(!d||i<0)return;e.preventDefault();run(B[(i+d+B.length)%B.length],true);});
   el.querySelector('[data-x]').onclick=()=>setPick(null);
 }
 window.asmPanel=panel;
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&AV.pick)setPick(null);});
 
 // ---------- header controls ----------
-$('avParts').onchange=e=>{AV.parts=e.target.checked;if(!AV.parts&&AV.pick&&AV.pick.kind==='part')AV.pick=null;panel();rebuild(false);};
-$('avCsys').onchange=e=>{AV.csys=e.target.value;if(AV.pick&&AV.pick.kind==='csys'&&AV.csys==='off')AV.pick=null;panel();rebuild(false);};
-document.addEventListener('asm:loaded',()=>{AV.geo=null;AV.r=null;AV.pick=null;panel();rebuild(true);});
+// ---------- view tools: Parts, No CSYS / On holes / All ----------
+$('avParts').onclick=()=>{AV.parts=!AV.parts;$('avParts').setAttribute('aria-pressed',AV.parts);if(!AV.parts&&AV.pick&&AV.pick.kind==='part')AV.pick=null;panel();rebuild(false);};
+const csysSet=v=>{AV.csys=v;$('avCsys').querySelectorAll('[data-v]').forEach(b=>{b.setAttribute('aria-checked',b.dataset.v===v);b.tabIndex=b.dataset.v===v?0:-1;});
+  if(AV.pick&&AV.pick.kind==='csys'&&!AV.pick.c.made&&v==='off')AV.pick=null;panel();rebuild(false);};
+$('avCsys').querySelectorAll('[data-v]').forEach(b=>b.onclick=()=>csysSet(b.dataset.v));
+$('avCsys').onkeydown=e=>{const V=['off','fix','all'],d=e.key==='ArrowRight'?1:e.key==='ArrowLeft'?-1:0;if(!d)return;e.preventDefault();
+  const v=V[(V.indexOf(AV.csys)+d+3)%3];csysSet(v);$('avCsys').querySelector(`[data-v="${v}"]`).focus();};
+window.asmCsys=csysSet;
+document.addEventListener('asm:loaded',()=>{AV.geo=null;AV.r=null;AV.pick=null;$('avCsys').hidden=$('avParts').hidden=false;panel();rebuild(true);});
 }

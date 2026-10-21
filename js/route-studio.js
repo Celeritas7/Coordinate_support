@@ -498,11 +498,29 @@ function legend(){
     <span><i style="background:var(--warn)"></i>inside safety margin</span><span><i style="background:var(--ok)"></i>OK</span>`;
   else L.innerHTML=visible().map(r=>`<span><i style="background:${r.color}"></i>${r.name}</span>`).join('');
 }
+// labels: nearest to the camera first, a label whose box overlaps one already placed (or the view tools) is skipped; the
+// picked one (class pick) always shows. Box = the tag's CSS offset (.tag / .t / .low / .ring).
+function placeTags(w,h){
+  const vr=$('view').getBoundingClientRect(),tr=document.querySelector('.tools').getBoundingClientRect();
+  const tools={l:tr.left-vr.left-4,t:tr.top-vr.top-4,r:tr.right-vr.left+4,b:tr.bottom-vr.top+4},placed=[];
+  // an anchor outside the view hides its tag; one inside is nudged so the whole tag stays in
+  const L=tagEls.map(t=>{const v=t.p.clone().project(camera);return{t,v,x:(v.x+1)/2*w,y:(1-v.y)/2*h};})
+    .filter(q=>{if(q.v.z<1&&q.x>=0&&q.x<=w&&q.y>=0&&q.y<=h)return true;q.t.e.style.display='none';return false;});
+  const pick=q=>q.t.e.classList.contains('pick');
+  L.sort((a,b)=>(pick(b)-pick(a))||(a.v.z-b.v.z));
+  for(const q of L){const e=q.t.e,c=e.classList;e.style.display='';
+    if(q.t.w==null){q.t.w=e.offsetWidth;q.t.h=e.offsetHeight;}
+    const bw=q.t.w,bh=q.t.h,ring=c.contains('ring');
+    const dx=ring?-bw/2:c.contains('t')?6:8,dy=ring?-bh/2:c.contains('t')?-1.2*bh:c.contains('low')?0.6*bh:-bh/2;
+    let x=q.x,y=q.y;if(!ring){x=Math.max(-dx,Math.min(w-bw-dx,x));y=Math.max(-dy,Math.min(h-bh-dy,y));}
+    const b={l:x+dx,t:y+dy,r:x+dx+bw,b:y+dy+bh},hit=o=>b.l<o.r&&b.r>o.l&&b.t<o.b&&b.b>o.t;
+    if(!pick(q)&&!ring&&(hit(tools)||placed.some(hit))){e.style.display='none';continue;}
+    e.style.left=x+'px';e.style.top=y+'px';if(!ring)placed.push(b);}
+}
 function draw(){
   const w=$('view').clientWidth,h=$('view').clientHeight;if(!w||!h)return;
   renderer.setSize(w,h,false);camera.aspect=w/h;placeCamera();renderer.render(scene,camera);
-  for(const t of tagEls){const v=t.p.clone().project(camera);
-    t.e.style.left=((v.x+1)/2*w)+'px';t.e.style.top=((1-v.y)/2*h)+'px';t.e.style.display=v.z<1?'':'none';}
+  placeTags(w,h);
   drawChart();
 }
 (function(){let drag=null,pinch=null;const cv=$('gl');

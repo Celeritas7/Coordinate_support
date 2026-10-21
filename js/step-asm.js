@@ -221,8 +221,8 @@ function parse(text,opts){
   // E: id → raw text. D: decoded entities, emptied after each part is read so the peak follows one part, not the file
   const progress=typeof opts.progress==='function'?opts.progress:null,clock=()=>typeof performance!=='undefined'?performance.now():Date.now();
   let told=0;const tell=(stage,f)=>{if(!progress)return;const t=clock();if(f>0&&f<1&&t-told<100)return;told=t;progress(stage,f);};
-  tell('Reading entities',0);
-  const E=tokenize(text),D=new Map();tell('Reading entities',1);
+  tell('reading the file',0);
+  const E=tokenize(text),D=new Map();tell('reading the file',1);
   const get=id=>{let e=D.get(id);if(e)return e;const raw=E.get(id);if(raw==null)return null;e=decode({raw});D.set(id,e);return e;};
   const has=(e,k)=>!!e&&e.kinds.includes(k),A=(e,k)=>e.argsOf[k]||e.args;
   // index by entity kind without decoding: most entities (edges, points of faces nobody asks about) are never read, and
@@ -345,7 +345,7 @@ function parse(text,opts){
   const repOwner=new Map();for(const P of products.values()){const seen=new Set(),q=P.reps.slice();while(q.length){const r=q.pop();if(seen.has(r))continue;seen.add(r);for(const x of(srr.get(r)||[]))q.push(x);}P.reps=[...seen];P.reps.forEach(r=>repOwner.set(r,P.pd));}
 
   const partCache=new Map();
-  function part(pd){if(partCache.has(pd))return partCache.get(pd);const P=products.get(pd);tell('Reading parts',partCache.size/products.size);
+  function part(pd){if(partCache.has(pd))return partCache.get(pd);const P=products.get(pd);tell('parts',partCache.size/products.size);
     const items=[];for(const r of P.reps){const e=get(r);if(!e)continue;const k=e.kinds.find(k=>/REPRESENTATION$/.test(k));if(!k)continue;const a=e.argsOf[k];if(a&&a[1]&&a[1][0]==='(')items.push(...refs(a[1]));}
     const g={name:P.name,pd,csys:[],points:[],curves:[],solids:[]},seen=new Set();
     const take=id=>{if(seen.has(id))return;seen.add(id);const e=get(id);if(!e)return;

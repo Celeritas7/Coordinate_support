@@ -7,6 +7,7 @@ const say=(m,bad)=>{const e=$('statusCad');e.textContent=m;e.style.color=bad?'va
 const opt=()=>({d:Math.max(0.1,+$('cdD').value||8),gap:Math.max(0,+$('cdGap').value||0),reach:Math.max(10,+$('cdReach').value||60)});
 const stations=()=>parsePts($('pts').value).map(p=>[p[0],p[1],p[2]]);
 const roleTxt=p=>p.role==='pipe'?`existing ${p.pipe.kind==='hose'?'hose':'pipe'}${p.pipe.name!==p.name?` ${esc(p.pipe.name)}`:''} Ø${fmt(p.pipe.OD,1)}`:p.role==='station'?`clip at ${p.stations.map(i=>'P'+(i+1)).join(', ')}`:p.role==='clip'?'small part on the station line, no station (clip, or screw?)':p.role==='mount'?`bracket the clip at ${p.mountOf.map(i=>'P'+(i+1)).join(', ')} is fixed to: not checked (the hose in the clip always reaches it)`:'frame / part';
+const last=n=>String(n||'').split(' / ').pop();
 const keepClear=p=>BC.user.has(p.sid)?BC.user.get(p.sid):p.role==='obstacle';
 // list groups: ticked, unticked clips and parts, unticked existing pipes
 const group=p=>keepClear(p)?0:p.role==='pipe'?2:1,GROUP=['Gap checked (ticked)','Not checked (clips, or unticked)','Existing pipes (not checked)'];
@@ -18,7 +19,7 @@ function render(){const sv=BC.sv,box=$('cdParts');if(!sv){box.innerHTML='';retur
   const n=sv.parts.filter(keepClear).length;
   box.innerHTML=`<div class="presets" style="margin:6px 0 2px"><button type="button" data-t="def" title="Clips and existing pipes unticked, frame and other parts ticked">Default ticks</button><button type="button" data-t="frame" title="Only the parts that are not clips">Frame only</button><button type="button" data-t="all">Tick all</button><button type="button" data-t="none">Untick all</button></div>
     <p class="hint" style="margin:4px 0">${sv.parts.length} part${sv.parts.length===1?'':'s'} within ${fmt(sv.reach)} mm of the station line; gap checked to ${n} (ticked). Gap = hose surface to part. Press Check after changing ticks.</p>`+
-    sv.parts.slice().sort((a,b)=>(group(a)-group(b))||(a.dLine-b.dLine)).slice(0,60).map((p,i,arr)=>(i===0||group(arr[i-1])!==group(p)?`<div class="cdhead">${GROUP[group(p)]}</div>`:'')+`<div class="cdrow${BC.focus===p.sid?' on':''}"><label class="chk cdp"><input type="checkbox" data-sid="${p.sid}" ${keepClear(p)?'checked':''}><span><b>${esc(p.name)}</b> <span class="unit">${p.dims.map(v=>Math.round(v)).join('×')} mm · ${roleTxt(p)} · line ${fmt(p.dLine,1)} mm away · centre ${centre(p).map(v=>Math.round(v)).join(', ')}</span></span></label><button type="button" class="cdshow" data-show="${p.sid}" aria-pressed="${BC.focus===p.sid}" title="Show this part in 3D, zoomed">show</button></div>`).join('');
+    sv.parts.slice().sort((a,b)=>(group(a)-group(b))||(a.dLine-b.dLine)).slice(0,60).map((p,i,arr)=>(i===0||group(arr[i-1])!==group(p)?`<div class="cdhead">${GROUP[group(p)]}</div>`:'')+`<div class="cdrow${BC.focus===p.sid?' on':''}"><label class="chk cdp"><input type="checkbox" data-sid="${p.sid}" ${keepClear(p)?'checked':''}><span><b title="${esc(p.name)}">${esc(last(p.name))}</b> <span class="unit">${p.dims.map(v=>Math.round(v)).join('×')} mm · ${roleTxt(p)} · line ${fmt(p.dLine,1)} mm away · centre ${centre(p).map(v=>Math.round(v)).join(', ')}</span></span></label><button type="button" class="cdshow" data-show="${p.sid}" aria-pressed="${BC.focus===p.sid}" title="Show this part in 3D, zoomed">show</button></div>`).join('');
   box.querySelectorAll('input[data-sid]').forEach(el=>el.onchange=()=>{BC.user.set(+el.dataset.sid,el.checked);render();});
   box.querySelectorAll('button[data-show]').forEach(el=>el.onclick=()=>showPart(+el.dataset.show));
   box.querySelectorAll('button[data-t]').forEach(b=>b.onclick=()=>{const t=b.dataset.t;BC.user=new Map();
@@ -49,10 +50,14 @@ window.bendCadBoxes=function(){const o=opt(),sv=$('cdUse').checked?survey():null
 (window.AV_ACTIONS=window.AV_ACTIONS||[]).push((p,r)=>{if(!BC.cad||!BC.cad.solids.some(s=>s.inst!=null)||$('cdBox').hidden)return[];
   const inst=p.kind==='part'?p.inst:null;if(inst==null)return[];
   const sids=BC.cad.solids.filter(s=>s.inst===inst).map(s=>s.sid);if(!sids.length)return[];
-  const sv=BC.sv,part=sv&&sv.parts.find(x=>sids.includes(x.sid)),on=part?keepClear(part):BC.user.get(sids[0])===true;
+  // a part away from the stations is not in the survey: it gets the default the survey would give it (frame-sized → kept
+  // clear, by the 80 mm clip rule; existing pipe → not), unless the user set it
+  const sv=BC.sv,part=sv&&sv.parts.find(x=>sids.includes(x.sid)),so=BC.cad.solids.filter(s=>s.inst===inst);
+  const big=Math.max(...[0,1,2].map(k=>Math.max(...so.map(s=>s.max[k]))-Math.min(...so.map(s=>s.min[k]))))>80,pipe=so.some(s=>s.pipe);
+  const on=part?keepClear(part):BC.user.has(sids[0])?BC.user.get(sids[0]):big&&!pipe;
   const set=v=>{sids.forEach(id=>BC.user.set(id,v));render();
     return`${part?part.name:'This part'}: ${v?'kept clear of (gap checked)':'not checked'}${part?'':'; it is not near the stations now, the choice holds when it is'}.`;};
-  return[{row:'Keep clear',label:'yes',on,go:()=>set(true)},{row:'Keep clear',label:'no',on:!on,go:()=>set(false)}];});
+  return[{row:'Keep clear of it',label:'yes',on,go:()=>set(true)},{row:'Keep clear of it',label:'no',on:!on,go:()=>set(false)}];});
 window.bendCad=function(P){
   const o=opt(),sv=$('cdUse').checked?survey():null;
   const faces=sv?sv.parts.filter(keepClear).flatMap(p=>p.faces):[],ix=faces.length?CadSolids.index(faces,50):null,rad=o.d/2+o.gap;
@@ -106,7 +111,7 @@ function closeSpots(A,P,o,span){const sv=BC.sv,pts=A.d.pts,s=A.d.s,out=[];
     close();});
   return out.sort((x,y)=>x.i-y.i).map(r=>{const len=s[r.i1]-s[r.i0],ticked=keepClear(r.part),bad=r.gap<0;
     return{msg:`${span(r.i)}: ${r.part.name} (${r.part.dims.map(v=>Math.round(v)).join('×')} mm${ticked?'':', unticked'}) — ${bad?`hose ${fmt(-r.gap,1)} mm into it`:`${fmt(r.gap,1)} mm clear`}${r.exact?'':' (to a face box)'}, over ${fmt(Math.max(len,2),0)} mm of route`,
-      ticked,spot:{i0:r.i0,i1:r.i1,i:r.i,gap:r.gap,name:r.part.name,span:span(r.i)},mark:{p:r.p,text:`${r.part.name} · ${fmt(r.gap,1)} mm`,bad,warn:!bad}};});}
+      ticked,spot:{i0:r.i0,i1:r.i1,i:r.i,gap:r.gap,name:r.part.name,span:span(r.i)},mark:{p:r.p,text:`${last(r.part.name)} · ${fmt(r.gap,1).replace('-','−')} mm`,bad,warn:!bad}};});}
 function throughOpenings(A,P,faces,o){const pts=A.d.pts,s=A.d.s,sv=BC.sv,out=[],span=spanOf(A,P);
   CadSolids.openings(pts,faces,Math.max(o.reach,100)).forEach(c=>{const part=sv.parts.find(x=>x.faces.includes(c.face));if(!part)return;
     const g=out.find(g=>g.part===part&&Math.abs(s[g.i]-s[c.i])<40);
