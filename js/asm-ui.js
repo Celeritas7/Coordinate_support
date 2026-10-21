@@ -74,10 +74,16 @@ function asmTexts(){const F=asmFrame();
   runs.filter(r=>r.kind==='pipe'&&r.asm&&ASM&&r.asm.file===ASM.name&&!r.cmp).forEach(r=>{r.text=asmPtsText(r.hdr,r.Q,F,r.hdrExtra);});
   if(TH.last)$('thPts').value=TH.last.run.text;renderPts();}
 
-// parse (again) with the saved overrides and replace this file's runs
+// parse (again) with the saved overrides and replace this file's runs. The parse runs in a Web Worker (StepAsm.parseAsync)
+// so the page stays live on a big file; a newer read replaces an older one still running.
+let asmSeq=0;
 function asmApply(note){
-  const t0=performance.now();let r;
-  try{r=StepAsm.parse(ASM.text,{pipe:ASM.ov});}catch(e){return cadSay('statusPipe',`${ASM.name}: ${e.message}`,true);}
+  const t0=performance.now(),A=ASM,id=++asmSeq,mb=(A.text.length/1e6).toFixed(1);
+  cadSay('statusPipe',`Reading ${A.name} (${mb} MB)...`);
+  StepAsm.parseAsync(A.text,{pipe:A.ov,progress:(stage,f)=>{if(id===asmSeq)cadSay('statusPipe',`Reading ${A.name} (${mb} MB): ${stage.toLowerCase()}${f>0&&f<1?` ${Math.round(f*100)} %`:''}...`);}})
+    .then(r=>{if(id===asmSeq&&ASM===A)asmApplied(r,note,t0);},e=>{if(id===asmSeq)cadSay('statusPipe',`${A.name}: ${e.message}`,true);});
+}
+function asmApplied(r,note,t0){
   ASM.r=r;TH.pick={};TH.last=null;TH.cmp=null;const ms=Math.round(performance.now()-t0),s=r.summary,parts=r.instances.filter(i=>i.solids).length;
   runs=runs.filter(x=>!(x.asm&&x.asm.file===ASM.name));
   const nOv=Object.keys(ASM.ov).length,tree=`${parts} part${parts===1?'':'s'} with solids (${s.solids} solid${s.solids===1?'':'s'}), ${s.csys} coordinate systems${nOv?`, ${nOv} part${nOv>1?'s':''} marked by hand`:''}`;
@@ -129,6 +135,12 @@ function thRender(){if(!ASM)return;const pi=thPipe(),p=ASM.r.pipes[pi];if(!p)ret
   thLibWire(box);
   box.querySelectorAll('input[data-k]').forEach(el=>el.onchange=()=>{TH.pick[el.dataset.k]=el.checked;const r=asmBase(pi);if(r){r.clamps=asmClampViz(pi);rebuild(false);}});}
 
+// Library from the 3D view (asm-view.js): the picked part, or the part a picked CSYS's hole is in
+(window.AV_ACTIONS=window.AV_ACTIONS||[]).push((p,r)=>{if(typeof FixLib==='undefined')return[];
+  const inst=p.kind==='csys'?(p.c.hole?p.c.hole.inst:null):p.inst;if(inst==null)return[];const I=r.instances[inst];
+  const known=FixLib.match(p.kind==='csys'?p.c.name:'',I.label,I.part&&I.part.name);
+  return[known?{order:2,label:`In the Library (${known.type})`,go:()=>{if(typeof showPanel==='function')showPanel('lib');return'';}}
+    :{order:2,label:'Add to library',go:()=>{const e=FixLib.addFromPart(r,inst);return e?`${I.name} added to the Library as a ${e.type}, bore Ø${e.boreMin}–${e.boreMax}. Edit it under Library.`:'Not added.';}}];});
 // Library links and one-click add inside the clamp list
 function thLibWire(box){
   box.querySelectorAll('[data-golib]').forEach(b=>b.onclick=()=>{if(typeof showPanel==='function')showPanel('lib');});

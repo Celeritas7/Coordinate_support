@@ -49,7 +49,7 @@ const f3=v=>v.toFixed(3).padStart(12),f6=v=>(Math.abs(v)<5e-7?0:v).toFixed(6);
 // Target points lines and the matching direction lines. tf(p) / tv(v): optional frame transforms (point, vector)
 function stationsText(list,tf){return list.map(s=>(tf?tf(s.c):s.c).map(f3).join(' ')+'   ! '+s.name).join('\n')+'\n';}
 function dirsText(list,tv){const P=list.map(s=>s.c),D=orient(P,list.map(s=>s.d));
-  return D.map((v,i)=>(tv?tv(v):v).map(f6).join(' ')+'   ! '+list[i].name).join('\n')+'\n';}
+  return D.map((v,i)=>(v?(tv?tv(v):v).map(f6).join(' '):'-')+'   ! '+list[i].name).join('\n')+'\n';}
 
 // direction lines: "dX dY dZ" (comment after !), or "-" for a station left free. Blank lines are skipped.
 // Returns {dirs:[v|null], bad:[line numbers], names:[comment name|'']}
@@ -99,7 +99,8 @@ root.ClampStations=API;
 
 // ---------------- UI ----------------
 if(typeof document==='undefined'||!document.getElementById('csBox'))return;
-const CS={own:null,list:[],use:new Set(),start:null,end:null};
+// extra: stations picked in the 3D view (a connector port, a CSYS with no hole, a point on a part); kept across refreshes
+const CS={own:null,list:[],use:new Set(),start:null,end:null,extra:[],next:1e6};
 const say=(m,bad)=>{const e=$('statusCs');e.textContent=m;e.style.color=bad?'var(--bad)':'';};
 const openAsm=()=>typeof ASM!=='undefined'&&ASM&&ASM.r?ASM:null;
 const src=()=>CS.own||openAsm();
@@ -113,8 +114,10 @@ const tag=s=>`${s.name} · ${s.part}`;
 
 function refresh(note){const a=src();$('csUseAsm').hidden=!openAsm()||CS.own===null;
   if(!a){CS.list=[];render();return say('Load a STEP assembly (or open one in Pipe · Check .pts against pipe). A fixing is a hole with a coordinate system on its axis, inside the hole.');}
-  const o=opt(a.r);CS.list=candidates(a.r,o);CS.use=new Set(CS.list.filter(s=>s.use).map(s=>s.id));
+  const o=opt(a.r),keep=[CS.start,CS.end].map(id=>CS.extra.some(s=>s.id===id)?id:null);
+  CS.list=candidates(a.r,o).concat(CS.extra);CS.use=new Set(CS.list.filter(s=>s.use).map(s=>s.id));
   const ends=CS.list.filter(s=>s.use&&s.role==='end');CS.start=ends.length===2?ends[0].id:null;CS.end=ends.length===2?ends[1].id:null;
+  if(keep[0]!=null)CS.start=keep[0];if(keep[1]!=null)CS.end=keep[1];
   if(CS.list.length)autoOrder();else render();
   const on=CS.use.size,off=CS.list.length-on;
   say(`${note?note+' ':''}${a.name}: ${on} station${on===1?'':'s'} for a Ø${fmt(o.D)} hose (bore Ø${fmt(o.D-0.2)}–${fmt(o.D+o.tol)})`+
@@ -135,13 +138,15 @@ function render(){const box=$('csList'),T=ticked();
   let k=0;
   const row=(s,i)=>{const on=CS.use.has(s.id),no=on?++k:0;
     return`<div class="csrow${on?'':' off'}" draggable="true" data-i="${i}"><button type="button" class="csgrip" data-grip="${i}" aria-label="Move ${esc(s.name)}: drag, or Up / Down arrow keys" title="Drag to reorder (or focus and press ↑ / ↓)">⠿</button>`+
-      `<label class="chk cdp"><input type="checkbox" data-id="${s.id}" ${on?'checked':''}><span><b>${no?'S'+no+' ':''}${esc(s.name)}</b> <span class="unit">${esc(s.part)} · bore Ø${fmt(s.D,2)} × ${fmt(s.length,1)} mm · ${s.c.map(v=>Math.round(v)).join(', ')}</span>`+
+      `<label class="chk cdp"><input type="checkbox" data-id="${s.id}" ${on?'checked':''}><span><b>${no?'S'+no+' ':''}${esc(s.name)}</b> <span class="unit">${esc(s.part)} · ${s.D?`bore Ø${fmt(s.D,2)} × ${fmt(s.length,1)} mm`:s.d?'direction from its CSYS':'point, direction free'} · ${s.c.map(v=>Math.round(v)).join(', ')}</span>`+(s.role==='picked'?` <button type="button" class="linkish" data-drop="${s.id}">remove</button>`:'')+
       (s.reason?`<span class="csrole csrole-${esc(s.role||'')}">${esc(s.reason)}</span>`:'')+`</span></label></div>`;};
   // short holes nobody ticked go under one fold, so the list shows what the route uses
   const hide=s=>s.role==='hole'&&!CS.use.has(s.id),main=CS.list.map((s,i)=>[s,i]).filter(([s])=>!hide(s)),rest=CS.list.map((s,i)=>[s,i]).filter(([s])=>hide(s));
   box.innerHTML=main.map(([s,i])=>row(s,i)).join('')+(rest.length?`<details class="csmore"${CS.moreOpen?' open':''}><summary>Other holes (${rest.length}): bolt and plate holes, unticked</summary>${rest.map(([s,i])=>row(s,i)).join('')}</details>`:'');
   const more=box.querySelector('.csmore');if(more)more.ontoggle=()=>{CS.moreOpen=more.open;};
   $('csLen').textContent=T.length>1?`${T.length} stations, ${fmt(pathLength(T.map(s=>s.c),T.map((_,i)=>i)),0)} mm straight-line path`:'Tick at least 2 stations to order them.';
+  box.querySelectorAll('[data-drop]').forEach(b=>b.onclick=e=>{e.preventDefault();const id=+b.dataset.drop;CS.extra=CS.extra.filter(s=>s.id!==id);
+    CS.list=CS.list.filter(s=>s.id!==id);CS.use.delete(id);if(CS.start===id)CS.start=null;if(CS.end===id)CS.end=null;autoOrder();});
   box.querySelectorAll('input[data-id]').forEach(el=>el.onchange=()=>{const id=+el.dataset.id;if(el.checked)CS.use.add(id);else{CS.use.delete(id);if(CS.start===id)CS.start=null;if(CS.end===id)CS.end=null;}render();});
   let drag=-1;
   box.querySelectorAll('.csrow').forEach(row=>{const i=+row.dataset.i;
@@ -187,6 +192,34 @@ $('csDirs').oninput=()=>store.set('rs.csDirs',$('csDirs').value);
 $('csHold').onchange=()=>store.set('rs.csHold',$('csHold').checked?'1':'0');
 // opening the section picks up an assembly opened elsewhere since
 $('csBox').addEventListener('toggle',()=>{if($('csBox').open&&!CS.own&&openAsm()&&!CS.list.length)refresh();});
+// ---- stations from the 3D view (asm-view.js): a CSYS, or a point on a part (snapped to its nearest hole) ----
+// as: 'start' | 'end' | 'station'. A hole already in the list is used as it is; anything else becomes a picked station.
+function fromPick(p,r){
+  if(p.kind==='csys'){const c=p.c,h=c.hole,I=r.instances[h?h.inst:c.inst]||{};
+    return{name:c.name,part:I.name||'',label:I.label||'',c:h?h.c:c.o,d:h?h.d:c.z,D:h?h.D:null,length:h?h.length:0};}
+  const I=r.instances[p.inst]||{},near=r.holes.filter(h=>h.inst===p.inst).map(h=>({h,e:len(sub(h.c,p.p))})).sort((a,b)=>a.e-b.e)[0];
+  if(near&&near.e<=Math.max(30,3*near.h.r)){const h=near.h;return{name:h.csys||`${I.name} Ø${fmt(h.D,1)} hole`,part:I.name||'',label:I.label||'',c:h.c,d:h.d,D:h.D,length:h.length,snapped:true};}
+  return{name:`${I.name||'part'} point`,part:I.name||'',label:I.label||'',c:p.p,d:null,D:null,length:0};}
+function usePick(p,r,as){
+  if(!CS.list.length&&src())refresh();
+  const st=fromPick(p,r);let s=CS.list.find(x=>len(sub(x.c,st.c))<0.5);
+  if(!s){s={id:CS.next++,...st,role:'picked',use:true,reason:'picked in 3D'};CS.extra.push(s);CS.list.push(s);}
+  CS.use.add(s.id);if(as==='start'){CS.start=s.id;if(CS.end===s.id)CS.end=null;}if(as==='end'){CS.end=s.id;if(CS.start===s.id)CS.start=null;}
+  $('csBox').open=true;autoOrder();
+  const what=as==='station'?'added as a station':`is the ${as}`;
+  say(`${s.name} ${what}${st.snapped?' (snapped to the nearest hole of the part you clicked)':''}. ${ticked().length} stations ticked.`);
+  return`${s.name} ${what}${st.snapped?', snapped to the part’s nearest hole':''}${s.d?'':' (direction left free)'}.`;}
+// for Suggest extra clamps (clamp-suggest.js): what is ticked, and adding its suggestions as stations
+root.clampStationsTicked=()=>ticked();
+root.csAddStations=L=>{if(!CS.list.length&&src())refresh();
+  L.forEach(st=>{if(CS.list.some(x=>len(sub(x.c,st.c))<0.5))return;const s={id:CS.next++,label:'',D:null,length:0,...st,role:'picked',use:true,reason:'suggested clamp'};
+    CS.extra.push(s);CS.list.push(s);CS.use.add(s.id);});
+  $('csBox').open=true;autoOrder();say(`${L.length} suggested clamps added; ${ticked().length} stations ticked. Use as stations, then Check.`);};
+(root.AV_ACTIONS=root.AV_ACTIONS||[]).push((p,r)=>$('csBox').hidden?[]:[
+  {label:'Use as start',go:x=>usePick(x,r,'start'),title:'First station of the hose route (Stations from clamps)',order:1},
+  {label:'Use as end',go:x=>usePick(x,r,'end'),title:'Last station of the hose route',order:1},
+  {label:'Add as station',go:x=>usePick(x,r,'station'),title:'A station the hose passes through',order:1}]);
+
 // lines + arcs (Pipe · Route through points) holds no tangents at stations: the section is for the spline route only
 const dWrap=()=>$('cdD').closest('div');
 const sync=()=>{const arc=$('shape').value==='arc';$('csBox').hidden=arc;dWrap().hidden=!arc;if(!arc&&$('cdD').value!==$('csD').value){$('cdD').value=$('csD').value;$('cdD').dispatchEvent(new Event('change'));}};
