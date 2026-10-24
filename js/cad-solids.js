@@ -178,12 +178,15 @@ function survey(cad,stations,o){
   const parts=[...by.values()].map(s=>{const so=solid.get(s.sid),size=Math.max(...so.max.map((v,k)=>v-so.min[k]));
     const role=so.pipe?'pipe':size>clipSize?'obstacle':s.st.size?'station':s.dLine<=touch?'clip':'obstacle';
     return{sid:s.sid,name:so.name,pipe:so.pipe||null,size,dims:so.max.map((v,k)=>v-so.min[k]),min:so.min,max:so.max,dLine:s.dLine,stations:[...s.st].sort((a,b)=>a-b),role,faces:s.faces};}).sort((a,b)=>a.dLine-b.dLine);
-  // mount: a bracket-sized part (≤ mountSize) at a station that touches the clip there — the clip is bolted to it, so a hose
+  // mount: a bracket-sized part (≤ mountSize) at a station that touches a clip — the clip is bolted to it, so a hose
   // through the clip always reaches into its face box. Frame-sized parts stay obstacles (the hose must still clear a rail).
+  // The clip may be recorded at a neighbouring station or only on the station line: one bracket often carries the clips of
+  // two stations (frame 22648999: bracket at P6, its clips at P5 and beside P6). A clip at the same station is preferred.
   const mountSize=o.mountSize??300,near=(a,b,g)=>[0,1,2].every(k=>a.min[k]<=b.max[k]+g&&b.min[k]<=a.max[k]+g);
-  const clips=parts.filter(p=>p.role==='station');
+  const clips=parts.filter(p=>p.role==='station'||p.role==='clip');
   for(const p of parts){if(p.role!=='obstacle'||!p.stations.length||p.size>mountSize)continue;
-    const c=clips.find(c=>c.stations.some(i=>p.stations.includes(i))&&near(p,c,1));if(c){p.role='mount';p.mountOf=c.stations.filter(i=>p.stations.includes(i));p.clip=c.name;}}
+    const touching=clips.filter(c=>near(p,c,1)),c=touching.find(c=>c.stations.some(i=>p.stations.includes(i)))||touching[0];
+    if(c){p.role='mount';p.mountOf=p.stations.slice();p.clip=c.name;}}
   return{rad,touch,reach,parts};
 }
 
