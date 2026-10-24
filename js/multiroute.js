@@ -134,7 +134,8 @@ function start(stations,opts={}){
     const sig=ss.map((s,k)=>`L${choices[k].leg+1}:B${choices[k].bis[0]+1}${sideName(s)}`).join(' ')||'direct';
     // did the optimiser keep every preferred side? (it starts there, but is free to slide round)
     const kept=choices.every((c,k)=>!c.pref||keeps(c.pref,ss[k],c.d,up));
-    const label=ss.length?ss.map((s,k)=>`${sideWord(s,choices[k].d,up)} ${choices[k].part}`).filter((w,k,a)=>a.indexOf(w)===k).join(', '):'direct';
+    // parts named by the last step of their assembly path ("A / B / 22648999" → "22648999")
+    const label=ss.length?ss.map((s,k)=>`${sideWord(s,choices[k].d,up)} ${String(choices[k].part).split(' / ').pop()}`).filter((w,k,a)=>a.indexOf(w)===k).join(', '):'direct';
     const ok=r.obs<=1e-6&&r.minR>=R-1e-6&&clearance>=-1e-6;
     if(!kept&&!t.pin){tops.splice(k+1,0,{...t,pin:true});return;}
     // per part with a side preference: the side wanted, the side the curve took, and whether that keeps it
@@ -172,7 +173,9 @@ function start(stations,opts={}){
     const by=new Map();polished.forEach(p=>{const side=ci>=0?p.sides[ci]:p.label;const b=by.get(side);if(!b||p.clearance>b.gap)by.set(side,{side,gap:p.clearance,minR:p.minR});});
     const sides=[...by.values()].sort((a,b)=>b.gap-a.gap);
     const f=v=>v<0?`−${(-v).toFixed(1)}`:v.toFixed(1),rule=radF.length?'both':'gap';
-    const text=`${short(part)} is in the way on ${every?'every side tried':`${nPart} of ${polished.length} routes tried`}: `+
+    const where=every?(sides.length>1?'every side tried':`every route tried (all passed it ${ci>=0?sides[0].side.replace(/ of$/,''):'the same way'})`)
+      :`${nPart} of ${polished.length} routes tried`;
+    const text=`${short(part)} is in the way on ${where}: `+
       sides.map(s=>`${ci>=0?s.side.replace(/ of$/,''):'via '+s.side} ${f(s.gap)} mm`).join(', ')+` (gap counted from the hose surface + keep-clear gap)`+
       (rule==='both'?`; ${radF.length} also need a bend tighter than R ${R}`:'');
     return{rule,part,sid:of.near.sid,every,sides,bestR,text};}
