@@ -1,10 +1,11 @@
 // node tests/ui-walk.js [--shots dir] — click through the main jobs with the real buttons and count the steps.
-// Needs Playwright + Chromium (PLAYWRIGHT_CHROMIUM or a normal Playwright install) and samples/piping3_practice_asm.stp.
+// Needs Playwright + Chromium (PLAYWRIGHT_CHROMIUM or a normal Playwright install). Flows A / B need samples/piping3_practice_asm.stp,
+// flow F samples/frame_asm.stp; each flow is skipped when its file is missing.
 // Prints one line per step, the status text the app showed, and a summary to compare phases against.
 const fs = require("fs"), path = require("path"), http = require("http");
 const ROOT = path.join(__dirname, ".."), S = f => path.join(ROOT, "samples", f);
-const ASM = S("piping3_practice_asm.stp");
-if (!fs.existsSync(ASM)) { console.log("skip: samples/piping3_practice_asm.stp not found"); process.exit(0); }
+const ASM = S("piping3_practice_asm.stp"), HAVE_ASM = fs.existsSync(ASM);
+if (!HAVE_ASM && !fs.existsSync(S("frame_asm.stp"))) { console.log("skip: samples/piping3_practice_asm.stp and samples/frame_asm.stp not found"); process.exit(0); }
 let pw; for (const p of ["playwright", "/opt/node22/lib/node_modules/playwright"]) { try { pw = require(p); break; } catch (e) {} }
 if (!pw) { console.log("skip: playwright not installed"); process.exit(0); }
 const exe = process.env.PLAYWRIGHT_CHROMIUM || (fs.existsSync("/opt/pw-browsers/chromium") ? "/opt/pw-browsers/chromium" : undefined);
@@ -36,6 +37,8 @@ const server = http.createServer((q, s) => {
   await pg.goto(url); await pg.evaluate(() => localStorage.clear()); await pg.reload(); await pg.waitForTimeout(800);
 
   // ---- A: Hose / Cable · route from clamps, keep clear of the parts
+  if (!HAVE_ASM) console.log("\nA, B  skip: samples/piping3_practice_asm.stp not found");
+  else {
   flow("A  Hose · route through the clamps of piping3, clear of the parts");
   await go("hose", "route"); step("Hose / Cable · Route through stations");
   // the page's own way in: top Open… (falls back to the section's Load link if the assembly does not reach the stations list)
@@ -78,6 +81,7 @@ const server = http.createServer((q, s) => {
   flows[cur].rows = th.length; flows[cur].ticked = th.filter(Boolean).length; console.log(`     clamp rows: ${th.length}, ticked: ${flows[cur].ticked}`);
   await pg.click("#thRun"); await pg.waitForTimeout(2500); step("Route through ticked clamps");
   await shot("B1-through");
+  }
 
   // ---- F: Frame · pick in 3D, CSYS made here, Suggest extra clamps (samples/frame_asm.stp)
   const FRAME = S("frame_asm.stp");
@@ -164,6 +168,24 @@ const server = http.createServer((q, s) => {
       await pg.click("#csPicked"); step("Only picked", await text("statusCs"));
       await pg.click("#csNone"); step("Untick all", await text("statusCs"));
     }
+    // F8: the open solid 30 / solid 43 question (handoff/UI_PHASES.md). Solid 30 of the frame IGES is part 22648999 under
+    // 23297378_ASM (box within 5 mm), solid 43 is 980464_AF54 (within 0.1 mm): pick each at its box centre and zoom to it
+    for (const [name, under, shotName] of [["22648999", "23297378_ASM", "F8-solid30"], ["980464_AF54", "", "F8b-solid43"]]) {
+      const got = await pg.evaluate(([name, under]) => { const r = ASM.r, ii = r.instances.findIndex(I => I.name === name && I.solids && (!under || I.label.includes(under)));
+        if (ii < 0) return null;
+        // box from the drawn outline of this instance (world coordinates, as on screen)
+        const G = AV.geo, [k0, n] = G.ranges[ii], A = G.g.getAttribute("position").array, b = { min: [Infinity, Infinity, Infinity], max: [-Infinity, -Infinity, -Infinity] };
+        for (let k = k0 * 6; k < (k0 + n) * 6; k++) { const j = k % 3; b.min[j] = Math.min(b.min[j], A[k]); b.max[j] = Math.max(b.max[j], A[k]); }
+        const c = [0, 1, 2].map(k => (b.min[k] + b.max[k]) / 2), size = Math.max(...[0, 1, 2].map(k => b.max[k] - b.min[k]));
+        AV.parts = true; asmSetPick({ kind: "part", inst: ii, p: c });
+        orbit.target.set(...c); orbit.dist = Math.max(size * 4, 400); draw();
+        return { label: r.instances[ii].label, c: c.map(v => Math.round(v)), size: Math.round(size) }; }, [name, under]);
+      if (!got) { console.log(`     ${name}: not in the file`); continue; }
+      await pg.waitForTimeout(400);
+      step(`asmSetPick() on ${name} at its centre, zoomed`, `${got.label} · centre ${got.c.join(", ")} · ${(await pickMsg()).slice(0, 140)}`);
+      await shot(shotName);
+    }
+    await pg.evaluate(() => asmSetPick(null));
   }
 
   console.log("\nSummary");
