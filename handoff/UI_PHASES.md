@@ -99,9 +99,10 @@ Root cause of report issues 2, 3, 4 and of the 26-row list.
   Alternatives again). Cards: failing min R / clearance in red, **Use anyway** on routes that are not clean, parts named by the
   last step of their path. Frame run (6 stations): "FY26_TEST_FRAME_1 is in the way on every route tried (all passed it left):
   left −8.5 mm …; 12 also need a bend tighter than R 65". Screenshot `shots/P4-none-clean.png`. `multiroute.test.js` +6 checks.
-- **Limit seen on the frame:** Alternatives goes round whole clusters of face boxes, so a 9 m frame rail is one obstacle and the
-  candidates loop 12 m round it while Check's own route is 1.1 m. Needs the exact faces (ROADMAP Phase 13) to pass beside a rail
-  instead of round it. Until then the "Stop keeping clear" button is the way out on frames.
+- **Limit seen on the frame** (fixed 2026-10-24, ROADMAP Phase 13): Alternatives went round whole clusters of face boxes, so a
+  9 m frame rail was one obstacle and the candidates looped 12 m round it. Now exact faces, local obstacles and cleared vias:
+  route_343434 P5–P10 on the frame STEP gives one clean 933 mm route in 5.8 s (was 3.0–4.9 m, none clean, 34 s).
+  Screenshot `shots/P13-alternatives-exact.png`.
 
 ## Phase 4b — Pick the side: "pass this part from above" (Claude Code builds the logic first; Claude Design owns the picker; 2 days)
 Agreed 2026-10-20. Today the solver decides which side of a part the route passes and the user cannot say otherwise; the only

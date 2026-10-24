@@ -187,6 +187,20 @@ After that:
 - Clearance rule and fixing recognition come from the engineer's answers (see Open questions)
 - Triggers the Vite move (Web Worker for the distance pass and the solvers)
 
+### Phase 13, STEP faces exact and Alternatives on real parts (done 2026-10-24)
+- STEP faces get exact shapes like IGES: planes with their boundary loops (holes included) and cylinders, from StepAsm's face
+  data; spheres, tori, cones and swept profiles (`SURFACE_OF_LINEAR_EXTRUSION`, tank shells) as their surface held to the face
+  box. Frame: 7982 flat, 6851 cylindrical, 1047 torus, 1627 cone, 359 sphere, 364 swept faces exact; 4249 B-spline faces stay
+  boxes. Route_343434 gap on the frame STEP = the IGES one (−0.41 mm at the same point; was −4.0 mm to the wrong part with boxes).
+- The route solver counts the exact gap to faces with a shape (Alternatives, and Check with Push the route away); a cheap first
+  test (distance to the plane / cylinder radius) skips the rest.
+- Alternatives: a leg is blocked only where it comes within the gap of material (exact), a part's faces are one obstacle with a
+  local box (only the faces that block, near the leg), each side's via is pushed out until it is clear, and a side that would be
+  a long detour (past ¾ of the leg, at least 300 mm) is not tried. No gap is asked within 2 × radius + margin of a station (the
+  hose sits in its port or bore there). Frame, route_343434 stations: P1–P6 679 mm, P5–P10 930 mm, P11–P16 1145 mm, all clean
+  (were 3–14 m and none clean).
+- Left: B-spline faces as surfaces (still boxes); the B-spline / extrusion distance is to the untrimmed surface held to the box.
+
 ## Phase 14 — Check an existing route
 - Load the assembly: the app finds the hose/pipe solid, its stations (CS order along the centreline, so a mis-numbered station is reported), fixings and obstacles
 - Checks: bend radius along the centreline (exact from the tori, or sampled on splines) vs min R; clearance per part; station order; station off-centreline; contact with non-fixings

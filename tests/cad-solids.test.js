@@ -52,4 +52,15 @@ const op = C.openings(pts, kept, 100).filter(o => o.face.sid === 1 && /^Y 100[07
 const near = (o, a, b) => { const z = o.x[2]; return z <= Math.max(P[a][2], P[b][2]) && z >= Math.min(P[a][2], P[b][2]); };
 check(op.some(o => near(o, 5, 6)) && op.some(o => near(o, 13, 14)), `plate Y 1000 / 1007 crossed beside its edge at P6–P7 and P14–P15 (${op.length} crossings)`);
 check(op.every(o => o.loop.outer), "no hole in the plate on the route: every crossing is past the plate edge");
+// ---- Phase 13: STEP faces exact too (the same frame as an assembly STEP): same smallest gap, same spot as the IGES ----
+if (fs.existsSync(path.join(__dirname, "../samples/frame_asm.stp"))) {
+  global.StepAsm = global.StepAsm || require("../js/step-asm.js");
+  const st = C.read(read("frame_asm.stp"), "frame.stp"), sv2 = C.survey(st, P, { d: 8, gap: 4, reach: 60 });
+  const k2 = sv2.parts.filter(p => p.role === "obstacle").flatMap(p => p.faces), e2 = C.clearance(pts, C.index(k2, 50), 8, 48);
+  const kinds = {}; st.faces.forEach(f => { const k = f.shape ? f.shape.kind : "box"; kinds[k] = (kinds[k] || 0) + 1; });
+  console.log(`info STEP faces: ${JSON.stringify(kinds)}`);
+  check(kinds.plane > 7000 && kinds.cyl > 6000 && kinds.ext > 50, "STEP: flat, cylindrical and swept faces have exact shapes");
+  check(Math.abs(e2.gap - exact.gap) < 0.05 && Math.hypot(...[0, 1, 2].map(k => e2.p[k] - exact.p[k])) < 2,
+    `STEP exact gap ${e2.gap.toFixed(2)} mm at ${e2.p.map(Math.round)} = IGES ${exact.gap.toFixed(2)} mm at ${exact.p.map(Math.round)}`);
+} else console.log("skip: samples/frame_asm.stp not found (STEP exact faces)");
 process.exit(fail ? 1 : 0);

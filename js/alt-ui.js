@@ -63,7 +63,7 @@ $('runAlt').onclick=()=>{
   // the same station directions Check holds: bore axes from Stations from clamps, typed start / end directions winning at the ends
   const SD=typeof clampStationDirs==='function'?clampStationDirs(P):null,held=SD?SD.fixDirs(null):null;
   const dirOf=i=>(i===0&&parseDir($('sd').value))||(i===P.length-1&&parseDir($('ed').value))||(held&&held[i])||null;
-  let job;try{job=MultiRoute.start(P.map((p,i)=>({p:[p[0],p[1],p[2]],dir:dirOf(i)})),{R,SF,rad,boxes,keep:3,prefer:ALT.prefer(),up:$('altUp').value});}
+  let job;try{job=MultiRoute.start(P.map((p,i)=>({p:[p[0],p[1],p[2]],dir:dirOf(i)})),{R,SF,rad,boxes,keep:3,prefer:ALT.prefer(),up:$('altUp').value,shapeNear:typeof CadSolids!=='undefined'?CadSolids.shapeNear:null});}
   catch(e){return say(e.message,true);}
   ALT.cands=[];ALT.sel=0;ALT.ctx={P,R,SF,rad,typed,nBoxes:boxes.length,cadParts:cad?cad.parts:0};render();rebuild(false);
   const id=++seq.n;ALT.job=id;$('runAlt').textContent='Stop';
@@ -83,7 +83,7 @@ $('runAlt').onclick=()=>{
         N.push({label:`Stop keeping clear of ${nm}`,title:`Unticks ${nm} under Keep clear of CAD parts (its gap is no longer checked) and runs Alternatives again`,
           go:()=>{bcKeepClear(none.sid,false);$('runAlt').click();}});}
       if(N.length&&typeof nextSteps==='function')nextSteps('statusAlt',N);return;}
-    say(`${C.length} distinct route${C.length>1?'s':''} from ${r.result.tried} way${r.result.tried>1?'s':''} round ${boxes.length} box${boxes.length>1?'es':''}${extra}; ${clean===C.length?'all clear the boxes and hold the radius':`${clean} clean`}. Click one to highlight it.${more?' '+more:''}`);};
+    say(`${C.length} distinct route${C.length>1?'s':''} from ${r.result.tried} way${r.result.tried>1?'s':''} round ${boxes.length} part face${boxes.length>1?'s':''}${extra}; ${clean===C.length?'all clear the boxes and hold the radius':`${clean} clean`}. Click one to highlight it.${more?' '+more:''}`);};
   defer(tick);
 };
 

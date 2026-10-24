@@ -56,12 +56,31 @@ function inFace(s,u,v){let inside=false;for(const L of s.loops){const b=L.bb;if(
 // nearest boundary loop to (u,v): {d, loop}
 function nearLoop(s,u,v){let d=Infinity,loop=null;for(const L of s.loops){const b=L.bb,du=Math.max(b[0]-u,0,u-b[2]),dv=Math.max(b[1]-v,0,v-b[3]);
     if(du*du+dv*dv>=d*d)continue;const e=seg2(u,v,L.segs);if(e<d){d=e;loop=L;}}return{d,loop};}
+// untrimmed surfaces (sphere, torus, cone, swept profile): the distance to the whole surface, never less than to the face's
+// own box (s.box), so a full torus or sphere does not reach past the patch the face covers
+function surfDist(s,p){let d;
+  if(s.kind==='sph')d=Math.abs(len3(sub3(p,s.c))-s.R);
+  else if(s.kind==='tor'){const w=sub3(p,s.c),h=dot3(w,s.z),rho=Math.hypot(...sub3(w,s.z.map(v=>v*h)));d=Math.abs(Math.hypot(rho-s.R,h)-s.r);}
+  else if(s.kind==='cone'){const w=sub3(p,s.a),h=dot3(w,s.z),rho=Math.hypot(...sub3(w,s.z.map(v=>v*h)));d=Math.abs(rho-(s.r0+h*Math.tan(s.ang)))*Math.cos(s.ang);}
+  else{// swept profile: across the sweep to the profile polyline, along it past the face's extent
+    const t=dot3(sub3(p,s.o),s.d),q=sub3(p,s.d.map(v=>v*t)),g=s.segs;let b=Infinity;
+    for(let i=0;i<g.length;i+=6){const dx=g[i+3]-g[i],dy=g[i+4]-g[i+1],dz=g[i+5]-g[i+2],L2=dx*dx+dy*dy+dz*dz;let u=L2?((q[0]-g[i])*dx+(q[1]-g[i+1])*dy+(q[2]-g[i+2])*dz)/L2:0;u=u<0?0:u>1?1:u;
+      const ex=g[i]+dx*u-q[0],ey=g[i+1]+dy*u-q[1],ez=g[i+2]+dz*u-q[2],e=ex*ex+ey*ey+ez*ez;if(e<b)b=e;}
+    const over=Math.max(s.t0-t,0,t-s.t1);d=Math.hypot(Math.sqrt(b),over);}
+  return Math.max(d,boxDist(p,s.box));}
 // exact distance from p to a face shape
-function shapeDist(s,p){const w=sub3(p,s.kind==='plane'?s.o:s.a);
+function shapeDist(s,p){if(s.kind!=='plane'&&s.kind!=='cyl')return surfDist(s,p);const w=sub3(p,s.kind==='plane'?s.o:s.a);
   if(s.kind==='plane'){const h=dot3(w,s.n),u=dot3(w,s.eu),v=dot3(w,s.ev);if(inFace(s,u,v))return Math.abs(h);return Math.hypot(h,nearLoop(s,u,v).d);}
   const t=dot3(w,s.z),x=dot3(w,s.ex),y=dot3(w,s.ey);
   if(t>=s.t0-1e-6&&t<=s.t1+1e-6&&(s.full||((Math.atan2(y,x)-s.th0)%TAU+TAU)%TAU<=s.span+1e-9))return Math.abs(Math.hypot(x,y)-s.R);
   return seg3(p,s.segs);}
+
+// distance from p to a face shape when it is under lim; lim or more (cheaply, from the plane / the cylinder radius) otherwise
+function shapeNear(s,p,lim){
+  if(s.kind!=='plane'&&s.kind!=='cyl')return surfDist(s,p);
+  if(s.kind==='plane'){const h=Math.abs((p[0]-s.o[0])*s.n[0]+(p[1]-s.o[1])*s.n[1]+(p[2]-s.o[2])*s.n[2]);if(h>=lim)return h;}
+  else{const w=sub3(p,s.a),t=dot3(w,s.z),x=dot3(w,s.ex),y=dot3(w,s.ey),e=Math.abs(Math.hypot(x,y)-s.R);if(e>=lim)return e;}
+  return shapeDist(s,p);}
 
 function iges(text){
   const lines=String(text).split('\n'),D=[],P=[];
@@ -151,6 +170,18 @@ function step(text,opts){
         // the face box stays the one from vertices + whole edge circles: a little larger than the sampled boundary, so a
         // box test never skips the face, and it matches the part's box (StepAsm instance.bbox)
         if(sh)face.shape=sh;}
+      // spheres, tori, cones and swept profiles: the untrimmed surface, held to the face box (surfDist)
+      if(exactStep&&!face.shape){const W=q=>F.pt(inst.M,q),Vv=q=>unit(F.vec(inst.M,q)),box={min:face.min,max:face.max};
+        if(f.kind==='spherical'&&f.ax&&f.r>0)face.shape={kind:'sph',c:W(f.ax.o),R:f.r,box};
+        else if(f.kind==='toroidal'&&f.ax&&f.R>0&&f.r>0)face.shape={kind:'tor',c:W(f.ax.o),z:Vv(f.ax.z),R:f.R,r:f.r,box};
+        else if(f.kind==='conical'&&f.ax&&f.ang!=null&&Math.abs(f.ang)<1.5)face.shape={kind:'cone',a:W(f.ax.o),z:Vv(f.ax.z),r0:f.r||0,ang:f.ang,box};
+        else if(f.ext&&f.loops&&f.loops.length){const d=Vv(f.ext.d),P0=f.ext.pts.map(W),o=P0[0],segs=[];
+          // the profile projected across the sweep (onto the plane through its first point, normal to the sweep)
+          const P=d?P0.map(q=>{const t=dot3(sub3(q,o),d);return sub3(q,d.map(v=>v*t));}):P0;
+          for(let i=1;i<P.length;i++)segs.push(...P[i-1],...P[i]);
+          // the face's extent along the sweep: its boundary measured from the profile
+          let t0=Infinity,t1=-Infinity;f.loops.forEach(l=>l.forEach(q=>{const t=dot3(sub3(W(q),o),d);if(t<t0)t0=t;if(t>t1)t1=t;}));
+          if(d&&isFinite(t0))face.shape={kind:'ext',o,d,segs:Float64Array.from(segs),t0:Math.min(t0,0),t1:Math.max(t1,0),box};}}
       faces.push(face);grow(sb,face.min);grow(sb,face.max);made++;});
     if(made)solids.push({sid,inst:idx,name:inst.label||inst.name||`solid ${sid}`,faces:made,min:sb.min,max:sb.max,...(pipe?{pipe}:{})});});});
   plates(faces);
@@ -241,7 +272,7 @@ function planeName(s){for(let k=0;k<3;k++)if(Math.abs(Math.abs(s.n[k])-1)<1e-6)r
 // a loop of a flat face as 3D points (to draw it)
 function loop3(s,L){const g=L.segs,out=[];for(let i=0;i<g.length;i+=4){const u=g[i],v=g[i+1];out.push([s.o[0]+s.eu[0]*u+s.ev[0]*v,s.o[1]+s.eu[1]*u+s.ev[1]*v,s.o[2]+s.eu[2]*u+s.ev[2]*v]);}return out;}
 
-const API={read,iges,step,survey,index,clearance,boxDist,along,shapeDist,openings,loop3,planeName};
+const API={read,iges,step,survey,index,clearance,boxDist,along,shapeDist,shapeNear,openings,loop3,planeName};
 if(typeof module!=="undefined"&&module.exports)module.exports=API;
 root.CadSolids=API;
 })(typeof globalThis!=="undefined"?globalThis:this);
