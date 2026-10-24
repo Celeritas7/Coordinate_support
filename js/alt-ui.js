@@ -39,12 +39,14 @@ function forcedLine(a){if(!a.forced||!ALT.forced)return'';
 function failLine(a){if(a.ok||a.forced||!ALT.ctx)return'';const R=ALT.ctx.R,w=[];
   if(a.minR<R-1e-6)w.push(`needs R ${fmt(a.minR,0)}, limit R ${R}`);if(a.clearance<-1e-6)w.push(`${fmt(-a.clearance,1)} mm into the keep-clear gap`);
   return w.length?w.join('; '):'runs into a part';}
+// the number that fails a rule, in red
+const red=(on,t)=>on?`<span style="color:var(--bad)">${t}</span>`:t;
 function render(){
   const box=$('altList');
   box.innerHTML=ALT.cands.map((a,i)=>{const fl=forcedLine(a),bad=failLine(a);return`<div class="altrow${ALT.sel===i?' on':''}" data-i="${i}"><i style="background:var(--alt${i+1})"></i>
     <span class="altt"><b>A${i+1}</b> · passes ${esc(a.label)}${bad?` · <span style="color:var(--bad)">${bad}</span>`:''}
-    ${fl?`<span class="unit" style="color:var(--warn)">${fl}</span>`:''}<span class="unit">length ${Math.round(a.len)} mm · min R ${fmt(a.minR)} mm · clearance ${isFinite(a.clearance)?fmt(a.clearance,1)+' mm':'—'}</span></span>
-    <button type="button" data-use="${i}">Use this</button></div>`;}).join('');
+    ${fl?`<span class="unit" style="color:var(--warn)">${fl}</span>`:''}<span class="unit">length ${Math.round(a.len)} mm · ${red(a.minR<ALT.ctx.R-1e-6,`min R ${fmt(a.minR)} mm`)} · ${red(a.clearance<-1e-6,`clearance ${isFinite(a.clearance)?fmt(a.clearance,1)+' mm':'—'}`)}</span></span>
+    <button type="button" data-use="${i}"${a.ok?'':' title="This route breaks the radius or the gap; it is added as a run all the same"'}>${a.ok?'Use this':'Use anyway'}</button></div>`;}).join('');
   box.querySelectorAll('.altrow').forEach(el=>el.onclick=()=>{ALT.sel=+el.dataset.i;render();rebuild(false);});
   box.querySelectorAll('button[data-use]').forEach(el=>el.onclick=e=>{e.stopPropagation();use(+el.dataset.use);});}
 function stop(msg){ALT.job=0;$('runAlt').textContent=LABEL;if(msg)say(msg);}
@@ -72,6 +74,15 @@ $('runAlt').onclick=()=>{
     if(!C.length)return say('No route came out.',true);
     const clean=C.filter(a=>a.ok).length;
     const more=[r.result.forced?`Chosen side: ${r.result.forced.text}.`:'',...r.result.notes.map(n=>n+'.')].filter(Boolean).join(' ');
+    const none=!clean&&r.result.none;
+    if(none){say(`No clean route from ${r.result.tried} way${r.result.tried>1?'s':''} round${extra}: ${none.text}. The ${C.length} closest are shown.${more?' '+more:''}`,true);
+      const N=[];
+      if(none.rule!=='radius')N.push({label:'Push the route away and check again',title:'Ticks “Push the route away” under Keep clear of CAD parts and runs Check',
+        go:()=>{$('cdBox').open=true;$('cdPush').checked=true;$('cdPush').dispatchEvent(new Event('change'));$('runBend').click();}});
+      if(none.part&&none.sid!=null&&typeof bcKeepClear==='function'){const nm=String(none.part).split(' / ').pop();
+        N.push({label:`Stop keeping clear of ${nm}`,title:`Unticks ${nm} under Keep clear of CAD parts (its gap is no longer checked) and runs Alternatives again`,
+          go:()=>{bcKeepClear(none.sid,false);$('runAlt').click();}});}
+      if(N.length&&typeof nextSteps==='function')nextSteps('statusAlt',N);return;}
     say(`${C.length} distinct route${C.length>1?'s':''} from ${r.result.tried} way${r.result.tried>1?'s':''} round ${boxes.length} box${boxes.length>1?'es':''}${extra}; ${clean===C.length?'all clear the boxes and hold the radius':`${clean} clean`}. Click one to highlight it.${more?' '+more:''}`);};
   defer(tick);
 };

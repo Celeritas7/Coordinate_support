@@ -122,18 +122,26 @@ function start(stations,opts={}){
     return{route,o:optimiser(route,designR)};}
   function finish(route,r,t){
     const Q=sampleCurve(route,r.x);
-    let clearance=Infinity;for(const p of Q)for(const bx of boxes)clearance=Math.min(clearance,boxDist(p,bx)-rad);
+    // smallest gap and the box it is to. Boxes sorted by their distance to the curve's own box: once that distance passes
+    // the best gap found, no later box can be closer (exact, and far fewer tests on a frame of thousands of face boxes)
+    const qb={min:[0,1,2].map(k=>Math.min(...Q.map(p=>p[k]))),max:[0,1,2].map(k=>Math.max(...Q.map(p=>p[k])))};
+    const bd=(a,b)=>Math.hypot(...[0,1,2].map(k=>Math.max(a.min[k]-b.max[k],0,b.min[k]-a.max[k])));
+    let clearance=Infinity,worst=-1;
+    for(const [d0,bi] of boxes.map((b,bi)=>[bd(qb,b),bi]).sort((a,b)=>a[0]-b[0])){if(d0-rad>=clearance)break;const bx=boxes[bi];
+      for(const p of Q){const g=boxDist(p,bx)-rad;if(g<clearance){clearance=g;worst=bi;}}}
     // label by where the polished curve really went, not by the via it started from
     const ss=choices.map(c=>passSide(Q,c.bx,c.d,rad));
     const sig=ss.map((s,k)=>`L${choices[k].leg+1}:B${choices[k].bis[0]+1}${sideName(s)}`).join(' ')||'direct';
     // did the optimiser keep every preferred side? (it starts there, but is free to slide round)
     const kept=choices.every((c,k)=>!c.pref||keeps(c.pref,ss[k],c.d,up));
-    const label=ss.length?ss.map((s,k)=>`${sideWord(s,choices[k].d,up)} ${choices[k].part}`).filter((w,k,a)=>a.indexOf(w)===k).join(', '):'direct';
+    // parts named by the last step of their assembly path ("A / B / 22648999" → "22648999")
+    const label=ss.length?ss.map((s,k)=>`${sideWord(s,choices[k].d,up)} ${String(choices[k].part).split(' / ').pop()}`).filter((w,k,a)=>a.indexOf(w)===k).join(', '):'direct';
     const ok=r.obs<=1e-6&&r.minR>=R-1e-6&&clearance>=-1e-6;
     if(!kept&&!t.pin){tops.splice(k+1,0,{...t,pin:true});return;}
     // per part with a side preference: the side wanted, the side the curve took, and whether that keeps it
     const prefs=choices.map((c,k)=>c.pref?{part:c.part,want:c.pref,went:sideWord(ss[k],c.d,up),kept:!!keeps(c.pref,ss[k],c.d,up)}:null).filter(Boolean);
-    polished.push({sig,label,len:r.len,minR:r.minR,clearance:boxes.length?clearance:Infinity,ok,kept,prefs,obs:r.obs,
+    const near=worst>=0?{part:boxes[worst].part!=null?String(boxes[worst].part):`B${worst+1}`,sid:boxes[worst].sid??null}:null;
+    polished.push({sig,label,len:r.len,minR:r.minR,clearance:boxes.length?clearance:Infinity,ok,kept,prefs,obs:r.obs,near,sides:ss.map((s,k)=>sideWord(s,choices[k].d,up)),
       W:route.pts(r.x),Q,route,x:r.x.slice()});}
   function rank(){
     const best=Math.min(...polished.map(p=>p.len)),bucket=p=>Math.round(p.len/(0.01*best));
@@ -152,7 +160,25 @@ function start(stations,opts={}){
       if(b.obs>1e-6&&!why.length)why.push('runs into a part');
       forced={what:[...new Set(pref.map(c=>`${c.pref} ${c.part}`))].join(', '),why:why.join('; ')||'not clean',text:''};
       forced.text=`${forced.what}: ${forced.why}`;out.forEach(p=>p.forced=true);}
-    return{candidates:out,tried:combos.length,polished:polished.length,skipped,forced,notes};}
+    return{candidates:out,tried:combos.length,polished:polished.length,skipped,forced,notes,none:polished.some(p=>p.ok)?null:noneClean()};}
+  // no route came out clean: which part is in the way on every side tried (best gap per side), or the radius
+  function noneClean(){if(!polished.length)return null;
+    const short=n=>String(n).split(' / ').pop(),gapF=polished.filter(p=>p.clearance<-1e-6),radF=polished.filter(p=>p.minR<R-1e-6);
+    const bestR=Math.max(...polished.map(p=>p.minR));
+    if(!gapF.length){const t=`every way round needs a bend tighter than R ${R} (best R ${bestR.toFixed(0)})`;return{rule:'radius',part:null,sid:null,bestR,sides:[],text:t};}
+    const count=new Map();gapF.forEach(p=>{const k=p.near.part;count.set(k,(count.get(k)||0)+1);});
+    const [part,nPart]=[...count].sort((a,b)=>b[1]-a[1])[0],every=nPart===polished.length;
+    const ci=choices.findIndex(c=>c.part===part),of=gapF.find(p=>p.near.part===part);
+    // best gap for each side of that part the routes took (or for each route, when it was not one of the parts enumerated)
+    const by=new Map();polished.forEach(p=>{const side=ci>=0?p.sides[ci]:p.label;const b=by.get(side);if(!b||p.clearance>b.gap)by.set(side,{side,gap:p.clearance,minR:p.minR});});
+    const sides=[...by.values()].sort((a,b)=>b.gap-a.gap);
+    const f=v=>v<0?`−${(-v).toFixed(1)}`:v.toFixed(1),rule=radF.length?'both':'gap';
+    const where=every?(sides.length>1?'every side tried':`every route tried (all passed it ${ci>=0?sides[0].side.replace(/ of$/,''):'the same way'})`)
+      :`${nPart} of ${polished.length} routes tried`;
+    const text=`${short(part)} is in the way on ${where}: `+
+      sides.map(s=>`${ci>=0?s.side.replace(/ of$/,''):'via '+s.side} ${f(s.gap)} mm`).join(', ')+` (gap counted from the hose surface + keep-clear gap)`+
+      (rule==='both'?`; ${radF.length} also need a bend tighter than R ${R}`:'');
+    return{rule,part,sid:of.near.sid,every,sides,bestR,text};}
   const now=()=>typeof performance!=='undefined'?performance.now():Date.now();
   function step(ms=30){
     const t0=now();let minR=null;
