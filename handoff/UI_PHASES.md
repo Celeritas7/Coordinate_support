@@ -87,12 +87,21 @@ Root cause of report issues 2, 3, 4 and of the 26-row list.
   (first = bold today), the three message texts (corner points, stations too close, mount row), and whether Next should also
   appear after Alternatives ("Use this" is already a button there).
 
-## Phase 4 — Alternatives that explain themselves (Claude Code, 1–2 days; Claude Design reviews the cards) — PARTLY BUILT
+## Phase 4 — Alternatives that explain themselves (Claude Code, 1–2 days; Claude Design reviews the cards) — BUILT 2026-10-24, awaiting design review
 - Apply the held bore directions in Alternatives as Check does (report issue 1). **Done.**
 - Group obstacle faces **per part** before enumerating sides, so one bracket is one obstacle, not 40 faces. **Already in `multiroute.js` (`cluster()` merges touching face boxes).**
 - When no clean candidate exists: say which part blocks every side and offer "[Push the route away] [Tick fewer parts]".
 - Cards: length / min R / clearance in a fixed order, the losing numbers in red, "Use this" only on clean ones.
 - **Done when:** piping3 gives ≥ 2 distinct candidates or an explained "none clean"; `multiroute.test.js` extended.
+- **Built 2026-10-24:** when no route is clean the result names the part in the way on every side tried (or every route, or
+  "n of m routes"), with the best gap per side and whether the radius failed too, or "every way round needs a bend tighter than
+  R"; shown in red with Next **Push the route away and check again** and **Stop keeping clear of <part>** (unticks it, runs
+  Alternatives again). Cards: failing min R / clearance in red, **Use anyway** on routes that are not clean, parts named by the
+  last step of their path. Frame run (6 stations): "FY26_TEST_FRAME_1 is in the way on every route tried (all passed it left):
+  left −8.5 mm …; 12 also need a bend tighter than R 65". Screenshot `shots/P4-none-clean.png`. `multiroute.test.js` +6 checks.
+- **Limit seen on the frame:** Alternatives goes round whole clusters of face boxes, so a 9 m frame rail is one obstacle and the
+  candidates loop 12 m round it while Check's own route is 1.1 m. Needs the exact faces (ROADMAP Phase 13) to pass beside a rail
+  instead of round it. Until then the "Stop keeping clear" button is the way out on frames.
 
 ## Phase 4b — Pick the side: "pass this part from above" (Claude Code builds the logic first; Claude Design owns the picker; 2 days)
 Agreed 2026-10-20. Today the solver decides which side of a part the route passes and the user cannot say otherwise; the only
@@ -206,8 +215,12 @@ Click a part or a CSYS in the 3D view (Q5); the panel offers what fits the open 
   - Rough limits now: a browser tab holds ~4 GB, so files up to ~500 MB should read; past that the next step is reading
     only the parts near the route.
   - The old branch's edge cloud is not ported (nothing uses it yet); its worker idea is.
-- Not done: Check / Alternatives / clearance still run on the page's main thread (in short chunks); reading only the parts
-  near the route.
+- **Solvers, 2026-10-24 (measured, not moved):** on the frame Check blocks the page ~1 s in total and Alternatives ~1 s over
+  its whole run: both already run in short slices. Profiling showed 22 of Alternatives' 38 s in the obstacle penalty; testing
+  only the boxes a segment's samples reach, with an early-exit depth test, gives **38 s → 16 s** with identical results. The
+  remaining 0.6–0.7 s stalls are drawing ~800 000 outline lines in the headless test browser's software renderer (0.23 s with
+  outlines hidden); a real graphics card draws them at once. A Web Worker for the solvers is not worth its complexity now.
+- Not done: reading only the parts near the route.
 
 ### Q5 — Show CSYS (DONE 2026-10-21, `js/asm-view.js`)
 - The open assembly is drawn in 3D even with no route: every part as its edge outline (the face loops StepAsm reads, one
