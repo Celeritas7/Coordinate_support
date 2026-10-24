@@ -144,6 +144,8 @@ window.bcFromAsm=a=>{if(a&&a.text)fromText(a.name,a.text,a.r);};
 $('cdLoad').onclick=()=>$('cdFile').click();
 window.bcLoad=f=>{$('cdBox').open=true;load(f);};
 window.bcName=()=>BC.cad?BC.cad.name:null;window.bcCad=()=>BC.cad;
+// keep clear on / off for one solid (Alternatives' "Stop keeping clear of …")
+window.bcKeepClear=(sid,on)=>{if(!BC.cad)return;BC.user.set(sid,!!on);render();};
 $('cdFile').onchange=e=>{if(e.target.files[0])load(e.target.files[0]);e.target.value='';};
 $('cdClear').onclick=()=>{BC.cad=null;BC.sv=null;BC.key='';BC.focus=0;$('cdClear').hidden=true;render();say('');};
 ['cdD','cdGap','cdReach'].forEach(k=>$(k).addEventListener('change',()=>{survey();}));

@@ -76,4 +76,20 @@ check(fo.forced && fo.candidates.length === 1 && fo.candidates[0].forced && /^ab
   "Above a wall too tall for R: best route that side, marked forced with the rule and the number");
 check(!fu.forced && fu.candidates[0].ok && fu.candidates[0].label === "under 22577598", "Below the same wall: clean, not forced");
 
+// ---- Phase 4: no clean route — say which part is in the way on every side ----
+const plate = { min: [490, -600, -600], max: [510, 600, 600], part: "FRAME / PLATE 22648999" };
+const nc = M.enumerate([{ p: [420, 0, 0], dir: [1, 0, 0] }, { p: [580, 0, 0], dir: [1, 0, 0] }], { R, SF: 1.5, rad, boxes: [plate], makeRoute, optimiser });
+console.log(`     none clean: ${nc.none && nc.none.text}`);
+check(!nc.candidates.some(c => c.ok) && nc.none, "a plate 1200 mm wide between stations 160 mm apart: nothing clean, and the result says why");
+check(nc.none.part === "FRAME / PLATE 22648999" && nc.none.every && nc.none.sides.length >= 2 && nc.none.sides.every(s => s.gap < 0),
+  `the plate is named, in the way on every side (${nc.none.sides.map(s => s.side + " " + s.gap.toFixed(1)).join(", ")})`);
+check(/^PLATE 22648999 is in the way on every side tried: /.test(nc.none.text), "the text names the part by the last step of its path");
+check(nc.candidates.every(c => c.near && c.near.part === "FRAME / PLATE 22648999"), "each route records the part it gets closest to");
+check(res.none === null && up.none === null, "a clean result has no 'none' report");
+// the faster clearance (boxes sorted by distance to the curve's box) gives the same smallest gap as testing every box
+{ const many = [box, ...Array.from({ length: 40 }, (_, i) => ({ min: [i * 100 - 2000, 900, -50], max: [i * 100 - 1950, 950, 50] }))];
+  const m = M.enumerate([A, B], { R, SF: 1.5, rad, boxes: many, makeRoute, optimiser, keep: 1 }), c = m.candidates[0];
+  let g = Infinity; for (const p of c.Q) for (const b of many) g = Math.min(g, M.boxDist(p, b) - rad);
+  check(Math.abs(g - c.clearance) < 1e-9, `clearance with the early stop = every box tested (${c.clearance.toFixed(3)} mm)`); }
+
 if (fail) { console.log(`${fail} failed`); process.exit(1); }
