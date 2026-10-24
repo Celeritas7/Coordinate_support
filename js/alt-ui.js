@@ -15,12 +15,15 @@ const LABEL=$('runAlt').textContent,seq={n:0};
 const fileKey=()=>typeof ASM!=='undefined'&&ASM?ASM.name:'';
 ALT.prefer=()=>{try{return JSON.parse(store.get('rs.altPrefer.'+fileKey())||'{}');}catch(e){return{};}};
 const savePrefer=o=>store.set('rs.altPrefer.'+fileKey(),JSON.stringify(o));
-function sidesLine(){const o=ALT.prefer(),k=Object.keys(o);$('altSides').textContent=k.length?`· passes ${k.map(n=>`${{above:'over',below:'under',left:'left of',right:'right of'}[o[n]]||o[n]} ${n.split(' / ').pop()}`).join(', ')}`:'';}
+// "passes over 95651236, right of 22577598", each with a × that clears that part's side
+function sidesLine(){const o=ALT.prefer(),k=Object.keys(o),el=$('altSides');
+  el.innerHTML=k.length?'· passes '+k.map(n=>`<span class="altside">${{above:'over',below:'under',left:'left of',right:'right of'}[o[n]]||esc(o[n])} ${esc(n.split(' / ').pop())} <button type="button" class="linkish" data-clr="${esc(n)}" aria-label="Clear the side for ${esc(n)}" title="Any side">×</button></span>`).join(', '):'';
+  el.querySelectorAll('[data-clr]').forEach(b=>b.onclick=()=>{const p=ALT.prefer();delete p[b.dataset.clr];savePrefer(p);sidesLine();if(typeof asmPanel==='function')asmPanel();});}
 $('altUp').onchange=()=>store.set('rs.altUp.'+fileKey(),$('altUp').value);
 document.addEventListener('asm:loaded',()=>{$('altUp').value=store.get('rs.altUp.'+fileKey())||'+Z';sidesLine();});
 (window.AV_ACTIONS=window.AV_ACTIONS||[]).push((p,r)=>{if(p.kind!=='part'||$('altBox').hidden)return[];
   const I=r.instances[p.inst],name=I.label||I.name,cur=ALT.prefer()[name]||'any';
-  return['any','above','below','left','right'].map(s=>({row:'Route passes it',label:s==='above'?'over':s==='below'?'under':s,on:cur===s,
+  return['any','above','below','left','right'].map(s=>({row:`Route passes it (up ${$('altUp').value}, looking from start to end)`,label:s==='above'?'over':s==='below'?'under':s,on:cur===s,
     title:s==='any'?'Alternatives may pass it on any side':`Alternatives keep only routes that pass ${s==='above'?'over':s==='below'?'under':'to the '+s+' of'} it (up = ${$('altUp').value})`,
     go:()=>{const o=ALT.prefer();if(s==='any')delete o[name];else o[name]=s;savePrefer(o);sidesLine();
       return s==='any'?`${I.name}: any side.`:`${I.name}: Alternatives pass it ${s==='above'?'over':s==='below'?'under':'on the '+s} (looking along the route, up ${$('altUp').value}). Run Alternatives.`;}}));});
@@ -29,12 +32,19 @@ function typedBoxes(){
   return $('altObs').value.split(/\r?\n/).map(l=>l.split('!')[0].trim()).filter(Boolean).map(l=>l.replace(/,/g,' ').split(/\s+/))
     .filter(r=>r.length>=7&&r.slice(1,7).every(v=>Number.isFinite(+v))).map(r=>{const v=r.slice(1,7).map(Number);
       return{id:r[0],part:r[0],min:[0,1,2].map(k=>Math.min(v[k],v[k+3])),max:[0,1,2].map(k=>Math.max(v[k],v[k+3]))};});}
+// a side preference that cost the clean route is amber, with why and where the route went; red is for radius / gap only
+const WANT={above:'above',below:'below',left:'left of',right:'right of'};
+function forcedLine(a){if(!a.forced||!ALT.forced)return'';
+  return(a.prefs||[]).map(p=>`Could not pass ${WANT[p.want]||esc(p.want)} ${esc(String(p.part).split(' / ').pop())}: ${esc(ALT.forced.why)}.${p.kept?'':` Went ${esc(p.went.replace(/ of$/,''))} instead.`}`).join(' ');}
+function failLine(a){if(a.ok||a.forced||!ALT.ctx)return'';const R=ALT.ctx.R,w=[];
+  if(a.minR<R-1e-6)w.push(`needs R ${fmt(a.minR,0)}, limit R ${R}`);if(a.clearance<-1e-6)w.push(`${fmt(-a.clearance,1)} mm into the keep-clear gap`);
+  return w.length?w.join('; '):'runs into a part';}
 function render(){
   const box=$('altList');
-  box.innerHTML=ALT.cands.map((a,i)=>`<div class="altrow${ALT.sel===i?' on':''}" data-i="${i}"><i style="background:var(--alt${i+1})"></i>
-    <span class="altt"><b>A${i+1}</b> · passes ${esc(a.label)}${a.ok?'':' · <span style="color:var(--bad)">not clean</span>'}
-    <span class="unit">length ${Math.round(a.len)} mm · min R ${fmt(a.minR)} mm · clearance ${isFinite(a.clearance)?fmt(a.clearance,1)+' mm':'—'}</span></span>
-    <button type="button" data-use="${i}">Use this</button></div>`).join('');
+  box.innerHTML=ALT.cands.map((a,i)=>{const fl=forcedLine(a),bad=failLine(a);return`<div class="altrow${ALT.sel===i?' on':''}" data-i="${i}"><i style="background:var(--alt${i+1})"></i>
+    <span class="altt"><b>A${i+1}</b> · passes ${esc(a.label)}${bad?` · <span style="color:var(--bad)">${bad}</span>`:''}
+    ${fl?`<span class="unit" style="color:var(--warn)">${fl}</span>`:''}<span class="unit">length ${Math.round(a.len)} mm · min R ${fmt(a.minR)} mm · clearance ${isFinite(a.clearance)?fmt(a.clearance,1)+' mm':'—'}</span></span>
+    <button type="button" data-use="${i}">Use this</button></div>`;}).join('');
   box.querySelectorAll('.altrow').forEach(el=>el.onclick=()=>{ALT.sel=+el.dataset.i;render();rebuild(false);});
   box.querySelectorAll('button[data-use]').forEach(el=>el.onclick=e=>{e.stopPropagation();use(+el.dataset.use);});}
 function stop(msg){ALT.job=0;$('runAlt').textContent=LABEL;if(msg)say(msg);}
@@ -58,7 +68,7 @@ $('runAlt').onclick=()=>{
   const extra=job.skipped?` (${job.skipped} further obstacle${job.skipped>1?'s':''} left to the solver)`:'';
   const tick=()=>{if(ALT.job!==id)return;const r=job.step(30);
     if(!r.done){say(`Shaping route ${r.k+1} of ${r.total} (${job.tried} ways round)${extra}... tightest bend R ${fmt(r.minR||0)} mm`);return defer(tick);}
-    const C=r.result.candidates;ALT.cands=C;stop();render();rebuild(true);
+    const C=r.result.candidates;ALT.cands=C;ALT.forced=r.result.forced;stop();render();rebuild(true);
     if(!C.length)return say('No route came out.',true);
     const clean=C.filter(a=>a.ok).length;
     const more=[r.result.forced?`Chosen side: ${r.result.forced.text}.`:'',...r.result.notes.map(n=>n+'.')].filter(Boolean).join(' ');

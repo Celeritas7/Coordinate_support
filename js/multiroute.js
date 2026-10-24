@@ -131,7 +131,9 @@ function start(stations,opts={}){
     const label=ss.length?ss.map((s,k)=>`${sideWord(s,choices[k].d,up)} ${choices[k].part}`).filter((w,k,a)=>a.indexOf(w)===k).join(', '):'direct';
     const ok=r.obs<=1e-6&&r.minR>=R-1e-6&&clearance>=-1e-6;
     if(!kept&&!t.pin){tops.splice(k+1,0,{...t,pin:true});return;}
-    polished.push({sig,label,len:r.len,minR:r.minR,clearance:boxes.length?clearance:Infinity,ok,kept,obs:r.obs,
+    // per part with a side preference: the side wanted, the side the curve took, and whether that keeps it
+    const prefs=choices.map((c,k)=>c.pref?{part:c.part,want:c.pref,went:sideWord(ss[k],c.d,up),kept:!!keeps(c.pref,ss[k],c.d,up)}:null).filter(Boolean);
+    polished.push({sig,label,len:r.len,minR:r.minR,clearance:boxes.length?clearance:Infinity,ok,kept,prefs,obs:r.obs,
       W:route.pts(r.x),Q,route,x:r.x.slice()});}
   function rank(){
     const best=Math.min(...polished.map(p=>p.len)),bucket=p=>Math.round(p.len/(0.01*best));

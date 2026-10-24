@@ -35,7 +35,15 @@ const pts = []; for (let i = 0; i + 1 < P.length; i++) { const p0 = P[Math.max(0
 const sv = C.survey(cad, P, { d: 8, gap: 4, reach: 60 }), kept = sv.parts.filter(p => p.role === "obstacle").flatMap(p => p.faces);
 const exact = C.clearance(pts, C.index(kept, 50), 8, 48), boxes = C.clearance(pts, C.index(kept.map(f => ({ min: f.min, max: f.max, sid: f.sid })), 50), 8, 48);
 check(boxes.gap < -3, `face boxes only: ${boxes.gap.toFixed(1)} mm (the old false alarm)`);
-check(exact.gap > boxes.gap + 3 && exact.box.sid === 1, `exact: ${exact.gap.toFixed(1)} mm to solid 1, at the plate edge near P6`);
+check(exact.gap > boxes.gap + 3 && exact.box.sid === 1, `exact: ${exact.gap.toFixed(1)} mm to solid ${exact.box && exact.box.sid}, at the plate edge near P6`);
+// the same with the clip-mount rule off: mounts can only leave the check, so this gap is never larger than the one above
+{ const sv0 = C.survey(cad, P, { d: 8, gap: 4, reach: 60, mountSize: 0 }), k0 = sv0.parts.filter(p => p.role === "obstacle").flatMap(p => p.faces), e0 = C.clearance(pts, C.index(k0, 50), 8, 48);
+  const m = sv.parts.filter(p => p.role === "mount");
+  console.log(`info without the mount rule: ${e0.gap.toFixed(1)} mm to solid ${e0.box && e0.box.sid}; mounts: ${m.map(p => p.name + " (" + Math.round(p.size) + " mm)").join(", ") || "none"}`);
+  const n = exact.box && sv.parts.find(p => p.sid === exact.box.sid);
+  if (n) { const at = n.stations.map(i => "P" + (i + 1)), dP = P.map((q, i) => ({ i, d: Math.hypot(...[0, 1, 2].map(k => Math.max(n.min[k] - q[k], 0, q[k] - n.max[k]))) })).sort((a, b) => a.d - b.d)[0];
+    console.log(`info nearest part ${n.name}: ${n.dims.map(v => Math.round(v)).join(" x ")} mm, role ${n.role}, touches ${at.join(", ") || "no station"}; nearest station P${dP.i + 1} is ${dP.d.toFixed(1)} mm from its box${dP.d === 0 ? " (inside it)" : ""}; box ${n.min.map(Math.round).join(",")} .. ${n.max.map(Math.round).join(",")}`); }
+  check(e0.gap <= exact.gap + 1e-9, "the mount rule never makes the gap smaller"); }
 const op = C.openings(pts, kept, 100).filter(o => o.face.sid === 1 && /^Y 100[07]$/.test(C.planeName(o.face.shape)));
 const near = (o, a, b) => { const z = o.x[2]; return z <= Math.max(P[a][2], P[b][2]) && z >= Math.min(P[a][2], P[b][2]); };
 check(op.some(o => near(o, 5, 6)) && op.some(o => near(o, 13, 14)), `plate Y 1000 / 1007 crossed beside its edge at P6–P7 and P14–P15 (${op.length} crossings)`);

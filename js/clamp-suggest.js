@@ -23,7 +23,7 @@ function suggest(route,stations,opts={}){
     return{p:[0,1,2].map(k=>P[i][k]+(P[Math.min(i+1,n-1)][k]-P[i][k])*t),t:norm(sub(P[Math.min(i+1,n-1)],P[i]))};};
   const onRoute=c=>{let bi=0,bd=Infinity;for(let i=0;i<n;i++){const d=len(sub(P[i],c));if(d<bd){bd=d;bi=i;}}return{s:S[bi],d:bd};};
   // supports: the stations the route passes (within 5 mm), and the two ends
-  const sup=stations.map(st=>({...st,...onRoute(st.c)})).filter(x=>x.d<=5).map(x=>({s:x.s,name:x.name,part:x.part||'',c:x.c}));
+  const sup=stations.map(st=>({...st,...onRoute(st.c)})).filter(x=>x.d<=5).map(x=>({s:x.s,name:x.name,part:x.part||'',c:x.c,i:x.i}));
   if(!sup.some(x=>x.s<minGap))sup.push({s:0,name:'route start',end:true});
   if(!sup.some(x=>x.s>L-minGap))sup.push({s:L,name:'route end',end:true});
   sup.sort((a,b)=>a.s-b.s);
@@ -60,39 +60,73 @@ root.ClampSuggest=API;
 
 // ---------------- UI ----------------
 if(typeof document==='undefined'||!document.getElementById('sgBox'))return;
-const SG={res:null,run:null};
+const SG={res:null,run:null,on:-1};
 const say=(m,bad)=>{const e=$('sgStatus');e.textContent=m;e.style.color=bad?'var(--bad)':'';};
-const f0=v=>Math.round(v);
+const f0=v=>Math.round(v),last=n=>String(n||'').split(' / ').pop();
+const runName=()=>{const r=selected();return r&&r.d?r.name:'the selected route';};
 function run(){
   const r=selected();if(!r||!r.d)return say('Check a route first: suggestions are made along the selected route.',true);
   const P=parsePts($('pts').value),names=typeof ClampStations!=='undefined'?ClampStations.pointNames($('pts').value):[];
   const T=typeof clampStationsTicked==='function'?clampStationsTicked():[];
-  const stations=P.map((c,i)=>{const x=T.find(s=>len(sub(s.c,c))<0.5);return{name:names[i]||`P${i+1}`,c:[c[0],c[1],c[2]],part:x?x.part:''};});
+  const stations=P.map((c,i)=>{const x=T.find(s=>len(sub(s.c,c))<0.5);return{name:names[i]||`P${i+1}`,c:[c[0],c[1],c[2]],part:x?x.part:'',i};});
   const cad=typeof bcCad==='function'?bcCad():null;
   const solids=cad?cad.solids.map(so=>({name:so.name,pipe:so.pipe,faces:[]})):[];
   if(cad){const by=new Map(cad.solids.map((so,i)=>[so.sid,solids[i]]));cad.faces.forEach(f=>{const so=by.get(f.sid);if(so)so.faces.push(f);});}
   const o={maxSpan:+$('sgSpan').value||300,nearBend:+$('sgNear').value||60,bends:$('sgBends').checked,R:r.params&&r.params.R||+$('r').value||65,reach:+$('sgReach').value||60,solids};
   store.set('rs.sg',JSON.stringify({span:o.maxSpan,near:o.nearBend,bends:o.bends,reach:o.reach}));
-  SG.res=suggest({pts:r.d.pts,s:r.d.s,k:r.d.k},stations,o);SG.run=r.id;render();rebuild(false);
-  const n=SG.res.list.length,held=SG.res.supports.filter(x=>!x.end).length;
-  say(n?`${n} clamp${n>1?'s':''} to add on ${r.name} (${f0(SG.res.L)} mm, held at ${held} station${held===1?'':'s'}).${cad?'':' Load the parts (Keep clear of CAD parts) to see what each one mounts on.'}`
-    :`No clamp to add: ${r.name} is held within ${f0(o.maxSpan)} mm everywhere${o.bends?' and next to every bend':''}.`);
+  SG.res=suggest({pts:r.d.pts,s:r.d.s,k:r.d.k},stations,o);SG.res.reach=o.reach;SG.run=r.id;SG.on=-1;render();rebuild(false);
+  const n=SG.res.list.length,brk=SG.res.list.filter(q=>!q.mount).length,R=r.params&&r.params.R;
+  // a route that fails the radius will change: say so first
+  const lead=R&&r.minR<R?`${r.name} fails the radius (R ${fmt(r.minR)}, needs ${R}). Suggestions may move once it passes. `:'';
+  const many=n>12?` That is one every ${f0(SG.res.L/n)} mm; check Max spacing and the route before making CSYS.`:'';
+  say(lead+(n?`${n} clamp${n>1?'s':''} to add on ${r.name}${brk?`, ${brk} need${brk>1?'':'s'} a bracket`:''}.${many}${cad?'':' Load the parts (Keep clear of CAD parts) to see what each one mounts on.'}`
+    :`No clamp to add: ${r.name} is held within ${f0(o.maxSpan)} mm everywhere${o.bends?' and next to every bend':''}.`));
   if(n&&typeof nextSteps==='function')nextSteps('sgStatus',[{label:'Make a CSYS for each',go:makeAll},{label:'Add them as stations',go:addAll}]);}
+// support names as the station list shows them: S1, S2 … (route start / end at the ends)
+const supName=x=>x.i!=null?`S${x.i+1}`:x.name==='route start'?'start':x.name==='route end'?'end':x.name;
+// "on <part>, 3.2 mm" / "on the surface of <part>" / bracket
+const mountTxt=q=>q.mount?(q.mount.gap<0.5?`on the surface of ${last(q.mount.name)}`:`on ${last(q.mount.name)}, ${q.mount.gap.toFixed(1)} mm`):'';
+const likeTxt=q=>q.like?`like ${q.like.name}${q.like.part?` (${last(q.like.part)})`:''}, ${q.like.why}`:'';
+function groups(R){const S=R.supports.slice().sort((a,b)=>a.s-b.s),G=[];
+  R.list.forEach((q,i)=>{let k=0;while(k<S.length-2&&S[k+1].s<=q.s)k++;const a=S[k],b=S[Math.min(k+1,S.length-1)];
+    let g=G.find(g=>g.a===a);if(!g)G.push(g={a,b,rows:[]});g.rows.push(i);});return G;}
 function render(){const box=$('sgList'),R=SG.res;if(!R){box.innerHTML='';return;}
-  box.innerHTML=R.list.map((q,i)=>`<div class="sgrow"><b>+${i+1}</b> at ${f0(q.s)} mm along · ${q.p.map(f0).join(', ')}
-    <div class="unit">${esc(q.why)}</div>
-    <div class="unit">${q.mount?`mounts on ${esc(q.mount.name.split(' / ').pop())} (${q.mount.gap.toFixed(1)} mm away)`:'<span style="color:var(--warn)">no part within reach: needs a bracket</span>'}${q.like?` · like ${esc(q.like.name)}${q.like.part?` (${esc(q.like.part)})`:''}, ${q.like.why}`:''}</div>
-    <button type="button" data-mk="${i}">Make CSYS</button></div>`).join('')+
+  const G=groups(R),fold=R.list.length>12;
+  const row=i=>{const q=R.list[i],m=mountTxt(q),lk=likeTxt(q);
+    return`<tr data-i="${i}"${SG.on===i?' class="on"':''}><td class="n"><span class="sgchip">+${i+1}</span></td><td class="n">${f0(q.s)}</td>
+      <td>${esc(q.why)}<div class="unit">${m?esc(m):`<span class="sgtag">needs a bracket</span>no part within ${f0(R.reach)} mm`}${lk?' · '+esc(lk):''}</div></td></tr>`;};
+  box.innerHTML=G.map(g=>`<details class="sggrp"${fold?'':' open'}><summary>${esc(supName(g.a))} → ${esc(supName(g.b))} · ${f0(g.b.s-g.a.s)} mm · ${g.rows.length} clamp${g.rows.length>1?'s':''}</summary>
+    <table><thead><tr><th></th><th>along, mm</th><th>why <span class="unit">· click a row for Make CSYS</span></th></tr></thead><tbody>${g.rows.map(row).join('')}</tbody></table></details>`).join('')+
     (R.spans.length?`<details class="sgspans"><summary>Spans before (${R.spans.length})</summary>${R.spans.map(s=>`<div class="unit">${esc(s.from)} → ${esc(s.to)}: ${f0(s.len)} mm</div>`).join('')}</details>`:'');
-  box.querySelectorAll('[data-mk]').forEach(b=>b.onclick=()=>{const q=R.list[+b.dataset.mk];make(q,+b.dataset.mk);});}
-const make=(q,i)=>typeof csysMake==='function'?csysMake(q.p,q.t,null,'RS_CLAMP'):null;
-function makeAll(){SG.res.list.forEach(make);say(`${SG.res.list.length} CSYS made (Z along the route), listed under “CSYS made here” for Download .stp.`);}
-function addAll(){if(typeof csAddStations!=='function')return;csAddStations(SG.res.list.map((q,i)=>({name:`NEW_CLAMP_${i+1}`,c:q.p,d:q.t,part:q.like?q.like.part:''})));
+  // row hover ↔ the dot in 3D (as the Points table); click picks it
+  box.querySelectorAll('tr[data-i]').forEach(tr=>{const i=+tr.dataset.i,q=R.list[i];
+    tr.onpointerenter=()=>{if(marker){marker.position.set(...q.p);marker.visible=true;draw();}};
+    tr.onpointerleave=()=>{if(marker){marker.visible=false;draw();}};
+    tr.onclick=()=>{if(typeof asmSetPick==='function')asmSetPick({kind:'suggest',i});};});}
+const make=q=>typeof csysMake==='function'?csysMake(q.p,q.t,null,'RS_CLAMP'):null;
+function makeAll(){SG.res.list.forEach(make);say(`${SG.res.list.length} CSYS made (Z along the route), listed in the CSYS tab for Download .stp.`);}
+const asStation=(q,i)=>({name:`NEW_CLAMP_${i+1}`,c:q.p,d:q.t,part:q.like?q.like.part:''});
+function addAll(){if(typeof csAddStations!=='function')return;csAddStations(SG.res.list.map(asStation));
   say(`${SG.res.list.length} new clamps added to Stations from clamps. Use as stations, then Check again.`);}
-// 3D: amber dots with +n on the route (route-studio rebuild → asm-view overlay hook)
-(root.VIEW_OVERLAYS=root.VIEW_OVERLAYS||[]).push((content,g)=>{if(!SG.res||!runs.some(r=>r.id===SG.run&&r.visible))return;
-  const m=new THREE.MeshBasicMaterial({color:new THREE.Color(css('--warn'))});
-  SG.res.list.forEach((q,i)=>{const s=new THREE.Mesh(g.sg,m);s.position.set(...q.p);s.scale.setScalar(g.tubeR*3);content.add(s);g.addTag(q.p,`+${i+1}`,'warn');});});
+const shown=()=>SG.res&&runs.some(r=>r.id===SG.run&&r.visible);
+// 3D: amber dots with +n on the route (route-studio rebuild → asm-view overlay hook); the picked one gets the ink ring
+(root.VIEW_OVERLAYS=root.VIEW_OVERLAYS||[]).push((content,g)=>{$('sgRun').textContent=`Suggest clamps for ${runName()}`;if(!shown())return;
+  const m=new THREE.MeshBasicMaterial({color:new THREE.Color(css('--warn'))}),p=typeof asmPick==='function'?asmPick():null;
+  SG.res.list.forEach((q,i)=>{const s=new THREE.Mesh(g.sg,m);s.position.set(...q.p);s.scale.setScalar(g.tubeR*3);content.add(s);
+    const on=p&&p.kind==='suggest'&&p.i===i;if(on)g.addTag(q.p,'','ring pick');g.addTag(q.p,`+${i+1}`,'warn'+(on?' pick':''));});});
+// pick a dot (asm-view.js): its four facts and Make CSYS · Add as station · Drop this one
+(root.AV_POINTS=root.AV_POINTS||[]).push(()=>shown()?SG.res.list.map((q,i)=>({o:q.p,pick:{kind:'suggest',i}})):[]);
+(root.AV_FACTS=root.AV_FACTS||{}).suggest=p=>{const q=SG.res&&SG.res.list[p.i];if(!q)return{name:'',kind:'',parent:'',grid:[],facts:[]};
+  const r=runs.find(x=>x.id===SG.run);
+  return{name:`+${p.i+1}`,kind:'suggested clamp',parent:r?r.name:'',grid:[`<span>at</span><span>${q.p.map(v=>v.toFixed(1)).join('  ')}</span>`],
+    facts:[`${f0(q.s)} mm along the route`,q.why.charAt(0).toUpperCase()+q.why.slice(1),mountTxt(q)?mountTxt(q).charAt(0).toUpperCase()+mountTxt(q).slice(1):`Needs a bracket: no part within ${f0(SG.res.reach)} mm`,likeTxt(q)?'L'+likeTxt(q).slice(1):'']
+      .filter(Boolean),lines:true};};
+(root.AV_ACTIONS=root.AV_ACTIONS||[]).push(p=>{if(p.kind!=='suggest'||!SG.res||!SG.res.list[p.i])return[];const q=SG.res.list[p.i];
+  return[{group:'Route',order:1,primary:true,label:'Add as station',go:()=>{if(typeof csAddStations==='function')csAddStations([asStation(q,p.i)]);return`+${p.i+1} added to Stations from clamps. Use as stations, then Check again.`;}},
+    {group:'Route',order:2,label:'Drop this one',go:()=>{SG.res.list.splice(p.i,1);render();asmSetPick(null);say(`+${p.i+1} dropped; ${SG.res.list.length} left.`);return'';}},
+    {group:'Creo · Library',order:3,label:'Make CSYS',go:()=>{const c=make(q);return c?`${c.name} made (listed in the CSYS tab).`:'';}}];});
+document.addEventListener('asm:pick',e=>{const p=e.detail,i=p&&p.kind==='suggest'?p.i:-1;if(i===SG.on)return;SG.on=i;
+  $('sgList').querySelectorAll('tr[data-i]').forEach(tr=>tr.classList.toggle('on',+tr.dataset.i===i));});
 $('sgRun').onclick=run;
 try{const v=JSON.parse(store.get('rs.sg')||'null');if(v){$('sgSpan').value=v.span;$('sgNear').value=v.near;$('sgBends').checked=v.bends;$('sgReach').value=v.reach;}}catch(e){}
 })(typeof globalThis!=="undefined"?globalThis:this);
