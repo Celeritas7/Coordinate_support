@@ -255,7 +255,13 @@ Click a part or a CSYS in the 3D view (Q5); the panel offers what fits the open 
 X −379 Y 1062 Z −5450, station line through it at P5/P6), −3.9 mm. Its twin **solid 50** sits at Z −7100; **solid 43** shows −4.0 mm at P3.
 Cause: commit `c84f55b` (Oct 19) made parts over 80 mm frame even at a station; before, any part at a station was its clip.
 The mount rule (≤ 300 mm, touching a clip at the station) does not catch them: no smaller clip touches them in this IGES.
-**Waiting on the user:** is the part at X −379 Y 1062 Z −5450 the bracket the hose clips at P5/P6 are mounted on?
+**Answered 2026-10-24: yes, a bracket.** Solid 30 = `22648999` (`23297378_ASM`), bolted to the frame plate through two coaxial
+Ø15.5 holes, carrying clips `980464_AF52` / `AF53` (solids 31 / 32, each screwed on with 4 × Ø2); solid 50 is the same part at P14.
+The mount rule missed it because it wanted the bracket and its clip at the same station: clip 31 is at P5, the bracket at P6, clip
+32 only on the line. **Rule now:** a part ≤ 300 mm at a station that touches any clip (at any station, or on the line) is a mount;
+a clip at the same station is still preferred. Test: solid 1 at the plate edge again (−0.4 mm), solids 30 / 50 mounts.
+Solid 43 = `980464_AF54`, a strap clamp on the tank port: already a clip, never checked, no change. Walk step F8 shows both.
+Was: **Waiting on the user:** is the part at X −379 Y 1062 Z −5450 the bracket the hose clips at P5/P6 are mounted on?
 - Yes → rule: a part ≤ 300 mm that the station line runs through at a station is that station's fixing (role station/mount),
   even over 80 mm; frame rails (> 300 mm) stay obstacles. Test expects solid 1 at the plate edge again; check solid 43 the same way.
 - No → the −3.9 mm is a real clash; update the test's expectation, rule unchanged.
