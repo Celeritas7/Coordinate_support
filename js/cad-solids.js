@@ -135,14 +135,25 @@ function iges(text){
 }
 
 function step(text,opts){
+  const exactStep=!(opts&&opts.exact===false);
   const SA=root.StepAsm||(typeof require!=="undefined"?require("./step-asm.js"):null);if(!SA)throw new Error('StepAsm not loaded');
   const r=(opts&&opts.parsed)||SA.parse(text,{pipe:(opts&&opts.pipe)||{}}),F=SA.F,faces=[],solids=[];let sid=0;
   r.instances.forEach((inst,idx)=>{const pp=r.pipes.find(p=>p.inst===idx),pipe=pp?{name:pp.name,OD:pp.OD,kind:pp.kind}:null;
     inst.part.solids.forEach(sol=>{sid++;const sb=newBox();let made=0;
     sol.faces.forEach(f=>{const b=newBox();f.verts.forEach(v=>grow(b,F.pt(inst.M,v)));
       f.edges.forEach(ed=>circle(b,F.pt(inst.M,ed.ax.o),F.vec(inst.M,ed.ax.z),ed.r));
-      if(ok(b)){faces.push({sid,min:b.min,max:b.max});grow(sb,b.min);grow(sb,b.max);made++;}});
+      if(!ok(b))return;const face={sid,min:b.min,max:b.max};
+      // exact shape for flat and cylindrical faces, as for IGES: the boundary loops StepAsm sampled, placed in the world,
+      // so the gap to a plate is measured to its hole edges, not to its box
+      if(exactStep&&f.ax&&f.loops&&f.loops.length&&(f.kind==='plane'||(f.kind==='cylindrical'&&f.r>0))){
+        const L=f.loops.map(l=>[l.map(q=>F.pt(inst.M,q))]),o=F.pt(inst.M,f.ax.o),z=unit(F.vec(inst.M,f.ax.z));
+        const sh=!z?null:f.kind==='plane'?planeShape(o,z,L):cylShape(o,z,unit(F.vec(inst.M,f.ax.x)),f.r,L);
+        // the face box stays the one from vertices + whole edge circles: a little larger than the sampled boundary, so a
+        // box test never skips the face, and it matches the part's box (StepAsm instance.bbox)
+        if(sh)face.shape=sh;}
+      faces.push(face);grow(sb,face.min);grow(sb,face.max);made++;});
     if(made)solids.push({sid,inst:idx,name:inst.label||inst.name||`solid ${sid}`,faces:made,min:sb.min,max:sb.max,...(pipe?{pipe}:{})});});});
+  plates(faces);
   return{format:'STEP',solids,faces};
 }
 
