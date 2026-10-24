@@ -396,12 +396,17 @@ function parse(text,opts){
 
   // ---- world data ----
   const csys=[],points=[],pipes=[];
-  const bboxWorld=(M,b)=>{const o={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
-    for(let i=0;i<8;i++){const p=F.pt(M,[i&1?b.max[0]:b.min[0],i&2?b.max[1]:b.min[1],i&4?b.max[2]:b.min[2]]);for(let k=0;k<3;k++){o.min[k]=Math.min(o.min[k],p[k]);o.max[k]=Math.max(o.max[k],p[k]);}}return o;};
+  // world box of a placed solid from its vertices and circular edges placed in the world (rotating the 8 corners of the local
+  // box instead made a rotated part's box too big: 980464_AF54 read 55 × 70 × 77 mm for 45 × 58 × 48)
+  const bboxWorld=(M,sol)=>{const o={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]},grow=p=>{for(let k=0;k<3;k++){if(p[k]<o.min[k])o.min[k]=p[k];if(p[k]>o.max[k])o.max[k]=p[k];}};
+    for(const f of sol.faces){for(const v of f.verts)grow(F.pt(M,v));
+      for(const ed of f.edges){const c=F.pt(M,ed.ax.o),n=F.vec(M,ed.ax.z);for(let k=0;k<3;k++){const e=ed.r*Math.sqrt(Math.max(0,1-n[k]*n[k]));
+        if(c[k]-e<o.min[k])o.min[k]=c[k]-e;if(c[k]+e>o.max[k])o.max[k]=c[k]+e;}}}
+    return o.min[0]<=o.max[0]?o:null;};
   instances.forEach((inst,idx)=>{const g=part(inst.pd);inst.part=g;inst.label=inst.path.slice(1).join(' / ')||g.name;
     inst.csys=g.csys.map(c=>({name:c.name,o:F.pt(inst.M,c.o),x:F.vec(inst.M,c.x),y:F.vec(inst.M,c.y),z:F.vec(inst.M,c.z),inst:idx}));
     inst.points=g.points.map(p=>({name:p.name,p:F.pt(inst.M,p.p),inst:idx}));
-    inst.solids=g.solids.length;inst.bbox=null;g.solids.forEach(s=>{if(!s.bbox)return;const w=bboxWorld(inst.M,s.bbox);if(!inst.bbox)inst.bbox=w;else for(let k=0;k<3;k++){inst.bbox.min[k]=Math.min(inst.bbox.min[k],w.min[k]);inst.bbox.max[k]=Math.max(inst.bbox.max[k],w.max[k]);}});
+    inst.solids=g.solids.length;inst.bbox=null;g.solids.forEach(s=>{if(!s.bbox)return;const w=bboxWorld(inst.M,s);if(!w)return;if(!inst.bbox)inst.bbox=w;else for(let k=0;k<3;k++){inst.bbox.min[k]=Math.min(inst.bbox.min[k],w.min[k]);inst.bbox.max[k]=Math.max(inst.bbox.max[k],w.max[k]);}});
     csys.push(...inst.csys);points.push(...inst.points);
     if(g.pipe){const ch={pieces:g.pipe.chain.pieces.map(p=>xformPiece(inst.M,p)),length:g.pipe.chain.length,leftover:g.pipe.chain.leftover},info=describe(ch);
       pipes.push({inst:idx,name:g.name,label:inst.label,OD:g.pipe.OD,ID:g.pipe.ID,R:info.R,chain:ch,info,Q:info.Q,bends:info.bends,length:info.length,kind:info.kind,
