@@ -57,9 +57,12 @@ const isAsm=t=>/PRODUCT_DEFINITION\s*\(/.test(t)&&/MANIFOLD_SOLID_BREP|BREP_WITH
 let masterSet=false;
 async function open(list){
   const files=[...list];if(!files.length)return;
-  const texts=await Promise.all(files.map(f=>f.text()));
+  // what each file is, from its text; a big STEP is only sampled (first and last 8 MB): reading it whole would fail past the
+  // 537 M-character string limit, and the assembly reader reads it in pieces anyway
+  const BIG=64e6,sniff=f=>f.size>BIG&&/\.(stp|step)$/i.test(f.name)?Promise.all([f.slice(0,8e6).text(),f.slice(Math.max(0,f.size-8e6)).text()]).then(a=>({big:true,t:a.join('\n')})):f.text().then(t=>({big:false,t}));
+  const got=await Promise.all(files.map(sniff)),texts=got.map(g=>g.t);
   // assembly (product tree + solids): opened once, for every panel (see openAssembly)
-  const ai=files.findIndex((f,i)=>/\.(stp|step)$/i.test(f.name)&&isAsm(texts[i]));
+  const ai=files.findIndex((f,i)=>/\.(stp|step)$/i.test(f.name)&&(isAsm(texts[i])||got[i].big&&/PRODUCT_DEFINITION\s*\(/.test(texts[i])));
   if(ai>=0){const f=files[ai],rest=files.length-1;openAssembly(f);
     if(rest)say($('shStatus').textContent+` ${rest} other file${rest>1?'s were':' was'} not opened; open ${rest>1?'them':'it'} once the assembly has loaded.`);return;}
   // a .pts whose points land on a pipe of the open assembly → Pipe · Check .pts

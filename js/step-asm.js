@@ -37,6 +37,50 @@ function tokenize(text){
   }
   return ents;
 }
+// The same, from the file's bytes in pieces ({chunks:[Uint8Array…]}), for files too big to hold as one string (a JS string
+// stops at 536 870 888 characters). Only where each entity sits is kept (piece, offset, length, by id); its text is decoded
+// when parse() asks for it. An entity split across two pieces is decoded once, joined. Same Map-like use as tokenize():
+// get(id), size, clear(), and iteration in file order. head: the text before DATA; (FILE_NAME).
+function tokenizeBytes(chunks){
+  const dec=new TextDecoder('utf-8'),DATA=[68,65,84,65,59];
+  let cap=1<<16,at=new Int32Array(cap),ln=new Int32Array(cap),pc=new Int16Array(cap).fill(-1),order=new Int32Array(cap),n=0;
+  const spill=new Map();
+  const grow=id=>{if(id<cap)return;let c=cap;while(c<=id)c*=2;const a=new Int32Array(c),l=new Int32Array(c),q=new Int16Array(c).fill(-1);
+    a.set(at);l.set(ln);q.set(pc);at=a;ln=l;pc=q;cap=c;};
+  const keep=id=>{if(n>=order.length){const o=new Int32Array(order.length*2);o.set(order);order=o;}order[n++]=id;};
+  // where DATA; starts (it is in the header, near the top): the head is the text before it
+  // (matched byte by byte, so it is found even when it straddles two pieces); scanning starts at the D, like tokenize()
+  let c0=0,i0=0,head='';
+  {let m=0,g=0,G=-1;for(let c=0;c<chunks.length&&G<0;c++){const b=chunks[c];
+      for(let i=0;i<b.length;i++,g++){m=b[i]===DATA[m]?m+1:b[i]===DATA[0]?1:0;if(m===5){G=g-4;break;}}}
+    if(G>=0){const parts=[];let o=0;
+      for(let c=0;c<chunks.length;c++){const b=chunks[c];if(o+b.length>G){c0=c;i0=G-o;parts.push(dec.decode(b.subarray(0,i0)));break;}parts.push(dec.decode(b,{stream:true}));o+=b.length;}
+      head=parts.join('');}}
+  // state: 0 looking for #, 1 reading the id, 2 between id and =, 3 in the entity (depth, quote) until ; at depth 0
+  let st=0,id=0,digits=false,depth=0,q=false,sc=0,so=0;const span=[];
+  for(let c=c0;c<chunks.length;c++){const b=chunks[c],L=b.length;
+    for(let i=c===c0?i0:0;i<L;i++){const x=b[i];
+      if(st===3){
+        if(q){if(x===39)q=false;continue;}
+        if(x===39)q=true;else if(x===40)depth++;else if(x===41)depth--;
+        else if(x===59&&depth===0){grow(id);
+          // the first #id wins, as in tokenize(); pc -2 = kept whole in spill (it ran across two pieces)
+          if(pc[id]===-1){if(sc===c){pc[id]=c;at[id]=so;ln[id]=i-so;}
+            else{span.push(b.subarray(0,i));spill.set(id,span.map(u=>dec.decode(u,{stream:true})).join('')+dec.decode());pc[id]=-2;}
+            keep(id);}
+          span.length=0;st=0;}
+        continue;}
+      if(st===0){if(x===35){st=1;id=0;digits=false;}continue;}
+      if(st===1){if(x>=48&&x<=57){id=id*10+(x-48);digits=true;continue;}if(!digits){st=x===35?1:0;continue;}st=2;}
+      if(st===2){if(x===32||x===10||x===13||x===9)continue;
+        if(x===61){st=3;depth=0;q=false;sc=c;so=i+1;continue;}
+        st=x===35?1:0;id=0;digits=false;continue;}}
+    // the entity runs on into the next piece: keep its bytes so far
+    if(st===3){span.push(sc===c?b.subarray(so):b);sc=-1;}}
+  const get=k=>{if(k<0||k>=cap||pc[k]===-1)return undefined;if(pc[k]===-2)return spill.get(k).trim();return dec.decode(chunks[pc[k]].subarray(at[k],at[k]+ln[k])).trim();};
+  return{head,get,get size(){return n;},clear(){spill.clear();cap=0;at=ln=order=new Int32Array(0);pc=new Int16Array(0);n=0;},
+    *[Symbol.iterator](){for(let j=0;j<n;j++){const k=order[j];yield[k,get(k)];}}};
+}
 function splitArgs(raw){
   const out=[];let depth=0,cur='',q=false;
   for(let i=0;i<raw.length;i++){const c=raw[i];if(q){cur+=c;if(c==="'")q=false;continue;}
@@ -222,7 +266,8 @@ function parse(text,opts){
   const progress=typeof opts.progress==='function'?opts.progress:null,clock=()=>typeof performance!=='undefined'?performance.now():Date.now();
   let told=0;const tell=(stage,f)=>{if(!progress)return;const t=clock();if(f>0&&f<1&&t-told<100)return;told=t;progress(stage,f);};
   tell('reading the file',0);
-  const E=tokenize(text),D=new Map();tell('reading the file',1);
+  const bytes=text&&typeof text==='object'&&Array.isArray(text.chunks);
+  const E=bytes?tokenizeBytes(text.chunks):tokenize(text),D=new Map();tell('reading the file',1);
   const get=id=>{let e=D.get(id);if(e)return e;const raw=E.get(id);if(raw==null)return null;e=decode({raw});D.set(id,e);return e;};
   const has=(e,k)=>!!e&&e.kinds.includes(k),A=(e,k)=>e.argsOf[k]||e.args;
   // index by entity kind without decoding: most entities (edges, points of faces nobody asks about) are never read, and
@@ -235,7 +280,7 @@ function parse(text,opts){
   let unitScale=1,units='MM';
   for(const id of list('CONVERSION_BASED_UNIT')){if(/INCH/i.test(get(id).raw)){unitScale=25.4;units='INCH';}}
   const degrees=list('CONVERSION_BASED_UNIT').some(id=>/DEGREE/i.test(get(id).raw));
-  const head=String(text).slice(0,Math.max(0,String(text).indexOf('DATA;')));
+  const head=bytes?E.head:String(text).slice(0,Math.max(0,String(text).indexOf('DATA;')));
   const product=(/FILE_NAME\s*\(\s*'([^']*)'/.exec(head)||[])[1]||'';
 
   const point=id=>{const e=get(id);if(!has(e,'CARTESIAN_POINT'))return null;const v=nums(A(e,'CARTESIAN_POINT')[1]);return v.length>=3&&v.every(Number.isFinite)?mul(v.slice(0,3),unitScale):null;};
@@ -417,6 +462,13 @@ function parse(text,opts){
   // The bore axis and length come from the hole faces, never from the CSYS axes.
   // holes: every such hole, with or without a CSYS (csys null) — the library can name a clamp whose bore has no CSYS.
   const fixings=[],holes=[];
+  // CSYS origins on a 100 mm grid: a hole looks only in the cells within its reach, not at every CSYS in the file (that
+  // was holes × CSYS, the slowest part of a big assembly). Candidates keep file order, so the result is the same.
+  const CELL=100,csGrid=new Map(),cellOf=v=>Math.floor(v/CELL);
+  csys.forEach((cs,i)=>{const k=cellOf(cs.o[0])+','+cellOf(cs.o[1])+','+cellOf(cs.o[2]);let L=csGrid.get(k);if(!L)csGrid.set(k,L=[]);L.push(i);});
+  const csysNear=(c,r)=>{const out=[],lo=c.map(v=>cellOf(v-r)),hi=c.map(v=>cellOf(v+r));
+    for(let x=lo[0];x<=hi[0];x++)for(let y=lo[1];y<=hi[1];y++)for(let z=lo[2];z<=hi[2];z++){const L=csGrid.get(x+','+y+','+z);if(L)for(const i of L)out.push(i);}
+    return out.sort((a,b)=>a-b).map(i=>csys[i]);};
   instances.forEach((inst,idx)=>{if(pipes.some(p=>p.inst===idx))return;
     inst.part.solids.forEach(sol=>{const groups=[];
       for(const f of sol.faces){if(f.kind!=='cylindrical'||!f.ax||f.sense||!(f.r>0)||!f.verts.length)continue;
@@ -427,7 +479,7 @@ function parse(text,opts){
         const s=dot(sub(c,g.c),g.d),sg=dot(d,g.d)>0?1:-1,a=s+sg*t0,b=s+sg*t1;g.faces.push({r:f.r,t0:Math.min(a,b),t1:Math.max(a,b)});}
       for(const g of groups){const rmin=Math.min(...g.faces.map(f=>f.r)),bore=g.faces.filter(f=>Math.abs(f.r-rmin)<1e-6);
         const t0=Math.min(...bore.map(f=>f.t0)),t1=Math.max(...bore.map(f=>f.t1)),c=add(g.c,mul(g.d,(t0+t1)/2)),L=t1-t0;
-        const on=csys.filter(cs=>{const v=sub(cs.o,c),u=dot(v,g.d);return len(sub(v,mul(g.d,u)))<0.5&&Math.abs(u)<=L/2+1;}).sort((a,b)=>(b.inst===idx)-(a.inst===idx));
+        const on=csysNear(c,L/2+2).filter(cs=>{const v=sub(cs.o,c),u=dot(v,g.d);return len(sub(v,mul(g.d,u)))<0.5&&Math.abs(u)<=L/2+1;}).sort((a,b)=>(b.inst===idx)-(a.inst===idx));
         const h={inst:idx,name:inst.name,label:inst.label,csys:on.length?on[0].name:null,c,d:g.d,r:rmin,D:2*rmin,length:L};holes.push(h);
         if(on.length)fixings.push(h);}});});
 
@@ -466,14 +518,23 @@ function attach(r){
 // The page stays live while a big file is read. Without Worker support (or if the worker fails to start) it parses
 // on the page. opts.progress(stage, fraction) is called from either.
 const WORKER_MAIN=`self.onmessage=function(ev){try{
-  var r=StepAsm.parse(ev.data.text,{pipe:ev.data.pipe,progress:function(stage,f){self.postMessage({type:'progress',stage:stage,f:f});}});
+  var tell=function(stage,f){self.postMessage({type:'progress',stage:stage,f:f});},src=ev.data.text;
+  if(ev.data.file){var f=ev.data.file,rd=new FileReaderSync(),chunks=[],step=33554432;
+    for(var a=0;a<f.size;a+=step){chunks.push(new Uint8Array(rd.readAsArrayBuffer(f.slice(a,Math.min(f.size,a+step)))));tell('loading the file',Math.min(1,(a+step)/f.size));}
+    src={chunks:chunks};}
+  var r=StepAsm.parse(src,{pipe:ev.data.pipe,progress:tell});
   var out={};for(var k in r)if(typeof r[k]!=='function')out[k]=r[k];
   self.postMessage({type:'done',r:out});
 }catch(e){self.postMessage({type:'error',message:String(e&&e.message||e)});}};`;
 let workerURL=null;
+const CHUNK=32<<20;   // also in WORKER_MAIN
+// a File / Blob in 32 MB pieces of bytes (the page's fallback when there is no worker)
+async function blobChunks(b,tell){const out=[];for(let a=0;a<b.size;a+=CHUNK){out.push(new Uint8Array(await b.slice(a,Math.min(b.size,a+CHUNK)).arrayBuffer()));if(tell)tell('loading the file',Math.min(1,(a+CHUNK)/b.size));}return{chunks:out};}
+// src: the file's text, or the File / Blob itself (read in pieces, so a file over the 537 M-character string limit still opens)
 function parseAsync(text,opts){opts=opts||{};
+  const isBlob=typeof Blob!=='undefined'&&text instanceof Blob;
   return new Promise((resolve,reject)=>{
-    const onPage=()=>setTimeout(()=>{try{resolve(parse(text,opts));}catch(e){reject(e);}},20);
+    const onPage=()=>setTimeout(async()=>{try{resolve(parse(isBlob?await blobChunks(text,opts.progress):text,opts));}catch(e){reject(e);}},20);
     let w=null;
     try{if(!opts.noWorker&&typeof Worker!=='undefined'&&typeof Blob!=='undefined'&&typeof URL!=='undefined'&&URL.createObjectURL){
       if(!workerURL)workerURL=URL.createObjectURL(new Blob(['('+factory.toString()+')(self);\n'+WORKER_MAIN],{type:'text/javascript'}));
@@ -485,11 +546,11 @@ function parseAsync(text,opts){opts=opts||{};
       else if(m.type==='done'){w.terminate();resolve(attach(m.r));}
       else{w.terminate();reject(new Error(m.message));}};
     w.onerror=ev=>{if(ev&&ev.preventDefault)ev.preventDefault();w.terminate();if(heard)reject(new Error((ev&&ev.message)||'STEP worker failed'));else onPage();};
-    w.postMessage({text:String(text),pipe:opts.pipe||{}});
+    w.postMessage(isBlob?{file:text,pipe:opts.pipe||{}}:{text:String(text),pipe:opts.pipe||{}});
   });
 }
 
-const API={parse,parseAsync,attach,chain,describe,sample,nearest,F};
+const API={parse,parseAsync,attach,chain,describe,sample,nearest,F,tokenizeBytes};
 if(typeof module!=="undefined"&&module.exports)module.exports=API;
 root.StepAsm=API;
 })(typeof globalThis!=="undefined"?globalThis:this);

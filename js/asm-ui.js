@@ -84,10 +84,12 @@ function asmProgress(line,f){['statusPipe','shStatus'].forEach(id=>{const el=$(i
   if(!b||!b.classList.contains('pbar')){b=document.createElement('div');b.className='pbar';b.innerHTML='<i></i>';el.after(b);}
   b.firstChild.style.width=Math.round(f*100)+'%';if(id==='statusPipe')cadSay(id,line);else el.textContent=line;});}
 function asmApply(note){
-  const t0=performance.now(),A=ASM,id=++asmSeq,mb=(A.text.length/1e6).toFixed(1),head=`Reading ${A.name}, ${mb} MB`;
-  asmProgress(`${head}: reading the file`,0);
-  StepAsm.parseAsync(A.text,{pipe:A.ov,progress:(stage,f)=>{if(id!==asmSeq)return;const pc=stage==='parts';
-    asmProgress(`${head}: ${stage}${pc?` ${Math.round(f*100)} %`:''}`,pc?0.1+0.9*f:0.05);}})
+  // the File itself goes to the worker, read there in 32 MB pieces: the page never holds the file as one string, so a file
+  // past the 537 M-character string limit still opens
+  const t0=performance.now(),A=ASM,id=++asmSeq,mb=(A.file.size/1e6).toFixed(1),head=`Reading ${A.name}, ${mb} MB`;
+  asmProgress(`${head}: loading the file`,0);
+  StepAsm.parseAsync(A.file,{pipe:A.ov,progress:(stage,f)=>{if(id!==asmSeq)return;const pc=stage==='parts',ld=stage==='loading the file';
+    asmProgress(`${head}: ${stage}${pc||ld?` ${Math.round(f*100)} %`:''}`,ld?0.25*f:pc?0.3+0.7*f:0.27);}})
     .then(r=>{if(id===asmSeq&&ASM===A){asmProgress('',null);asmApplied(r,note,t0);}},e=>{if(id===asmSeq){asmProgress('',null);cadSay('statusPipe',`${A.name}: ${e.message}`,true);}});
 }
 function asmApplied(r,note,t0){
@@ -106,7 +108,7 @@ function asmApplied(r,note,t0){
 }
 function asmLoad(file){
   asmProgress(`Reading ${file.name}, ${(file.size/1e6).toFixed(1)} MB: reading the file`,0);
-  file.text().then(text=>{ASM={name:file.name,text,ov:AsmTree.load(file.name),r:null};$('asmParts').open=false;asmApply();});
+  ASM={name:file.name,file,ov:AsmTree.load(file.name),r:null};$('asmParts').open=false;asmApply();
 }
 function asmTree(){if(!ASM||!ASM.r)return;const n=new Set(ASM.r.instances.filter(i=>i.solids).map(i=>i.pd)).size;$('asmPartsN').textContent=`(${n} different)`;
   AsmTree.render($('asmTree'),ASM.r,{compact:true,overrides:ASM.ov,onChange:(name,v)=>{
