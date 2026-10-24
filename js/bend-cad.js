@@ -140,7 +140,8 @@ function fromText(name,t,parsed){const t0=performance.now();let cad;
     BC.cad=cad;BC.key='';BC.user=new Map();$('cdClear').hidden=false;survey();
     const ex=cad.faces.filter(x=>x.shape).length,np=cad.solids.filter(x=>x.pipe).length;
     say(`${name}: ${cad.solids.length} solids, ${cad.faces.length} faces (${cad.format}${ex?`; ${ex} flat or cylindrical, gap exact`:''}${np?`; ${np} solid${np>1?'s':''} of existing pipes, not checked`:''}), read in ${((performance.now()-t0)/1000).toFixed(1)} s.${BC.sv?'':' Use the stations to see which parts are near.'}`);}
-window.bcFromAsm=a=>{if(a&&a.text)fromText(a.name,a.text,a.r);};
+// the open assembly's parse is reused (no second read of the file, and no text of it is kept)
+window.bcFromAsm=a=>{if(a&&a.r)fromText(a.name,'',a.r);};
 $('cdLoad').onclick=()=>$('cdFile').click();
 window.bcLoad=f=>{$('cdBox').open=true;load(f);};
 window.bcName=()=>BC.cad?BC.cad.name:null;window.bcCad=()=>BC.cad;
