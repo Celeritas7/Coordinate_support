@@ -98,13 +98,14 @@ function makeRoute(P,opts={}){
     // only boxes that the samples' own box reaches (grown by rad) can give a depth > 0: the rest add nothing, so the sum
     // (same order as testing every box) is unchanged. On a frame this was most of the solve time.
     const near=boxes.length?boxes.filter(b=>b.max[0]+rad>lo[0]&&b.min[0]-rad<hi[0]&&b.max[1]+rad>lo[1]&&b.min[1]-rad<hi[1]&&b.max[2]+rad>lo[2]&&b.min[2]-rad<hi[2]):boxes;
-    // opts.quiet: [{p, r}] — around a station the hose sits in whatever holds it (a port, a bore): no obstacle depth there
-    const quiet=opts.quiet||null,calm=p=>{for(const z of quiet){const dx=p[0]-z.p[0],dy=p[1]-z.p[1],dz=p[2]-z.p[2];if(dx*dx+dy*dy+dz*dz<z.r*z.r)return true;}return false;};
-    for(let j=0;j<=S;j++){const p=ps[j];
-      if(quiet&&near.length&&calm(p)){if(j>0&&j<S)obs+=avoidDepth(p);continue;}
+    // opts.quiet: [{p, r, hold: Set of boxes}] (MultiRoute.zones) — within r of a station the hose sits in what holds it
+    // (the clip, bore or port the station point is within rad of): those boxes give no depth there, every other box does
+    const quiet=opts.quiet||null,held=p=>{let h=null;for(const z of quiet){const dx=p[0]-z.p[0],dy=p[1]-z.p[1],dz=p[2]-z.p[2];
+      if(z.hold&&z.hold.size&&dx*dx+dy*dy+dz*dz<z.r*z.r)h=h?new Set([...h,...z.hold]):z.hold;}return h;};
+    for(let j=0;j<=S;j++){const p=ps[j],h=quiet&&near.length?held(p):null;
       // boxDepth inline, leaving at the first axis that puts p outside (same value when inside). A face with an exact shape
       // (opts.shapeNear given: CadSolids) counts by its exact gap instead: rad − distance to the face, where positive
-      for(const b of near){if(b.shape&&sNear){const e=rad-sNear(b.shape,p,rad);if(e>0)obs+=e*e;continue;}
+      for(const b of near){if(h&&h.has(b))continue;if(b.shape&&sNear){const e=rad-sNear(b.shape,p,rad);if(e>0)obs+=e*e;continue;}
         let d=p[0]-b.min[0]+rad;if(d<=0)continue;let t=b.max[0]+rad-p[0];if(t<=0)continue;if(t<d)d=t;
         t=p[1]-b.min[1]+rad;if(t<=0)continue;if(t<d)d=t;t=b.max[1]+rad-p[1];if(t<=0)continue;if(t<d)d=t;
         t=p[2]-b.min[2]+rad;if(t<=0)continue;if(t<d)d=t;t=b.max[2]+rad-p[2];if(t<=0)continue;if(t<d)d=t;obs+=d*d;}
@@ -730,8 +731,10 @@ $('runBend').onclick=()=>{
   const SD=typeof clampStationDirs==='function'?clampStationDirs(P):null;
   const route=makeRoute(P,{startDir:parseDir($('sd').value),endDir:parseDir($('ed').value),localR:P.map(p=>p.loc||0),
     fixDirs:SD?SD.fixDirs(X&&X.fixDirs):X&&X.fixDirs,obstacles:X&&X.boxes,rad:X&&X.rad,
-    // Push: exact gap to faces with a shape (CadSolids), and none asked right at the stations (the hose sits in its holders)
-    shapeNear:X&&X.boxes&&typeof CadSolids!=='undefined'?CadSolids.shapeNear:null,quiet:X&&X.boxes?P.map(p=>({p,r:2*X.rad+15})):null});
+    // Push: exact gap to faces with a shape (CadSolids), and none asked of a station's holders right at it (MultiRoute.zones:
+    // the faces the station point is within rad of; any other part near a station still keeps its gap)
+    shapeNear:X&&X.boxes&&typeof CadSolids!=='undefined'?CadSolids.shapeNear:null,
+    quiet:X&&X.boxes&&typeof MultiRoute!=='undefined'?MultiRoute.zones(P,X.boxes,X.rad,15,typeof CadSolids!=='undefined'?CadSolids.shapeNear:null):null});
   const nloc=P.filter(p=>p.loc).length;
   const o=optimiser(route,R*SF),job=++bendSeq;bendJob=job;$('runBend').textContent='Stop';
   const tick=()=>{if(bendJob!==job)return;const t0=performance.now();let r;do{r=o.step(6);}while(!r.done&&performance.now()-t0<30);$('statusBend').textContent=`Shaping the curve... tightest bend so far R ${fmt(r.minR)} mm (${P.length} points, step ${r.it} of up to 900)`;

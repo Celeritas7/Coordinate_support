@@ -86,10 +86,10 @@ check(nc.none.part === "FRAME / PLATE 22648999" && nc.none.every && nc.none.side
 check(/^PLATE 22648999 is in the way on every side tried: /.test(nc.none.text), "the text names the part by the last step of its path");
 check(nc.candidates.every(c => c.near && c.near.part === "FRAME / PLATE 22648999"), "each route records the part it gets closest to");
 check(res.none === null && up.none === null, "a clean result has no 'none' report");
-// the faster clearance (boxes sorted by distance to the curve's box) gives the same smallest gap as testing every box
+// the faster clearance (boxes sorted by distance to the curve's box) gives the same smallest gap as testing every box (on the same dense samples)
 { const many = [box, ...Array.from({ length: 40 }, (_, i) => ({ min: [i * 100 - 2000, 900, -50], max: [i * 100 - 1950, 950, 50] }))];
   const m = M.enumerate([A, B], { R, SF: 1.5, rad, boxes: many, makeRoute, optimiser, keep: 1 }), c = m.candidates[0];
-  let g = Infinity; for (const p of c.Q) for (const b of many) g = Math.min(g, M.boxDist(p, b) - rad);
+  let g = Infinity; for (const p of M.denseCurve(c.route, c.x, M.spacing(rad))) for (const b of many) g = Math.min(g, M.boxDist(p, b) - rad);
   check(Math.abs(g - c.clearance) < 1e-9, `clearance with the early stop = every box tested (${c.clearance.toFixed(3)} mm)`); }
 
 // ---- Phase 13: a 9 m rail across the leg is passed over its short side, not walked round lengthwise ----
@@ -102,5 +102,37 @@ check(res.none === null && up.none === null, "a clean result has no 'none' repor
 { const tank = { min: [-300, -300, -300], max: [0, 300, 300], part: "TANK" };
   const tr = M.enumerate([[0, 0, 0], [800, 0, 0]], { R, SF: 1.5, rad, boxes: [tank], makeRoute, optimiser });
   check(tr.tried === 1 && tr.candidates[0].ok, `a route leaving a port on the tank's face is clean (${tr.candidates[0].label}, gap ${tr.candidates[0].clearance.toFixed(1)})`); }
+
+// the station zone exempts only what holds the station (faces the station point is within rad of), not every part near it
+{ const st = [{ p: [0, 0, 0], dir: [1, 0, 0] }, { p: [800, 0, 0], dir: [1, 0, 0] }], tank = { min: [-300, -300, -300], max: [0, 300, 300], part: "TANK" },
+    frame = { min: [10, -300, -300], max: [12, 300, 300], part: "FRAME PLATE" }, Z = M.zones(st, [tank, frame], rad);
+  check(Z[0].hold.has(tank) && !Z[0].hold.has(frame) && Z[1].hold.size === 0, "zones: the tank holds the port's station; a plate 10 mm in front of it does not");
+  const fr = M.enumerate(st, { R, SF: 1.5, rad, boxes: [frame], makeRoute, optimiser });
+  console.log(`     plate in front of a station: ${fr.tried} ways; ${fr.none && fr.none.text}`);
+  check(fr.tried > 1 && !fr.candidates.some(c => c.ok) && fr.candidates.every(c => c.clearance < 0),
+    `a plate 10 mm in front of a station is in the way (${fr.tried} ways, gaps ${fr.candidates.map(c => c.clearance.toFixed(1))}), not silenced by the zone`);
+  check(fr.none && fr.none.rule !== "radius" && fr.none.part === "FRAME PLATE" && /^FRAME PLATE is in the way/.test(fr.none.text), "and the report names it");
+  // a 14 mm plate near a station: the leg's samples and the clearance's no longer step over it, and a route that holds R is
+  // never reported as a radius problem (it was “… tighter than R 50 (best R Infinity)”)
+  const thin = { min: [15, -300, -300], max: [29, 300, 300] }, th = M.enumerate(st, { R, SF: 1.5, rad, boxes: [thin], makeRoute, optimiser });
+  console.log(`     14 mm plate: ${th.tried} ways; ${th.none && th.none.text}`);
+  check(M.blockers(st[0].p, st[1].p, [thin], rad, null, M.zones(st, [thin], rad)).length === 1, "a 14 mm plate across the leg is a blocker (samples every ≤ rad)");
+  check(th.candidates.every(c => c.ok || c.clearance < 0 || c.minR < R), "every route that is not clean says why by its gap or its radius (no hidden solver depth)");
+  check(th.none && th.none.rule !== "radius" && th.none.part === "B1" && !/Infinity/.test(th.none.text), `the report is a gap one and names the plate (${th.none && th.none.rule})`); }
+// a solver that still counts depth where the measured gap holds (r.obs > 0, clearance ≥ 0) on a straight route (min R ∞):
+// a gap failure in plain words, not “needs a bend tighter than R 50 (best R Infinity)”
+{ const stuck = (route, dR) => ({ step: () => { const e = route.evalX(route.x, 60); return { x: route.x.slice(), it: 900, minR: 1 / e.kmax, len: e.len, obs: 1, done: true }; } });
+  const sk = M.enumerate([A, B], { R, rad, boxes: [{ min: [400, 300, -50], max: [600, 400, 50] }], makeRoute, optimiser: stuck });
+  console.log(`     solver depth only: ${sk.none && sk.none.text}`);
+  check(sk.none && sk.none.rule === "gap" && !/Infinity|tighter/.test(sk.none.text) && /in the way/.test(sk.none.text), `solver depth only: reported as a part in the way (${sk.none && sk.none.rule})`); }
+// an unnamed plate given as two faces is one obstacle, named after its first face whichever face a route is closest to
+{ const halves = [{ min: [490, -600, -600], max: [510, 600, 0] }, { min: [490, -600, 0], max: [510, 600, 600] }];
+  const hv = M.enumerate([{ p: [420, 0, 0], dir: [1, 0, 0] }, { p: [580, 0, 0], dir: [1, 0, 0] }], { R, SF: 1.5, rad, boxes: halves, makeRoute, optimiser });
+  console.log(`     two-face plate: ${hv.none && hv.none.text}`);
+  check(hv.none && /^B1 is in the way on every side tried: /.test(hv.none.text) && hv.candidates.every(c => c.near.part === "B1"), "an unnamed two-face plate (lower and upper half) is reported as B1 on every side, not B1 on some and B2 on others"); }
+// repeated clips of one product share a name: far apart they are two obstacles (4 × 4 ways), close together one
+{ const clip = x => ({ min: [x - 10, -30, -30], max: [x + 10, 30, 30], part: "992328" });
+  const two = M.start([A, B], { R, rad, boxes: [clip(300), clip(700)], makeRoute, optimiser }), one = M.start([A, B], { R, rad, boxes: [clip(490), clip(510)], makeRoute, optimiser });
+  check(two.tried === 16 && one.tried === 4, `two 992328 clips 400 mm apart: ${two.tried} ways (two obstacles); touching: ${one.tried} (one)`); }
 
 if (fail) { console.log(`${fail} failed`); process.exit(1); }

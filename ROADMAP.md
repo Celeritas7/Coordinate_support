@@ -196,9 +196,18 @@ After that:
   test (distance to the plane / cylinder radius) skips the rest.
 - Alternatives: a leg is blocked only where it comes within the gap of material (exact), a part's faces are one obstacle with a
   local box (only the faces that block, near the leg), each side's via is pushed out until it is clear, and a side that would be
-  a long detour (past ¾ of the leg, at least 300 mm) is not tried. No gap is asked within 2 × radius + margin of a station (the
-  hose sits in its port or bore there). Frame, route_343434 stations: P1–P6 679 mm, P5–P10 930 mm, P11–P16 1145 mm, all clean
-  (were 3–14 m and none clean).
+  a long detour (past ¾ of the leg, at least 300 mm) is not tried. Frame, route_343434 stations: P1–P6 679 mm, P5–P10 930 mm,
+  P11–P16 1145 mm, all clean (were 3–14 m and none clean). What made P1–P6 clean is the exact shapes: the tank's swept shell,
+  cones and spheres were boxes before. Not the station zone: P3 is in free space (16 mm from strap clamp 980464_AF54, 35 mm from
+  the tank), and the stretch is clean with the zone switched off.
+- Station zone (holders only, 2026-10-25): within 2 × radius + margin of a station, only the part holding it asks no gap, i.e.
+  the faces the station point itself is within the hose radius (+1 mm) of: the clip, bore or port it sits in (P1 sits in the
+  bore of fitting 991980 / 991075, CS29). Every other part near a station keeps its gap: a frame plate 10 mm in front of a port
+  is a clash (the first version silenced every part in the zone, so Alternatives called a route through such a plate clean
+  while Check flagged it). One rule (`MultiRoute.zones`) for the solver (Alternatives and Check with Push), the gap reported and
+  the legs' blockers.
+- The gap reported and the legs' blockers are sampled every ≤ min(radius, 4) mm, on a grid that holds the solver's own samples,
+  so a 14 mm plate is not stepped over; a route whose radius holds is never reported as a radius problem.
 - Left: B-spline faces as surfaces (still boxes); the B-spline / extrusion distance is to the untrimmed surface held to the box.
 
 ## Phase 14 — Check an existing route
@@ -206,6 +215,14 @@ After that:
 - Checks: bend radius along the centreline (exact from the tori, or sampled on splines) vs min R; clearance per part; station order; station off-centreline; contact with non-fixings
 - Issues list reads as a checklist: where (station span), what, value vs limit, which part. Click → 3D zoom, point coloured
 - Problem report: Copy / Download (.md and .csv)
+
+## Clamp placement on a mounting plate (requirement, 2026-10-08)
+From the engineer: a clamp is not free in space. The **mounting plate** offers a set of possible positions (holes, slots, mounting options), and the hose / pipe can be held at different points along its route.
+- A fix that moves a clamp picks one of the plate's **allowed positions**, never an arbitrary offset
+- The clamp body must not interfere with the plate, the frame or other parts, and must sit properly on the hose (straight lead-in / lead-out, hose centred in the bore)
+- **Ease of clamping counts**: the fitter must be able to reach the clamp and the bolt with hand and tool (access zone free, sensible bolt direction, not hidden behind the frame or another part). A position that only passes geometry but is hard to fit ranks lower
+- Ranking of candidate positions: hose checks pass (bend R, gap) → no interference → access / comfort score → least change
+- Feeds Phase C (clip moves become a search over allowed positions) and Phase D (shared bracket, rules file)
 
 ## Phase 15 — Fixes
 - Suggested actions per issue: move a station or clip by Δ along an axis (only what can move — clamps and clips are frame-fixed unless the user frees them), step the route around a part with corner points, re-route a span with lines + arcs at single radius

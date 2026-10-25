@@ -26,24 +26,37 @@ function hermiteP(p0,p1,m0,m1,u){const u2=u*u,u3=u2*u,h=[2*u3-3*u2+1,u3-2*u2+u,-
 
 // is p within rad of face bx? exact when the face has a shape and sn (CadSolids.shapeNear) is given, its box grown by rad otherwise
 const within=(p,bx,rad,sn)=>inGrown(p,bx,rad)&&(!(bx.shape&&sn)||sn(bx.shape,p,rad)<rad);
+// station zones: within 2·rad + margin of a station the hose sits in what holds it, the clip, bore or port the station point
+// itself is within rad (+1 mm) of. Only those holders ask no gap there; any other part near the station still does (a frame
+// plate 10 mm in front of a port is a clash, not a holder). makeRoute (opts.quiet), the clearance, blockers() and Check share it.
+function zones(stations,boxes,rad,margin=15,sn=null){const r=2*rad+margin;
+  return stations.map(s=>{const p=(Array.isArray(s)?s:s.p).slice(0,3);return{p,r,hold:new Set(boxes.filter(b=>within(p,b,rad+1,sn)))};});}
+// the holders exempt at p (null when none)
+function heldAt(p,Z){let h=null;if(Z)for(const z of Z)if(z.hold.size&&len(sub(p,z.p))<z.r)h=h?new Set([...h,...z.hold]):z.hold;return h;}
+// sample spacing for the clash tests: no coarser than the hose radius (nor 4 mm), so a thin plate cannot fall between samples
+const spacing=rad=>Math.max(0.5,Math.min(rad,4));
 // faces the straight leg a→b comes within rad of, in order along the leg, each with its deepest sample and every sample it
-// blocks. The first and last `zone` mm of the leg (default 2·rad) are left out: a hose leaves a station through the part that holds it.
-function blockers(a,b,boxes,rad,sn,zone){
-  const out=[],L=len(sub(b,a)),skip=L>0?Math.min(0.25,(zone??2*rad)/L):0,lo=[0,1,2].map(k=>Math.min(a[k],b[k])-rad),hi=[0,1,2].map(k=>Math.max(a[k],b[k])+rad);
-  boxes.forEach((bx,bi)=>{if(![0,1,2].every(k=>bx.max[k]>=lo[k]&&bx.min[k]<=hi[k]))return;let hit=null;const at=[];
-    for(let j=1;j<40;j++){const t=j/40;if(t<skip||t>1-skip)continue;const p=add(a,mul(sub(b,a),t));if(!within(p,bx,rad,sn))continue;at.push(p);
-      const d=bx.shape&&sn?-sn(bx.shape,p,rad):-len(sub(p,centre(bx)));if(!hit||d>hit.d)hit={p,t,d};}
+// blocks. Samples every spacing(rad) mm over the stretch inside the face's box grown by rad. A station's holders (Z) are left out near it.
+function blockers(a,b,boxes,rad,sn,Z){
+  const out=[],d=sub(b,a),n=Math.min(4000,Math.max(40,Math.ceil(len(d)/spacing(rad)))),lo=[0,1,2].map(k=>Math.min(a[k],b[k])-rad),hi=[0,1,2].map(k=>Math.max(a[k],b[k])+rad);
+  boxes.forEach((bx,bi)=>{if(![0,1,2].every(k=>bx.max[k]>=lo[k]&&bx.min[k]<=hi[k]))return;let hit=null,t0=0,t1=1;const at=[];
+    for(let k=0;k<3;k++){const l=bx.min[k]-rad-a[k],h=bx.max[k]+rad-a[k];if(Math.abs(d[k])<1e-12){if(l>0||h<0)return;continue;}
+      const u=l/d[k],v=h/d[k];t0=Math.max(t0,Math.min(u,v));t1=Math.min(t1,Math.max(u,v));}
+    for(let j=Math.max(1,Math.ceil(t0*n));j<=Math.min(n-1,Math.floor(t1*n));j++){const t=j/n,p=add(a,mul(d,t));if(!within(p,bx,rad,sn))continue;
+      const H=heldAt(p,Z);if(H&&H.has(bx))continue;at.push(p);
+      const e=bx.shape&&sn?-sn(bx.shape,p,rad):-len(sub(p,centre(bx)));if(!hit||e>hit.d)hit={p,t,d:e};}
     if(hit)out.push({bi,p:hit.p,t:hit.t,at});});
   return out.sort((u,v)=>u.t-v.t);
 }
-// blockers of one part (faces carrying the same .part), or whose boxes touch (within 2·rad) when unnamed, are one obstacle.
+// blockers whose boxes touch (within 2·rad) and carry the same .part (or none) are one obstacle. Touching too when named:
+// repeated clips of one product share a name, and two of them 400 mm apart are two obstacles, not one.
 // Its box is local: the blocking faces' boxes clipped to the stretch of leg they block (± win), so a 9 m frame rail the leg
 // crosses is a 300 mm obstacle there, not a 9 m one. The via search (viaFor) then pushes out until the point is clear.
 function cluster(hits,boxes,rad,win){
   const groups=[],clip=(bx,h)=>{const lo=[0,1,2].map(k=>Math.min(...h.at.map(p=>p[k]))-win),hi=[0,1,2].map(k=>Math.max(...h.at.map(p=>p[k]))+win);
     return{min:[0,1,2].map(k=>Math.max(bx.min[k],lo[k])),max:[0,1,2].map(k=>Math.min(bx.max[k],hi[k]))};};
   for(const h of hits){const bx=boxes[h.bi],c=clip(bx,h),part=bx.part!=null?String(bx.part):null;
-    const near=g=>part!=null?g.part===part:g.part==null&&[0,1,2].every(k=>c.min[k]<=g.box.max[k]+2*rad&&c.max[k]>=g.box.min[k]-2*rad);
+    const near=g=>(part!=null?g.part===part:g.part==null)&&[0,1,2].every(k=>c.min[k]<=g.box.max[k]+2*rad&&c.max[k]>=g.box.min[k]-2*rad);
     let g=groups.find(near);
     if(!g){groups.push({bis:[h.bi],part,box:c,hit:h});continue;}
     g.bis.push(h.bi);for(let k=0;k<3;k++){g.box.min[k]=Math.min(g.box.min[k],c.min[k]);g.box.max[k]=Math.max(g.box.max[k],c.max[k]);}}
@@ -91,6 +104,10 @@ function passSide(curve,bx,d,rad){
 }
 function sampleCurve(route,x,per=40){const out=[];
   route.segs(x).forEach((g,i)=>{for(let j=i?1:0;j<=per;j++)out.push(hermiteP(g[0],g[1],g[2],g[3],j/per));});return out;}
+// the curve every sp mm or closer, on a grid holding the optimiser's own 60 per segment (r.obs is counted there)
+function denseCurve(route,x,sp){const out=[];
+  route.segs(x).forEach((g,i)=>{let m=1,q=null;for(let j=0;j<=60;j++){const p=hermiteP(g[0],g[1],g[2],g[3],j/60);if(q)m=Math.max(m,Math.ceil(len(sub(p,q))/sp));q=p;}
+    const per=60*Math.min(m,50);for(let j=i?1:0;j<=per;j++)out.push(hermiteP(g[0],g[1],g[2],g[3],j/per));});return out;}
 function curveGap(A,B){let m=0;for(const p of A){let d=Infinity;for(const q of B)d=Math.min(d,len(sub(p,q)));m=Math.max(m,d);}return m;}
 
 // stations: [[x,y,z] | {p,dir}], opts: {R, SF=1.5, rad=0, boxes:[{min,max}], margin=15, keep=3,
@@ -108,14 +125,17 @@ function start(stations,opts={}){
     up=parseAxis(opts.up)||{ax:2,sg:1},prefer=opts.prefer||{},notes=[];
   const partOf=g=>{const b=g.bis.map(i=>boxes[i]).find(b=>b.part);return b?String(b.part):`B${g.bis[0]+1}`;};
   const sn=opts.shapeNear||null;
-  // around each station the hose sits in what holds it (a port on a tank, a bore in a bracket): no gap is asked there,
-  // neither by the solver nor by the clearance reported
-  const qr=2*rad+margin,quiet=S0.map(s=>({p:s.p,r:qr})),calm=p=>quiet.some(z=>len(sub(p,z.p))<z.r);
+  // round each station the hose sits in what holds it (a port on a tank, a bore in a bracket): that part asks no gap
+  // there, neither of the solver nor of the clearance reported; every other part does (zones above)
+  const quiet=opts.quiet||zones(S0,boxes,rad,margin,sn),sp=spacing(rad);
+  // the choice (obstacle) face bi belongs to, so a report names it as the route labels do
+  const nameOf=bi=>{const ci=choices.findIndex(c=>c.bis.includes(bi));
+    return{part:ci>=0?choices[ci].part:boxes[bi].part!=null?String(boxes[bi].part):`B${bi+1}`,sid:boxes[bi].sid??null,ci};};
   // every (leg, obstacle in the way) is one choice with up to four options: fewer when the part has a side preference, or
   // when a side cannot be cleared within a short push (its via would be a long detour)
   let choices=[];
   for(let i=0;i<S0.length-1;i++){const a=S0[i].p,b=S0[i+1].p,d=sub(b,a),Lg=len(d),limit=Math.max(300,0.75*Lg);
-    cluster(blockers(a,b,boxes,rad,sn,qr),boxes,rad,2*rad+margin).forEach(g=>{const part=partOf(g),p=prefer[part];let o=sides(d);
+    cluster(blockers(a,b,boxes,rad,sn,quiet),boxes,rad,2*rad+margin).forEach(g=>{const part=partOf(g),p=prefer[part];let o=sides(d);
       if(p!=null){const k=o.filter(s=>keeps(p,s,d,up));
         if(o.some(s=>keeps(p,s,d,up)===null))notes.push(`${part}: “${p}” does not apply on leg ${i+1}, which runs along the up axis; any side kept`);
         else if(!k.length)notes.push(`${part}: “${p}” is along leg ${i+1}, not a side of it; any side kept`);
@@ -144,14 +164,22 @@ function start(stations,opts={}){
     const route=makeRoute(t.W.map(w=>w.p),{fixDirs:t.W.map(w=>w.dir),freePts,obstacles:boxes,rad,S:opts.S||24,shapeNear:sn,quiet});
     return{route,o:optimiser(route,designR)};}
   function finish(route,r,t){
-    const Q=sampleCurve(route,r.x),Qc=Q.filter(p=>!calm(p));
+    // the gap is measured every sp mm (a 14 mm plate is not stepped over) and on the optimiser's own samples; a station's
+    // holders are left out near it (H)
+    const Q=sampleCurve(route,r.x),Qd=denseCurve(route,r.x,sp),H=Qd.map(p=>heldAt(p,quiet));
     // smallest gap and the box it is to. Boxes sorted by their distance to the curve's own box: once that distance passes
     // the best gap found, no later box can be closer (exact, and far fewer tests on a frame of thousands of face boxes)
-    const qb={min:[0,1,2].map(k=>Math.min(...Qc.map(p=>p[k]))),max:[0,1,2].map(k=>Math.max(...Qc.map(p=>p[k])))};
+    const qb={min:[0,1,2].map(k=>Math.min(...Qd.map(p=>p[k]))),max:[0,1,2].map(k=>Math.max(...Qd.map(p=>p[k])))};
     const bd=(a,b)=>Math.hypot(...[0,1,2].map(k=>Math.max(a.min[k]-b.max[k],0,b.min[k]-a.max[k])));
     let clearance=Infinity,worst=-1;
     for(const [d0,bi] of boxes.map((b,bi)=>[bd(qb,b),bi]).sort((a,b)=>a[0]-b[0])){if(d0-rad>=clearance)break;const bx=boxes[bi];
-      for(const p of Qc){const g=(bx.shape&&sn?sn(bx.shape,p,clearance+rad):boxDist(p,bx))-rad;if(g<clearance){clearance=g;worst=bi;}}}
+      for(let i=0;i<Qd.length;i++){if(H[i]&&H[i].has(bx))continue;const p=Qd[i];let g=boxDist(p,bx)-rad;if(g>=clearance)continue;
+        if(bx.shape&&sn)g=sn(bx.shape,p,clearance+rad)-rad;if(g<clearance){clearance=g;worst=bi;}}}
+    // the solver's depth (r.obs) can be > 0 where the measured gap holds (it counts a face's box by its corners): name the
+    // face it runs into from the same samples, so the report is a gap failure, never a radius one
+    let hit=null;if(r.obs>1e-6&&clearance>=-1e-6){let deep=0;
+      boxes.forEach((bx,bi)=>{if(bd(qb,bx)>rad)return;for(let i=0;i<Qd.length;i++){const p=Qd[i];if(!inGrown(p,bx,rad)||H[i]&&H[i].has(bx))continue;
+        const e=bx.shape&&sn?rad-sn(bx.shape,p,rad):Math.min(...[0,1,2].flatMap(k=>[p[k]-bx.min[k]+rad,bx.max[k]+rad-p[k]]));if(e>deep){deep=e;hit=nameOf(bi);}}});}
     // label by where the polished curve really went, not by the via it started from
     const ss=choices.map(c=>passSide(Q,c.bx,c.d,rad));
     const sig=ss.map((s,k)=>`L${choices[k].leg+1}:B${choices[k].bis[0]+1}${sideName(s)}`).join(' ')||'direct';
@@ -163,8 +191,8 @@ function start(stations,opts={}){
     if(!kept&&!t.pin){tops.splice(k+1,0,{...t,pin:true});return;}
     // per part with a side preference: the side wanted, the side the curve took, and whether that keeps it
     const prefs=choices.map((c,k)=>c.pref?{part:c.part,want:c.pref,went:sideWord(ss[k],c.d,up),kept:!!keeps(c.pref,ss[k],c.d,up)}:null).filter(Boolean);
-    const near=worst>=0?{part:boxes[worst].part!=null?String(boxes[worst].part):`B${worst+1}`,sid:boxes[worst].sid??null}:null;
-    polished.push({sig,label,len:r.len,minR:r.minR,clearance:boxes.length?clearance:Infinity,ok,kept,prefs,obs:r.obs,near,sides:ss.map((s,k)=>sideWord(s,choices[k].d,up)),
+    const near=worst>=0?nameOf(worst):null;
+    polished.push({sig,label,len:r.len,minR:r.minR,clearance:boxes.length?clearance:Infinity,ok,kept,prefs,obs:r.obs,near,hit,sides:ss.map((s,k)=>sideWord(s,choices[k].d,up)),
       W:route.pts(r.x),Q,route,x:r.x.slice()});}
   function rank(){
     const best=Math.min(...polished.map(p=>p.len)),bucket=p=>Math.round(p.len/(0.01*best));
@@ -184,24 +212,29 @@ function start(stations,opts={}){
       forced={what:[...new Set(pref.map(c=>`${c.pref} ${c.part}`))].join(', '),why:why.join('; ')||'not clean',text:''};
       forced.text=`${forced.what}: ${forced.why}`;out.forEach(p=>p.forced=true);}
     return{candidates:out,tried:combos.length,polished:polished.length,skipped,forced,notes,none:polished.some(p=>p.ok)?null:noneClean()};}
-  // no route came out clean: which part is in the way on every side tried (best gap per side), or the radius
+  // no route came out clean: which part is in the way on every side tried (best gap per side), or the radius. A route fails
+  // on the gap when its measured gap is short, or when the solver still runs into a part (r.obs) though the gap measured
+  // holds: that is a part in the way too, never a radius problem when every route holds R
   function noneClean(){if(!polished.length)return null;
-    const short=n=>String(n).split(' / ').pop(),gapF=polished.filter(p=>p.clearance<-1e-6),radF=polished.filter(p=>p.minR<R-1e-6);
+    const short=n=>String(n).split(' / ').pop(),radF=polished.filter(p=>p.minR<R-1e-6),
+      bad=p=>p.clearance<-1e-6?p.near:p.obs>1e-6?(p.hit||{part:null,sid:null,ci:-1}):null,gapF=polished.filter(bad);
     const bestR=Math.max(...polished.map(p=>p.minR));
-    if(!gapF.length){const t=`every way round needs a bend tighter than R ${R} (best R ${bestR.toFixed(0)})`;return{rule:'radius',part:null,sid:null,bestR,sides:[],text:t};}
-    const count=new Map();gapF.forEach(p=>{const k=p.near.part;count.set(k,(count.get(k)||0)+1);});
-    const [part,nPart]=[...count].sort((a,b)=>b[1]-a[1])[0],every=nPart===polished.length;
-    const ci=choices.findIndex(c=>c.part===part),of=gapF.find(p=>p.near.part===part);
+    if(!gapF.length){const b=Math.max(...radF.map(p=>p.minR));
+      const t=`every way round needs a bend tighter than R ${R}${isFinite(b)?` (best R ${b.toFixed(0)})`:''}`;return{rule:'radius',part:null,sid:null,bestR,sides:[],text:t};}
+    const count=new Map();gapF.forEach(p=>{const k=bad(p).part;count.set(k,(count.get(k)||0)+1);});
+    const [part,nPart]=[...count].sort((a,b)=>b[1]-a[1])[0],every=nPart===polished.length,of=gapF.find(p=>bad(p).part===part);
+    const ci=part==null?-1:bad(of).ci>=0?bad(of).ci:choices.findIndex(c=>c.part===part);
     // best gap for each side of that part the routes took (or for each route, when it was not one of the parts enumerated)
-    const by=new Map();polished.forEach(p=>{const side=ci>=0?p.sides[ci]:p.label;const b=by.get(side);if(!b||p.clearance>b.gap)by.set(side,{side,gap:p.clearance,minR:p.minR});});
+    const by=new Map();polished.forEach(p=>{const side=ci>=0?p.sides[ci]:p.label;const b=by.get(side);if(!b||p.clearance>b.gap)by.set(side,{side,gap:p.clearance,minR:p.minR,clips:p.clearance>=-1e-6&&p.obs>1e-6});});
     const sides=[...by.values()].sort((a,b)=>b.gap-a.gap);
-    const f=v=>v<0?`−${(-v).toFixed(1)}`:v.toFixed(1),rule=radF.length?'both':'gap';
+    const f=s=>s.gap<-1e-6?`−${(-s.gap).toFixed(1)} mm`:s.clips?'clips its box':`${s.gap.toFixed(1)} mm`,rule=radF.length?'both':'gap';
     const where=every?(sides.length>1?'every side tried':`every route tried (all passed it ${ci>=0?sides[0].side.replace(/ of$/,''):'the same way'})`)
       :`${nPart} of ${polished.length} routes tried`;
+    const also=rule==='both'?`; ${radF.length} also need a bend tighter than R ${R}`:'';
+    if(part==null)return{rule,part:null,sid:null,every,sides,bestR,text:`a part is in the way on ${where}: the shaped routes still run into it within the hose radius + keep-clear gap${also}`};
     const text=`${short(part)} is in the way on ${where}: `+
-      sides.map(s=>`${ci>=0?s.side.replace(/ of$/,''):'via '+s.side} ${f(s.gap)} mm`).join(', ')+` (gap counted from the hose surface + keep-clear gap)`+
-      (rule==='both'?`; ${radF.length} also need a bend tighter than R ${R}`:'');
-    return{rule,part,sid:of.near.sid,every,sides,bestR,text};}
+      sides.map(s=>`${ci>=0?s.side.replace(/ of$/,''):'via '+s.side} ${f(s)}`).join(', ')+` (gap counted from the hose surface + keep-clear gap)`+also;
+    return{rule,part,sid:bad(of).sid,every,sides,bestR,text};}
   const now=()=>typeof performance!=='undefined'?performance.now():Date.now();
   function step(ms=30){
     const t0=now();let minR=null;
@@ -217,7 +250,7 @@ function start(stations,opts={}){
 // the same, run to the end in one go
 function enumerate(stations,opts={}){const job=start(stations,opts);let r;do{r=job.step(1e9);}while(!r.done);return r.result;}
 
-const API={start,enumerate,blockers,boxDist,sideWord,parseAxis};
+const API={start,enumerate,blockers,zones,denseCurve,spacing,boxDist,sideWord,parseAxis};
 if(typeof module!=="undefined"&&module.exports)module.exports=API;
 root.MultiRoute=API;
 })(typeof globalThis!=="undefined"?globalThis:this);

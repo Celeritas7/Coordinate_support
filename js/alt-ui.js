@@ -27,7 +27,8 @@ document.addEventListener('asm:loaded',()=>{$('altUp').value=store.get('rs.altUp
     title:s==='any'?'Alternatives may pass it on any side':`Alternatives keep only routes that pass ${s==='above'?'over':s==='below'?'under':'to the '+s+' of'} it (up = ${$('altUp').value})`,
     go:()=>{const o=ALT.prefer();if(s==='any')delete o[name];else o[name]=s;savePrefer(o);sidesLine();
       return s==='any'?`${I.name}: any side.`:`${I.name}: Alternatives pass it ${s==='above'?'over':s==='below'?'under':'on the '+s} (looking along the route, up ${$('altUp').value}). Run Alternatives.`;}}));});
-const say=(m,bad)=>{const e=$('statusAlt');e.textContent=m;e.style.color=bad?'var(--bad)':'';};
+// every new status drops the Next buttons of the one before (they belong to that result)
+const say=(m,bad)=>{const e=$('statusAlt');e.textContent=m;e.style.color=bad?'var(--bad)':'';if(typeof nextClear==='function')nextClear('statusAlt');};
 function typedBoxes(){
   return $('altObs').value.split(/\r?\n/).map(l=>l.split('!')[0].trim()).filter(Boolean).map(l=>l.replace(/,/g,' ').split(/\s+/))
     .filter(r=>r.length>=7&&r.slice(1,7).every(v=>Number.isFinite(+v))).map(r=>{const v=r.slice(1,7).map(Number);
@@ -77,7 +78,8 @@ $('runAlt').onclick=()=>{
     const none=!clean&&r.result.none;
     if(none){say(`No clean route from ${r.result.tried} way${r.result.tried>1?'s':''} round${extra}: ${none.text}. The ${C.length} closest are shown.${more?' '+more:''}`,true);
       const N=[];
-      if(none.rule!=='radius')N.push({label:'Push the route away and check again',title:'Ticks “Push the route away” under Keep clear of CAD parts and runs Check',
+      // Push only helps when it is off and there are CAD faces to push from (Check never sees typed boxes): as Check's canPush
+      if(none.rule!=='radius'&&!$('cdPush').checked&&cad&&cad.faces.length)N.push({label:'Push the route away and check again',title:'Ticks “Push the route away” under Keep clear of CAD parts and runs Check',
         go:()=>{$('cdBox').open=true;$('cdPush').checked=true;$('cdPush').dispatchEvent(new Event('change'));$('runBend').click();}});
       if(none.part&&none.sid!=null&&typeof bcKeepClear==='function'){const nm=String(none.part).split(' / ').pop();
         N.push({label:`Stop keeping clear of ${nm}`,title:`Unticks ${nm} under Keep clear of CAD parts (its gap is no longer checked) and runs Alternatives again`,
