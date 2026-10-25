@@ -91,16 +91,21 @@ function makeRoute(P,opts={}){
   const segB=(opts.obstacles&&opts.obstacles.length)?P.slice(0,-1).map((a,i)=>{const b=P[i+1],g=Math.min(V.len(V.sub(b,a))*0.6,150)+(opts.rad||0)+5;
     return opts.obstacles.filter(o=>[0,1,2].every(k=>o.max[k]>=Math.min(a[k],b[k])-g&&o.min[k]<=Math.max(a[k],b[k])+g));}):null;
   function evalSeg(x,i,S){
-    const g=seg(x,i),rad=opts.rad||0,boxes=segB?segB[i]:(opts.obstacles||[]),r0=loc[i]||0,r1=loc[i+1]||0;let len=0,kmax=0,obs=0,prev=null;const ks=[],rl=[],ps=[];
+    const g=seg(x,i),rad=opts.rad||0,sNear=opts.shapeNear||null,boxes=segB?segB[i]:(opts.obstacles||[]),r0=loc[i]||0,r1=loc[i+1]||0;let len=0,kmax=0,obs=0,prev=null;const ks=[],rl=[],ps=[];
     const lo=[Infinity,Infinity,Infinity],hi=[-Infinity,-Infinity,-Infinity];
     for(let j=0;j<=S;j++){const u=j/S,r=hermite(g[0],g[1],g[2],g[3],u),k=curvOf(r.d1,r.d2);ks.push(k);rl.push(r0*(1-u)+r1*u);if(k>kmax)kmax=k;
       if(prev)len+=V.len(V.sub(r.p,prev));prev=r.p;ps.push(r.p);for(let q=0;q<3;q++){if(r.p[q]<lo[q])lo[q]=r.p[q];if(r.p[q]>hi[q])hi[q]=r.p[q];}}
     // only boxes that the samples' own box reaches (grown by rad) can give a depth > 0: the rest add nothing, so the sum
     // (same order as testing every box) is unchanged. On a frame this was most of the solve time.
     const near=boxes.length?boxes.filter(b=>b.max[0]+rad>lo[0]&&b.min[0]-rad<hi[0]&&b.max[1]+rad>lo[1]&&b.min[1]-rad<hi[1]&&b.max[2]+rad>lo[2]&&b.min[2]-rad<hi[2]):boxes;
+    // opts.quiet: [{p, r}] — around a station the hose sits in whatever holds it (a port, a bore): no obstacle depth there
+    const quiet=opts.quiet||null,calm=p=>{for(const z of quiet){const dx=p[0]-z.p[0],dy=p[1]-z.p[1],dz=p[2]-z.p[2];if(dx*dx+dy*dy+dz*dz<z.r*z.r)return true;}return false;};
     for(let j=0;j<=S;j++){const p=ps[j];
-      // boxDepth inline, leaving at the first axis that puts p outside (same value when inside)
-      for(const b of near){let d=p[0]-b.min[0]+rad;if(d<=0)continue;let t=b.max[0]+rad-p[0];if(t<=0)continue;if(t<d)d=t;
+      if(quiet&&near.length&&calm(p)){if(j>0&&j<S)obs+=avoidDepth(p);continue;}
+      // boxDepth inline, leaving at the first axis that puts p outside (same value when inside). A face with an exact shape
+      // (opts.shapeNear given: CadSolids) counts by its exact gap instead: rad − distance to the face, where positive
+      for(const b of near){if(b.shape&&sNear){const e=rad-sNear(b.shape,p,rad);if(e>0)obs+=e*e;continue;}
+        let d=p[0]-b.min[0]+rad;if(d<=0)continue;let t=b.max[0]+rad-p[0];if(t<=0)continue;if(t<d)d=t;
         t=p[1]-b.min[1]+rad;if(t<=0)continue;if(t<d)d=t;t=b.max[1]+rad-p[1];if(t<=0)continue;if(t<d)d=t;
         t=p[2]-b.min[2]+rad;if(t<=0)continue;if(t<d)d=t;t=b.max[2]+rad-p[2];if(t<=0)continue;if(t<d)d=t;obs+=d*d;}
       if(j>0&&j<S)obs+=avoidDepth(p);}
@@ -724,7 +729,9 @@ $('runBend').onclick=()=>{
   // optional bore directions per station (clamp-stations.js); null when none are given: start / end directions only
   const SD=typeof clampStationDirs==='function'?clampStationDirs(P):null;
   const route=makeRoute(P,{startDir:parseDir($('sd').value),endDir:parseDir($('ed').value),localR:P.map(p=>p.loc||0),
-    fixDirs:SD?SD.fixDirs(X&&X.fixDirs):X&&X.fixDirs,obstacles:X&&X.boxes,rad:X&&X.rad});
+    fixDirs:SD?SD.fixDirs(X&&X.fixDirs):X&&X.fixDirs,obstacles:X&&X.boxes,rad:X&&X.rad,
+    // Push: exact gap to faces with a shape (CadSolids), and none asked right at the stations (the hose sits in its holders)
+    shapeNear:X&&X.boxes&&typeof CadSolids!=='undefined'?CadSolids.shapeNear:null,quiet:X&&X.boxes?P.map(p=>({p,r:2*X.rad+15})):null});
   const nloc=P.filter(p=>p.loc).length;
   const o=optimiser(route,R*SF),job=++bendSeq;bendJob=job;$('runBend').textContent='Stop';
   const tick=()=>{if(bendJob!==job)return;const t0=performance.now();let r;do{r=o.step(6);}while(!r.done&&performance.now()-t0<30);$('statusBend').textContent=`Shaping the curve... tightest bend so far R ${fmt(r.minR)} mm (${P.length} points, step ${r.it} of up to 900)`;

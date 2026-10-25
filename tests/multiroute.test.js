@@ -92,4 +92,15 @@ check(res.none === null && up.none === null, "a clean result has no 'none' repor
   let g = Infinity; for (const p of c.Q) for (const b of many) g = Math.min(g, M.boxDist(p, b) - rad);
   check(Math.abs(g - c.clearance) < 1e-9, `clearance with the early stop = every box tested (${c.clearance.toFixed(3)} mm)`); }
 
+// ---- Phase 13: a 9 m rail across the leg is passed over its short side, not walked round lengthwise ----
+{ const rail = { min: [480, -4500, -150], max: [520, 4500, 150], part: "FRAME / RAIL" }, Lr = 1000;
+  const rr = M.enumerate([A, B], { R, SF: 1.5, rad, boxes: [rail], makeRoute, optimiser });
+  console.log(`     rail: ${rr.tried} ways, ${rr.candidates.map(c => `${c.label} ${c.len.toFixed(0)} mm`).join(" / ")}${rr.notes.length ? "; " + rr.notes.join("; ") : ""}`);
+  check(rr.tried === 2 && rr.candidates.every(c => /^(over|under) RAIL$/.test(c.label)), `only over / under are tried: the ±Y sides would be a 4.5 m detour (${rr.candidates.map(c => c.label)})`);
+  check(rr.candidates.length >= 1 && rr.candidates.every(c => c.ok && c.len < 1.5 * Lr), `every route is short and clean (${rr.candidates.map(c => c.len.toFixed(0)).join(", ")} mm for a 1000 mm leg)`); }
+// a station inside what holds it (a port on a tank): no gap asked there
+{ const tank = { min: [-300, -300, -300], max: [0, 300, 300], part: "TANK" };
+  const tr = M.enumerate([[0, 0, 0], [800, 0, 0]], { R, SF: 1.5, rad, boxes: [tank], makeRoute, optimiser });
+  check(tr.tried === 1 && tr.candidates[0].ok, `a route leaving a port on the tank's face is clean (${tr.candidates[0].label}, gap ${tr.candidates[0].clearance.toFixed(1)})`); }
+
 if (fail) { console.log(`${fail} failed`); process.exit(1); }

@@ -24,23 +24,29 @@ function inGrown(p,b,rad){for(let k=0;k<3;k++)if(p[k]<b.min[k]-rad||p[k]>b.max[k
 function hermiteP(p0,p1,m0,m1,u){const u2=u*u,u3=u2*u,h=[2*u3-3*u2+1,u3-2*u2+u,-2*u3+3*u2,u3-u2];
   return[0,1,2].map(i=>h[0]*p0[i]+h[1]*m0[i]+h[2]*p1[i]+h[3]*m1[i]);}
 
-// boxes the straight leg a→b runs into (grown by rad), in order along the leg, each with its deepest sample
-function blockers(a,b,boxes,rad){
-  const out=[];
-  boxes.forEach((bx,bi)=>{let hit=null;
-    for(let j=1;j<40;j++){const t=j/40,p=add(a,mul(sub(b,a),t));if(!inGrown(p,bx,rad))continue;
-      const c=centre(bx),d=-len(sub(p,c));if(!hit||d>hit.d)hit={p,t,d};}
-    if(hit)out.push({bi,p:hit.p,t:hit.t});});
+// is p within rad of face bx? exact when the face has a shape and sn (CadSolids.shapeNear) is given, its box grown by rad otherwise
+const within=(p,bx,rad,sn)=>inGrown(p,bx,rad)&&(!(bx.shape&&sn)||sn(bx.shape,p,rad)<rad);
+// faces the straight leg a→b comes within rad of, in order along the leg, each with its deepest sample and every sample it
+// blocks. The first and last `zone` mm of the leg (default 2·rad) are left out: a hose leaves a station through the part that holds it.
+function blockers(a,b,boxes,rad,sn,zone){
+  const out=[],L=len(sub(b,a)),skip=L>0?Math.min(0.25,(zone??2*rad)/L):0,lo=[0,1,2].map(k=>Math.min(a[k],b[k])-rad),hi=[0,1,2].map(k=>Math.max(a[k],b[k])+rad);
+  boxes.forEach((bx,bi)=>{if(![0,1,2].every(k=>bx.max[k]>=lo[k]&&bx.min[k]<=hi[k]))return;let hit=null;const at=[];
+    for(let j=1;j<40;j++){const t=j/40;if(t<skip||t>1-skip)continue;const p=add(a,mul(sub(b,a),t));if(!within(p,bx,rad,sn))continue;at.push(p);
+      const d=bx.shape&&sn?-sn(bx.shape,p,rad):-len(sub(p,centre(bx)));if(!hit||d>hit.d)hit={p,t,d};}
+    if(hit)out.push({bi,p:hit.p,t:hit.t,at});});
   return out.sort((u,v)=>u.t-v.t);
 }
-// blockers whose boxes touch (within 2·rad) are one obstacle: a CAD part arrives as many face boxes,
-// and the route has to go round the whole part, not between two of its faces
-function cluster(hits,boxes,rad){
-  const groups=[];
-  for(const h of hits){const bx=boxes[h.bi],near=g=>[0,1,2].every(k=>bx.min[k]<=g.box.max[k]+2*rad&&bx.max[k]>=g.box.min[k]-2*rad);
+// blockers of one part (faces carrying the same .part), or whose boxes touch (within 2·rad) when unnamed, are one obstacle.
+// Its box is local: the blocking faces' boxes clipped to the stretch of leg they block (± win), so a 9 m frame rail the leg
+// crosses is a 300 mm obstacle there, not a 9 m one. The via search (viaFor) then pushes out until the point is clear.
+function cluster(hits,boxes,rad,win){
+  const groups=[],clip=(bx,h)=>{const lo=[0,1,2].map(k=>Math.min(...h.at.map(p=>p[k]))-win),hi=[0,1,2].map(k=>Math.max(...h.at.map(p=>p[k]))+win);
+    return{min:[0,1,2].map(k=>Math.max(bx.min[k],lo[k])),max:[0,1,2].map(k=>Math.min(bx.max[k],hi[k]))};};
+  for(const h of hits){const bx=boxes[h.bi],c=clip(bx,h),part=bx.part!=null?String(bx.part):null;
+    const near=g=>part!=null?g.part===part:g.part==null&&[0,1,2].every(k=>c.min[k]<=g.box.max[k]+2*rad&&c.max[k]>=g.box.min[k]-2*rad);
     let g=groups.find(near);
-    if(!g){groups.push({bis:[h.bi],box:{min:bx.min.slice(),max:bx.max.slice()},hit:h});continue;}
-    g.bis.push(h.bi);for(let k=0;k<3;k++){g.box.min[k]=Math.min(g.box.min[k],bx.min[k]);g.box.max[k]=Math.max(g.box.max[k],bx.max[k]);}}
+    if(!g){groups.push({bis:[h.bi],part,box:c,hit:h});continue;}
+    g.bis.push(h.bi);for(let k=0;k<3;k++){g.box.min[k]=Math.min(g.box.min[k],c.min[k]);g.box.max[k]=Math.max(g.box.max[k],c.max[k]);}}
   return groups;
 }
 // the four ways round box bx for a leg travelling along d: ±axis for the two axes least along d
@@ -48,6 +54,11 @@ function sides(d){const ax=[0,1,2].sort((i,j)=>Math.abs(d[i])-Math.abs(d[j])).sl
   return ax.flatMap(k=>[{ax:k,sg:1},{ax:k,sg:-1}]);}
 function viaFor(hit,bx,side,rad,margin){const c=centre(bx),h=half(bx),q=hit.p.slice();
   q[side.ax]=c[side.ax]+side.sg*(h[side.ax]+rad+margin);return q;}
+// the via for one side, pushed further out along that side until it is clear of every face (by rad + margin/2); null when
+// that takes more than `limit` from the leg: that side would be a long detour (along a rail), so it is not tried
+function viaClear(hit,bx,side,rad,margin,boxes,sn,limit){const q=viaFor(hit,bx,side,rad,margin),r=rad+margin/2;
+  const clear=p=>!boxes.some(b=>within(p,b,r,sn));let step=Math.max(5,rad);
+  for(;;){if(Math.abs(q[side.ax]-hit.p[side.ax])>limit)return null;if(clear(q))return q;q[side.ax]+=side.sg*step;step*=1.25;}}
 const sideName=s=>(s.sg>0?'+':'-')+AX[s.ax];
 // '+Z' / '-y' / 'z' → {ax,sg}
 function parseAxis(t){const m=/^\s*([+-]?)\s*([xyz])\s*$/i.exec(t||'');return m?{ax:'XYZ'.indexOf(m[2].toUpperCase()),sg:m[1]==='-'?-1:1}:null;}
@@ -96,39 +107,51 @@ function start(stations,opts={}){
     margin=opts.margin==null?15:+opts.margin,keep=opts.keep||3,maxPolish=opts.maxPolish||12,maxChoices=opts.maxChoices||4,
     up=parseAxis(opts.up)||{ax:2,sg:1},prefer=opts.prefer||{},notes=[];
   const partOf=g=>{const b=g.bis.map(i=>boxes[i]).find(b=>b.part);return b?String(b.part):`B${g.bis[0]+1}`;};
-  // every (leg, obstacle in the way) is one choice with four options, fewer when the part has a side preference
+  const sn=opts.shapeNear||null;
+  // around each station the hose sits in what holds it (a port on a tank, a bore in a bracket): no gap is asked there,
+  // neither by the solver nor by the clearance reported
+  const qr=2*rad+margin,quiet=S0.map(s=>({p:s.p,r:qr})),calm=p=>quiet.some(z=>len(sub(p,z.p))<z.r);
+  // every (leg, obstacle in the way) is one choice with up to four options: fewer when the part has a side preference, or
+  // when a side cannot be cleared within a short push (its via would be a long detour)
   let choices=[];
-  for(let i=0;i<S0.length-1;i++){const a=S0[i].p,b=S0[i+1].p,d=sub(b,a);
-    cluster(blockers(a,b,boxes,rad),boxes,rad).forEach(g=>{const part=partOf(g),p=prefer[part];let o=sides(d);
+  for(let i=0;i<S0.length-1;i++){const a=S0[i].p,b=S0[i+1].p,d=sub(b,a),Lg=len(d),limit=Math.max(300,0.75*Lg);
+    cluster(blockers(a,b,boxes,rad,sn,qr),boxes,rad,2*rad+margin).forEach(g=>{const part=partOf(g),p=prefer[part];let o=sides(d);
       if(p!=null){const k=o.filter(s=>keeps(p,s,d,up));
         if(o.some(s=>keeps(p,s,d,up)===null))notes.push(`${part}: “${p}” does not apply on leg ${i+1}, which runs along the up axis; any side kept`);
         else if(!k.length)notes.push(`${part}: “${p}” is along leg ${i+1}, not a side of it; any side kept`);
         else o=k;}
-      choices.push({leg:i,hit:g.hit,bx:g.box,bis:g.bis,part,pref:p!=null&&o.length<4?p:null,d,opts:o});});}
+      const pref=p!=null&&o.length<sides(d).length?p:null;
+      // sides whose via clears within the limit; a chosen side is kept even when it does not (the result then says so)
+      const vias=new Map(o.map(s=>[s,viaClear(g.hit,g.box,s,rad,margin,boxes,sn,limit)]));
+      const can=o.filter(s=>vias.get(s));
+      if(can.length&&!pref)o=can;
+      if(!can.length&&!pref)notes.push(`${String(part).split(' / ').pop()} on leg ${i+1}: no side clears within ${Math.round(limit)} mm, every side tried`);
+      o.forEach(s=>{if(!vias.get(s))vias.set(s,viaFor(g.hit,g.box,s,rad,margin));});
+      choices.push({leg:i,hit:g.hit,bx:g.box,bis:g.bis,part,pref,d,opts:o,vias});});}
   const skipped=Math.max(0,choices.length-maxChoices);choices=choices.slice(0,maxChoices);
   // all combinations (4^k), cut to the maxPolish shortest via polylines
   let combos=[[]];
   for(const c of choices){const next=[];for(const pre of combos)for(let s=0;s<c.opts.length;s++)next.push(pre.concat(s));combos=next;}
   const build=combo=>{const W=[];
     S0.forEach((st,i)=>{W.push({p:st.p,dir:st.dir,free:false});
-      choices.forEach((c,k)=>{if(c.leg===i)W.push({p:viaFor(c.hit,c.bx,c.opts[combo[k]],rad,margin),dir:null,free:true,pref:!!c.pref});});});
+      choices.forEach((c,k)=>{if(c.leg===i)W.push({p:c.vias.get(c.opts[combo[k]]),dir:null,free:true,pref:!!c.pref});});});
     let L=0;for(let i=1;i<W.length;i++)L+=len(sub(W[i].p,W[i-1].p));return{W,L,combo};};
   const tops=combos.map(build).sort((u,v)=>u.L-v.L).slice(0,maxPolish);
   // polish each topology with the unchanged makeRoute + optimiser
   const polished=[];let k=0,cur=null,result=null;
   // a pinned topology keeps its preferred vias where they are: the retry when the optimiser slid off the chosen side
   function begin(t){const freePts=t.W.map((w,i)=>w.free&&!(t.pin&&w.pref)?i:-1).filter(i=>i>=0);
-    const route=makeRoute(t.W.map(w=>w.p),{fixDirs:t.W.map(w=>w.dir),freePts,obstacles:boxes,rad,S:opts.S||24});
+    const route=makeRoute(t.W.map(w=>w.p),{fixDirs:t.W.map(w=>w.dir),freePts,obstacles:boxes,rad,S:opts.S||24,shapeNear:sn,quiet});
     return{route,o:optimiser(route,designR)};}
   function finish(route,r,t){
-    const Q=sampleCurve(route,r.x);
+    const Q=sampleCurve(route,r.x),Qc=Q.filter(p=>!calm(p));
     // smallest gap and the box it is to. Boxes sorted by their distance to the curve's own box: once that distance passes
     // the best gap found, no later box can be closer (exact, and far fewer tests on a frame of thousands of face boxes)
-    const qb={min:[0,1,2].map(k=>Math.min(...Q.map(p=>p[k]))),max:[0,1,2].map(k=>Math.max(...Q.map(p=>p[k])))};
+    const qb={min:[0,1,2].map(k=>Math.min(...Qc.map(p=>p[k]))),max:[0,1,2].map(k=>Math.max(...Qc.map(p=>p[k])))};
     const bd=(a,b)=>Math.hypot(...[0,1,2].map(k=>Math.max(a.min[k]-b.max[k],0,b.min[k]-a.max[k])));
     let clearance=Infinity,worst=-1;
     for(const [d0,bi] of boxes.map((b,bi)=>[bd(qb,b),bi]).sort((a,b)=>a[0]-b[0])){if(d0-rad>=clearance)break;const bx=boxes[bi];
-      for(const p of Q){const g=boxDist(p,bx)-rad;if(g<clearance){clearance=g;worst=bi;}}}
+      for(const p of Qc){const g=(bx.shape&&sn?sn(bx.shape,p,clearance+rad):boxDist(p,bx))-rad;if(g<clearance){clearance=g;worst=bi;}}}
     // label by where the polished curve really went, not by the via it started from
     const ss=choices.map(c=>passSide(Q,c.bx,c.d,rad));
     const sig=ss.map((s,k)=>`L${choices[k].leg+1}:B${choices[k].bis[0]+1}${sideName(s)}`).join(' ')||'direct';
@@ -136,7 +159,7 @@ function start(stations,opts={}){
     const kept=choices.every((c,k)=>!c.pref||keeps(c.pref,ss[k],c.d,up));
     // parts named by the last step of their assembly path ("A / B / 22648999" → "22648999")
     const label=ss.length?ss.map((s,k)=>`${sideWord(s,choices[k].d,up)} ${String(choices[k].part).split(' / ').pop()}`).filter((w,k,a)=>a.indexOf(w)===k).join(', '):'direct';
-    const ok=r.obs<=1e-6&&r.minR>=R-1e-6&&clearance>=-1e-6;
+    const ok=r.obs<=1e-6&&r.minR>=R-1e-6&&clearance>=-1e-6;   // r.obs: the solver's own depth, outside the stations' zones
     if(!kept&&!t.pin){tops.splice(k+1,0,{...t,pin:true});return;}
     // per part with a side preference: the side wanted, the side the curve took, and whether that keeps it
     const prefs=choices.map((c,k)=>c.pref?{part:c.part,want:c.pref,went:sideWord(ss[k],c.d,up),kept:!!keeps(c.pref,ss[k],c.d,up)}:null).filter(Boolean);

@@ -329,6 +329,11 @@ function parse(text,opts){
     for(const fid of refs(sh.args[1])){const f=get(fid);if(!f||!(has(f,'ADVANCED_FACE')||has(f,'FACE_SURFACE')))continue;const fa=f.args,S=get(ref(fa[2]));if(!S)continue;
       const kind=has(S,'B_SPLINE_SURFACE_WITH_KNOTS')?'bspline':S.kind.replace(/_SURFACE.*$/,'').toLowerCase().replace(/^b_spline.*/,'bspline');const face={kind,verts:[],edges:[],loops:[],sense:!/\.F\./.test(fa[3]||'')};
       if(kind==='bspline')face.S=S;
+      // a swept profile (Creo writes tank shells and bent sheets so): its curve sampled, and the sweep direction
+      if(has(S,'SURFACE_OF_LINEAR_EXTRUSION')){const sa=A(S,'SURFACE_OF_LINEAR_EXTRUSION'),cv=get(ref(sa[1])),vec=get(ref(sa[2])),bc=cv&&has(cv,'B_SPLINE_CURVE_WITH_KNOTS')?bsCurve(cv):null,
+          dv=vec&&has(vec,'VECTOR')?dir(ref(A(vec,'VECTOR')[1])):null;
+        if(bc&&dv)face.ext={pts:bsSample(bc,Math.max(24,Math.min(400,bc.P.length*8))),d:norm(dv)};}
+      if(has(S,'CONICAL_SURFACE')){const g=parseFloat(S.args[3]);if(Number.isFinite(g))face.ang=degrees?g*Math.PI/180:g;}
       if(S.args[1]&&ref(S.args[1])!=null&&!/BOUNDED|B_SPLINE|OFFSET|REVOLUTION|EXTRUSION/.test(S.kind))face.ax=axis(ref(S.args[1]));
       if(has(S,'CYLINDRICAL_SURFACE')||has(S,'SPHERICAL_SURFACE')||has(S,'CONICAL_SURFACE'))face.r=parseFloat(S.args[2])*unitScale;
       if(has(S,'TOROIDAL_SURFACE')){face.R=parseFloat(S.args[2])*unitScale;face.r=parseFloat(S.args[3])*unitScale;}
