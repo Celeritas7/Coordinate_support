@@ -1,8 +1,8 @@
 /* cad-solids.js — read the solids of a CAD file as obstacle boxes, one box per face.
  * IGES: B-rep solids (186 → 514 shell → 510 faces → 508 loops → 504 edges / 502 vertices), arcs (100, with their 124
  * transform) and B-splines (126, control points) add their full extent, so round faces are covered.
- * STEP: via StepAsm (step-asm.js), face vertices + circle edges, in world coordinates. Solids of the parts StepAsm takes
- * for pipes (opts.pipe = the per-part "pipe?" overrides, as in AsmTree) carry solid.pipe = {name, OD, kind}.
+ * STEP: via StepAsm (step-asm.js), face vertices + circle edges + sampled boundary loops, in world coordinates. Solids of
+ * the parts StepAsm takes for pipes (opts.pipe = the per-part "pipe?" overrides, as in AsmTree) carry solid.pipe = {name, OD, kind}.
  * One box per face follows a C-channel or an L-bracket far closer than one box per part.
  * Flat faces (128 bilinear / any planar 128, 190, 108) and cylinders (120 with a line parallel to its axis) also get
  * their exact shape: the boundary loops (lines, arcs 100 + 124, B-splines 126 sampled) in the face plane / on the
@@ -158,17 +158,20 @@ function step(text,opts){
   const SA=root.StepAsm||(typeof require!=="undefined"?require("./step-asm.js"):null);if(!SA)throw new Error('StepAsm not loaded');
   const r=(opts&&opts.parsed)||SA.parse(text,{pipe:(opts&&opts.pipe)||{}}),F=SA.F,faces=[],solids=[];let sid=0;
   r.instances.forEach((inst,idx)=>{const pp=r.pipes.find(p=>p.inst===idx),pipe=pp?{name:pp.name,OD:pp.OD,kind:pp.kind}:null;
+    // a part-local point placed in the world: F.pt (same sums in the same order) without its intermediate arrays
+    const{o:Mo,x:Mx,y:My,z:Mz}=inst.M,P=q=>[Mo[0]+(Mx[0]*q[0]+(My[0]*q[1]+Mz[0]*q[2])),
+      Mo[1]+(Mx[1]*q[0]+(My[1]*q[1]+Mz[1]*q[2])),Mo[2]+(Mx[2]*q[0]+(My[2]*q[1]+Mz[2]*q[2]))];
     inst.part.solids.forEach(sol=>{sid++;const sb=newBox();let made=0;
-    sol.faces.forEach(f=>{const b=newBox();f.verts.forEach(v=>grow(b,F.pt(inst.M,v)));
-      f.edges.forEach(ed=>circle(b,F.pt(inst.M,ed.ax.o),F.vec(inst.M,ed.ax.z),ed.r));
+    sol.faces.forEach(f=>{const b=newBox(),WL=(f.loops||[]).map(l=>l.map(P));f.verts.forEach(v=>grow(b,P(v)));
+      // the box takes the sampled boundary loops too: a face bounded by spline edges (no circle) reaches past its vertices,
+      // and index().nearest skips a face whose box is farther than the best gap so far. Same points as StepAsm's instance.bbox
+      WL.forEach(l=>l.forEach(q=>grow(b,q)));f.edges.forEach(ed=>circle(b,F.pt(inst.M,ed.ax.o),F.vec(inst.M,ed.ax.z),ed.r));
       if(!ok(b))return;const face={sid,min:b.min,max:b.max};
       // exact shape for flat and cylindrical faces, as for IGES: the boundary loops StepAsm sampled, placed in the world,
       // so the gap to a plate is measured to its hole edges, not to its box
-      if(exactStep&&f.ax&&f.loops&&f.loops.length&&(f.kind==='plane'||(f.kind==='cylindrical'&&f.r>0))){
-        const L=f.loops.map(l=>[l.map(q=>F.pt(inst.M,q))]),o=F.pt(inst.M,f.ax.o),z=unit(F.vec(inst.M,f.ax.z));
+      if(exactStep&&f.ax&&WL.length&&(f.kind==='plane'||(f.kind==='cylindrical'&&f.r>0))){
+        const L=WL.map(l=>[l]),o=F.pt(inst.M,f.ax.o),z=unit(F.vec(inst.M,f.ax.z));
         const sh=!z?null:f.kind==='plane'?planeShape(o,z,L):cylShape(o,z,unit(F.vec(inst.M,f.ax.x)),f.r,L);
-        // the face box stays the one from vertices + whole edge circles: a little larger than the sampled boundary, so a
-        // box test never skips the face, and it matches the part's box (StepAsm instance.bbox)
         if(sh)face.shape=sh;}
       // spheres, tori, cones and swept profiles: the untrimmed surface, held to the face box (surfDist)
       if(exactStep&&!face.shape){const W=q=>F.pt(inst.M,q),Vv=q=>unit(F.vec(inst.M,q)),box={min:face.min,max:face.max};
