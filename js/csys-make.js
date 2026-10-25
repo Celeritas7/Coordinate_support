@@ -115,6 +115,13 @@ $('mkExport').onclick=()=>{const asm=typeof ASM!=='undefined'&&ASM?ASM.name.repl
 // plain ASCII minus for a spreadsheet
 $('mkCopy').onclick=()=>{const a=v=>v.map(q=>(Math.abs(q)<5e-4?0:q).toFixed(3)).join(' '),t=MK.list.map(c=>`${c.name}\t${a(c.o)}\tZ ${a(c.z)}\tX ${a(c.x)}`).join('\n');
   (navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>say('Copied as a table (name, origin, Z, X).'),()=>say('Copy failed: select the list by hand.',true));};
-document.addEventListener('asm:loaded',()=>{load();render();$('dCsys').hidden=false;});
+// another file: its own list. CSYS made before any file was open go into the first file opened. asm-view.js drew the scene
+// (on asm:loaded, before this) with the list it had: redraw, and drop a pick of a made CSYS from that list
+document.addEventListener('asm:loaded',()=>{load();
+  let pre=[];try{pre=ASM.name?JSON.parse(store.get('rs.csysMade.')||'[]'):[];}catch(e){}
+  if(pre.length){pre.forEach(c=>{c.name=MK.list.some(m=>m.name===c.name)?CsysMake.freeName(c.name+'_',MK.list.map(m=>m.name)):c.name;MK.list.push(c);});
+    save();store.set('rs.csysMade.','[]');say(`${pre.length} CSYS made before a file was open now listed for ${ASM.name}.`);}
+  render();$('dCsys').hidden=false;
+  const p=typeof asmPick==='function'&&asmPick();if(p&&p.c&&p.c.made)asmSetPick(null);rebuild(false);});
 load();render();
 })(typeof globalThis!=="undefined"?globalThis:this);
