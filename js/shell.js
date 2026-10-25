@@ -56,15 +56,15 @@ const say=m=>{const e=$('shStatus');e.textContent=m;e.classList.add('on');};
 const isAsm=t=>/PRODUCT_DEFINITION\s*\(/.test(t)&&/MANIFOLD_SOLID_BREP|BREP_WITH_VOIDS/.test(t);
 let masterSet=false;
 async function open(list){
-  const files=[...list];if(!files.length)return;
+  const files=[...list];if(!files.length)return;say(`Reading ${files.length>1?`${files.length} files`:files[0].name}…`);
   // what each file is, from its text; a big STEP is only sampled (first and last 8 MB): reading it whole would fail past the
   // 537 M-character string limit, and the assembly reader reads it in pieces anyway
   const BIG=64e6,sniff=f=>f.size>BIG&&/\.(stp|step)$/i.test(f.name)?Promise.all([f.slice(0,8e6).text(),f.slice(Math.max(0,f.size-8e6)).text()]).then(a=>({big:true,t:a.join('\n')})):f.text().then(t=>({big:false,t}));
   const got=await Promise.all(files.map(sniff)),texts=got.map(g=>g.t);
   // assembly (product tree + solids): opened once, for every panel (see openAssembly)
   const ai=files.findIndex((f,i)=>/\.(stp|step)$/i.test(f.name)&&(isAsm(texts[i])||got[i].big&&/PRODUCT_DEFINITION\s*\(/.test(texts[i])));
-  if(ai>=0){const f=files[ai],rest=files.length-1;openAssembly(f);
-    if(rest)say($('shStatus').textContent+` ${rest} other file${rest>1?'s were':' was'} not opened; open ${rest>1?'them':'it'} once the assembly has loaded.`);return;}
+  // the others are named in the final "Opened in …" line (the reading progress overwrites anything said before it)
+  if(ai>=0){const f=files[ai],rest=files.filter((_,i)=>i!==ai).map(x=>x.name);openAssembly(f,rest);return;}
   // a .pts whose points land on a pipe of the open assembly → Pipe · Check .pts
   if(files.length===1&&typeof ASM!=='undefined'&&ASM&&ASM.r&&ASM.r.pipes.length&&/\.(pts|txt|csv)$/i.test(files[0].name)){
     let fits=false;try{ASM.r.pipes.forEach((p,i)=>{const r=PtsCompare.compare(ASM.r,i,texts[0]);if(r.frame.err<=Math.max(r.tol,p.OD||0))fits=true;});}catch(e){}
@@ -83,16 +83,18 @@ async function open(list){
 }
 // One assembly per session, read once. In Hose / Cable · Route through stations it feeds Stations from clamps and
 // Keep clear of CAD parts; anywhere else it opens in Pipe. Both see the same parse, so switching task needs no reload.
-function openAssembly(f){
+// rest: names of files dropped with it and not opened
+function openAssembly(f,rest){const n=rest?rest.length:0,also=n?` ${n} other file${n>1?'s were':' was'} not opened (${rest.join(', ')}); open ${n>1?'them':'it'} now the assembly has loaded.`:'';
   const hose=st.mod==='hose'&&st.task.hose==='route'&&$('shape').value!=='arc';
   if(!hose)go('pipe',st.task.pipe==='clamps'||st.task.pipe==='offset'?st.task.pipe:'asm');
   else{$('csBox').open=true;$('cdBox').open=true;}
   const where=hose?`Stations and parts to keep clear of are in ${label('hose','route')}; also open in Pipe.`:`Open in ${label('pipe',st.task.pipe)}.`;
   document.addEventListener('asm:loaded',e=>{const a=e.detail;if(!a||a.name!==f.name)return;
     if(hose&&typeof bcFromAsm==='function')bcFromAsm(a);
-    say(`Opened in ${(a.secs||0).toFixed(1)} s. ${where}`);
+    say(`Opened in ${(a.secs||0).toFixed(1)} s. ${where}${also}`);$('shStatus').title='';
     $('shAsm').hidden=false;$('shAsmTxt').textContent=asmLine(a);},{once:true});
-  asmLoad(f);}
+  // while reading, the header shows asm-ui's progress line ("Reading <file>, 20.3 MB: parts 59 %"); the others in its tooltip
+  $('shStatus').title=n?`Not opened: ${rest.join(', ')} (one assembly at a time; open ${n>1?'them':'it'} once this one has loaded)`:'';asmLoad(f);}
 window.openAssembly=openAssembly;window.goTask=go;
 function asmLine(a){const r=a.r;if(!r)return a.name;const parts=r.instances.filter(i=>i.solids).length;
   return`${a.name} · ${parts} parts · ${r.csys.length} CSYS`;}

@@ -1,0 +1,497 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Route Studio · Phase 5 strip + Phases 1–4b review</title>
+<link rel="stylesheet" href="../fonts/fonts.css">
+<link rel="stylesheet" href="p5-mock.css">
+<style>
+:root{--paper:#E9EDF1;--panel:#F7F9FB;--ink:#1F2A36;--muted:#5B6878;--rule:#C9D2DB;--ok:#2B6CB0;--warn:#D08A1E;--warn-ink:#8F5A0A;--bad:#C8323C;--field:#FFFFFF;--sans:"IBM Plex Sans",system-ui,"Segoe UI",sans-serif;--mono:"IBM Plex Mono",ui-monospace,Consolas,monospace}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:14px/1.5 var(--sans);font-variant-numeric:tabular-nums}
+a{color:var(--ok);text-underline-offset:2px}a:hover{color:var(--ink)}
+.doc{max-width:1240px;margin:0 auto;padding:28px 24px 90px}
+h1{font-size:21px;font-weight:600;letter-spacing:-.01em;margin:0 0 4px}
+.lede{color:var(--muted);font-size:13.5px;margin:0 0 18px;max-width:80ch;text-wrap:pretty}
+h2{font-size:16px;font-weight:600;margin:44px 0 6px;padding-top:16px;border-top:1px solid var(--rule)}
+h2 small,h3 small{font-weight:400;color:var(--muted);margin-left:8px;font-size:12.5px}
+h3{font-size:13.5px;font-weight:600;margin:22px 0 6px}
+p,li{font-size:13.5px;max-width:84ch;text-wrap:pretty}
+ul,ol{padding-left:20px;margin:4px 0 10px}li{margin:3px 0}
+code,.mono{font-family:var(--mono);font-size:12.5px}
+.toc{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:13px;margin:0 0 8px}
+.shotcap{display:flex;align-items:baseline;gap:10px;margin:22px 0 6px;font-size:13px}.shotcap b{font-weight:600}.shotcap .r{margin-left:auto;display:flex;gap:10px;align-items:center}
+.shotcap button{font:500 12px var(--sans);border:1px solid var(--rule);background:var(--field);color:var(--ink);border-radius:4px;padding:3px 9px;cursor:pointer}
+.scaler{overflow:hidden;border:1px solid var(--rule);border-radius:4px;background:var(--panel)}
+.scaler.full{overflow:auto}
+.scaler>.rs{transform-origin:0 0}
+.callouts{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:4px 24px;margin:8px 0 0;padding:0;list-style:none;counter-reset:c}
+.callouts li{font-size:12.5px;counter-increment:c;display:flex;gap:8px;margin:2px 0}.callouts li::before{content:counter(c);font:600 11px var(--sans);width:18px;height:18px;flex:none;display:grid;place-items:center;border:1px solid var(--ink);border-radius:3px;margin-top:1px}
+.row{display:flex;flex-wrap:wrap;gap:18px;align-items:flex-start;margin:10px 0}
+.row>.col{flex:1 1 300px;min-width:0;max-width:520px}.row>.col:has(>.rs.solo){flex:0 0 500px;max-width:500px}
+.cap{font-size:12px;color:var(--muted);margin:0 0 6px}
+.solo{width:500px;max-width:none}
+.solo.wide{width:100%}
+table.t{border-collapse:collapse;width:100%;font-size:13px;background:var(--panel);border:1px solid var(--rule);margin:8px 0 12px}
+table.t th,table.t td{border-bottom:1px solid var(--rule);padding:6px 10px;text-align:left;vertical-align:top;text-wrap:pretty}
+table.t th{font-weight:600;color:var(--muted);font-size:12.5px;background:var(--field)}
+table.t td.o{color:var(--muted)}table.t td.n{font-weight:500}
+table.t .m{font-family:var(--mono);font-size:12px}
+.ck{list-style:none;padding:0}.ck li{display:flex;gap:8px}.ck li::before{content:"";width:12px;height:12px;border:1px solid var(--muted);border-radius:2px;flex:none;margin-top:4px}
+.ch li b{font-weight:600}
+.pass{color:var(--ok);font-weight:600}.fail{color:var(--bad);font-weight:600}
+.box{background:var(--panel);border:1px solid var(--rule);border-radius:4px;padding:12px 14px;margin:10px 0}
+.box p:first-child{margin-top:0}.box p:last-child{margin-bottom:0}
+</style></head><body>
+<div class="doc">
+<h1>Route Studio · Phase 5 strip, and design review of Phases 1–4b</h1>
+<p class="lede">Hose / Cable › Route through stations as <b>1 Load · 2 Stations · 3 Route</b>, at 1600 × 1000 and 1366 × 768, light and dark, built from the tokens in <code>css/route-studio.css</code>. Mock data is from piping3 (Ø12) and the frame; numbers are illustrative. The 3D view itself does not change and is shown as a hatched placeholder; only what sits on it is drawn.</p>
+<nav class="toc"><a href="#p5">A · Phase 5 mockups</a><a href="#states">Strip states</a><a href="#pipe">Pipe empty states</a><a href="#p5spec">Phase 5 spec + checklist</a><a href="#a11y">Accessibility</a><a href="#p1">Phase 1</a><a href="#p2">Phase 2</a><a href="#p3">Phase 3</a><a href="#p4">Phase 4</a><a href="#p4b">Phase 4b</a><a href="#q">Q1–Q7 items</a><a href="#words">Wording table</a><a href="#cuts">Cuts and merges</a></nav>
+<div class="box"><p><b>Decisions in one place</b></p><ul>
+<li><b>Use as stations goes.</b> Check route reads the ticked rows directly. This is the main cut, and it is why the main path fits in 5 steps (7 on the frame with start and end picked in 3D).</li>
+<li><b>An empty Start or End is filled by the next 3D click.</b> The pick panel confirms it and offers Undo. Picking start and end then costs 1 click each, not 2.</li>
+<li><b>The task list goes from a 124 px column to a row of tabs</b> under the module switch. The cards get the full sidebar width (≈ 466 px).</li>
+<li><b>The assembly line moves above the module switch</b> because it is shared by every module. It reads <code>3 clamps for Ø12</code> once Hose Ø is known.</li>
+<li><b>Tables go to the dock:</b> Clearance, <b>Clamps to add</b> (Suggest extra clamps) and CSYS made here. The sidebar keeps one verdict line and the Next buttons.</li>
+<li><b>One Advanced toggle above the strip.</b> When it is on, each card shows its own settings block. When it is off, the current values are shown in one mono line beside the toggle, so R and gap stay visible.</li>
+<li><b>Amber text fails contrast in light (2.7 : 1).</b> Amber stays for fills, borders and markers. Amber words use one new token, <code>--warn-ink #8F5A0A</code> (light only; dark keeps <code>--warn</code>).</li>
+</ul></div>
+
+<h2 id="p5">A · Phase 5 mockups <small>scaled to fit; “100 %” shows actual pixels</small></h2>
+<div class="shotcap"><b>1600 × 1000 · light</b><span class="unit">State: Check found a clash; 980709 picked in 3D</span><span class="r"><button type="button" data-z>100 %</button></span></div>
+<div class="shot" data-sb="sbB" data-main="mainB" data-w="1600" data-h="1000" data-sbw="500" data-dock="230"></div>
+<ol class="callouts">
+<li>The assembly line sits above the module switch. It shows the counts, Change… and Remove, and says <code>3 clamps for Ø12</code> once Ø is typed.</li>
+<li>Tasks are a row of tabs, so the cards are full width.</li>
+<li>The Advanced toggle, with the current values shown in mono beside it.</li>
+<li>Card 1: Hose Ø, plus the Keep clear parts list folded into a one-line summary that shows the count.</li>
+<li>Card 2: Start and End, then the station rows (Phase 1 layout). The grip is a 24 × 28 button; S2’s grip is shown focused.</li>
+<li>Card 3: the Push tick, Check route, then the verdict line with up to 3 Next buttons, the first one primary.</li>
+<li>“Tools” is a fixed home for Alternatives and Suggest extra clamps, so the Next buttons are only shortcuts to them.</li>
+<li>The pick panel sits above the legend. Its groups are Route · Keep clear · Route passes it · Creo and Library. The side row names its leg.</li>
+<li>Clearance moves to the dock: one row per part, failing gaps in red.</li>
+</ol>
+<div class="shotcap"><b>1600 × 1000 · dark</b><span class="unit">Same state</span><span class="r"><button type="button" data-z>100 %</button></span></div>
+<div class="shot" data-sb="sbB" data-main="mainB" data-w="1600" data-h="1000" data-sbw="500" data-dock="230" data-dark></div>
+<div class="shotcap"><b>1366 × 768 · light</b><span class="unit">State: “over 980709” chosen; Alternatives cannot hold R on that side</span><span class="r"><button type="button" data-z>100 %</button></span></div>
+<div class="shot" data-sb="sbC" data-main="mainC" data-w="1366" data-h="768" data-sbw="492" data-dock="190"></div>
+<ol class="callouts">
+<li>Below 900 px of height, cards before the current one collapse to their summary line. Click the line (or press Enter on it) to open the card. Nothing on the main path is inside a collapsed card.</li>
+<li>The dock is 190 px tall at heights under 820 px (it is 230 today), which keeps the 3D view at 578 px.</li>
+<li>Alternatives: the Up control sits in the section header, and your side choices are chips with a ×. One amber note explains the forced side and what “any side” would give.</li>
+<li>A forced card has an amber <code>forced side</code> tag. Failing numbers are red and state their limit. The button is Use anyway, never Use this.</li>
+<li>View tools wrap to a second row, right-aligned (the view is 874 px wide here).</li>
+</ol>
+<div class="shotcap"><b>1366 × 768 · dark</b><span class="unit">Same state</span><span class="r"><button type="button" data-z>100 %</button></span></div>
+<div class="shot" data-sb="sbC" data-main="mainC" data-w="1366" data-h="768" data-sbw="492" data-dock="190" data-dark></div>
+
+<h2 id="states">Strip states <small>sidebar only, actual size</small></h2>
+<div class="row">
+<div class="col"><p class="cap"><b>S0 · nothing open.</b> Card 1 is current. Hose Ø can be typed before the file is open. Cards 2 and 3 are dashed and say what they wait for.</p><div class="rs solo" data-inc="sbS0"></div></div>
+<div class="col"><p class="cap"><b>S1 · frame open, no start or end yet.</b> Both fields are armed: the next click on a part or CSYS fills Start, the one after fills End. The pick panel confirms each one (right).</p><div class="rs solo" data-inc="sbS1"></div></div>
+<div class="col"><p class="cap"><b>S2 · Advanced on.</b> Every setting appears inside the card it affects, under a dashed rule. Turning it off hides them and keeps the values.</p><div class="rs solo" data-inc="sbS2"></div></div>
+</div>
+<div class="row"><div class="col"><p class="cap"><b>Pick panel after an armed click</b> (frame, the A_T_F_PORT2 connector port). One click both sets Start and opens the panel.</p><div class="rs" style="background:none" data-inc="pkStart"></div></div></div>
+
+<h2 id="pipe">Pipe empty states <small>one line per task, shown until the task has input</small></h2>
+<div class="rs solo wide" data-inc="pipeEmpty"></div>
+<table class="t"><tr><th style="width:220px">Task</th><th>Empty-state line (exact)</th><th style="width:180px">Button beside it</th></tr>
+<tr><td class="n">Route through points</td><td>Route through points: paste or drop target points and get a pipe route of straights and arcs that holds the bend radius.</td><td>Paste table…</td></tr>
+<tr><td class="n">Check .pts against pipe</td><td>Check .pts against pipe: compare your .pts with a pipe in the open assembly, point by point.</td><td>Open assembly… (if none)</td></tr>
+<tr><td class="n">Through clamps</td><td>Through clamps: re-route the open pipe so it runs straight through its clamps.</td><td>Open assembly… (if none)</td></tr>
+<tr><td class="n">Table → .pts</td><td>Table → .pts: paste a Creo point table and save it as a .pts file.</td><td>Paste table…</td></tr>
+<tr><td class="n">Offset from another pipe</td><td>Offset from another pipe: route a new pipe alongside one in the assembly, at the distance you set.</td><td>Open assembly… (if none)</td></tr>
+</table>
+<p>The current paragraph (<i>“Open or drop a Creo assembly .stp. The app finds each pipe or hose…”</i>) is removed. With an assembly open but no pipe chosen, the line stays and the pipe select follows it.</p>
+
+<h2 id="p5spec">Phase 5 spec <small>what moves where</small></h2>
+<table class="t"><tr><th style="width:250px">Piece</th><th>Goes to</th></tr>
+<tr><td class="n">Open… · Paste table · Examples · Inspector · Dark</td><td>Top bar: <b>Open…</b> (primary) · Examples ▾ · More ▾ (Paste table…, Inspector) · Dark.</td></tr>
+<tr><td class="n">Assembly line + CSYS switches</td><td>A boxed row under the top bar, above the module switch. The CSYS switches stay in the view tools (Q1–Q7 §3).</td></tr>
+<tr><td class="n">Task list</td><td>A row of tabs under the module switch, at every width (today this only happens under 1180 px).</td></tr>
+<tr><td class="n">Target points textarea</td><td>Card 2, fold <b>Points as text (n)</b>. It is filled from the ticked stations on Check. Pasting into it (or dropping a .pts) unticks the station list and says so.</td></tr>
+<tr><td class="n">Hose Ø</td><td>Card 1, the only Ø field for the task.</td></tr>
+<tr><td class="n">Bore fit, Look within, Up</td><td>Card 1, Advanced.</td></tr>
+<tr><td class="n">Keep clear parts list</td><td>Card 1, fold <b>Keep clear of n parts near the route</b>, closed by default. Each row has a tick, the part, its size and role, and a side select (Phase 4b).</td></tr>
+<tr><td class="n">Start / End, Auto order, Untick all, Only picked, station rows, Other holes, Hold bore direction</td><td>Card 2, in that order.</td></tr>
+<tr><td class="n">Fix end directions, bore directions</td><td>Card 2, Advanced.</td></tr>
+<tr><td class="n">Push the route away</td><td>Card 3, the tick above Check route.</td></tr>
+<tr><td class="n">Radius, margin, point spacing, gap, fewest points</td><td>Card 3, Advanced.</td></tr>
+<tr><td class="n">Check, status line, Next</td><td>Card 3: Check route, then the verdict line, then Next (max 3).</td></tr>
+<tr><td class="n">Alternatives (side choice, Up, cards)</td><td>Card 3, a section below the verdict, opened by Next or Tools. The section has Up in its header, side chips, then the cards.</td></tr>
+<tr><td class="n">Suggest extra clamps</td><td>A Tools link in card 3 runs it. The results go to the dock tab <b>Clamps to add (n)</b> and the sidebar shows one summary line with Next. Its settings go in card 3 Advanced.</td></tr>
+<tr><td class="n">CSYS made here</td><td>The dock tab <b>CSYS</b> (as Q1–Q7 §5). The assembly line shows <code>· 3 CSYS made here</code> as a link to it.</td></tr>
+<tr><td class="n">3D pick panel actions</td><td>Unchanged place (bottom-left, above the legend), with groups reordered (see Q1–Q7 items).</td></tr>
+<tr><td class="n">Comparison runs</td><td>Below the strip, renamed <b>Runs in 3D</b>. Check replaces the last generated run unless it is pinned (the pin is in the row).</td></tr>
+</table>
+<h3>Main path, counted <small>as tests/ui-walk.js counts: one user action = one step</small></h3>
+<table class="t"><tr><th>#</th><th>piping3 · Ø12 (A)</th><th>Frame · start/end in 3D (F)</th></tr>
+<tr><td>1</td><td>Open… → choose file</td><td>Open… → choose file</td></tr>
+<tr><td>2</td><td>Hose Ø: type 12</td><td>Hose Ø: type 8</td></tr>
+<tr><td>3</td><td>Check route (Start/End already set from the end fittings)</td><td>Click A_T_F_PORT2 in 3D → Start</td></tr>
+<tr><td>4</td><td>Next: Push away and check again</td><td>Click 991063 in 3D → End (snaps to its Ø15.5 hole)</td></tr>
+<tr><td>5</td><td>Next: Download .pts</td><td>Check route</td></tr>
+<tr><td>6</td><td></td><td>Next: Alternatives → Use this</td></tr>
+<tr><td>7</td><td></td><td>Next: Download .pts</td></tr>
+<tr><td></td><td><span class="pass">5 steps</span> (7 today)</td><td><span class="pass">7 steps</span> to a .pts. Add Suggest extra clamps · Make CSYS for all · Download .stp for Creo = <b>10</b> (23 today)</td></tr>
+</table>
+<h3>Acceptance checklist · Phase 5</h3>
+<ul class="ck">
+<li><code>ui-walk.js</code> A ≤ 7 steps (target 5) and F ≤ 7 steps to a downloaded .pts, with no click on a <code>summary</code> or <code>[aria-expanded]</code> fold on either path.</li>
+<li>The strip shows exactly three cards with headings “1 Load”, “2 Stations”, “3 Route”. The current card has the filled number; there is exactly one current card.</li>
+<li>No Use as stations button exists. Check route with fewer than 2 ticked rows is disabled and reads “Tick at least 2 stations.”</li>
+<li>With Start empty, a click on a part or CSYS sets Start. With Start set and End empty, it sets End. Each one shows the panel message with Undo. A drag (rotate) never sets anything.</li>
+<li>When Advanced is off, the mono summary line shows the current R, margin, gap and fit. Switching Advanced on and off keeps every value. The state is saved like the theme.</li>
+<li>At 1366 × 768 the sidebar never scrolls sideways, no card text is clipped, and the view tools do not overlap the readout.</li>
+<li>Below 900 px of height, done cards collapse to their summary line. The summary is a button with <code>aria-expanded</code>.</li>
+<li>Clearance, Clamps to add and CSYS are dock tabs. The tab labels carry a count when it is above 0.</li>
+<li>Each Pipe task shows its one-line empty state (table above) until it has input.</li>
+<li>Light and dark screenshots of A and F at both sizes are saved as <code>handoff/shots/P5-*.png</code>.</li>
+</ul>
+
+<h2 id="a11y">Accessibility <small>keyboard order, focus, contrast</small></h2>
+<h3>Keyboard order (Tab)</h3>
+<ol><li>Top bar: Open… · Examples · More · Dark</li><li>Assembly line: Change… · Remove</li><li>Module switch (one tab stop; ←/→ move between modules), then the task tabs (one tab stop; ←/→)</li><li>Advanced toggle</li><li>Card 1: summary button (when collapsed) · Hose Ø · Keep clear fold</li><li>Card 2: Start · End · Auto order · Untick all · Only picked · then per row <b>grip → tick → remove</b> · Other holes · Hold bore direction · Points as text</li><li>Card 3: Push tick · Check route · Next buttons · Alternatives section · Tools links</li><li>Runs in 3D</li><li>View tools (left to right) → 3D canvas → pick panel (when open) → dock tabs → dock body</li></ol>
+<h3>Drag handles (station grip)</h3>
+<ul><li>A real <code>&lt;button&gt;</code>, 24 × 28 px, with <code>aria-label="Move S2 CS16, position 2 of 5"</code> and <code>aria-describedby</code> pointing at a hidden hint, “Arrow keys move it”.</li>
+<li><b>↑ / ↓</b> move the row by one, and focus stays on the same grip. <b>Home / End</b> move it to the top or bottom. Every move renumbers S1…Sn and is announced through a polite live region: <code>S2 moved to position 3 of 5.</code></li>
+<li>Focus ring: <code>outline:2px solid var(--focus); outline-offset:0</code>, and the glyph turns <code>--ink</code>. A mouse drag also shows the existing <code>.over</code> top rule in <code>--focus</code>.</li>
+<li>When a 3D pick opens the pick panel, focus goes to its first action. Esc closes the panel and returns focus to the canvas. When an armed click sets Start or End, focus goes to Undo.</li>
+<li>Segmented controls (Keep clear yes/no, the side choice, CSYS none/holes/all, Colour) use <code>role="radiogroup"</code>, with ←/→ to change and one tab stop each.</li></ul>
+<h3>Contrast <small>WCAG 2.1, text 4.5 : 1, UI parts 3 : 1</small></h3>
+<table class="t"><tr><th>Pair</th><th>Light</th><th>Dark</th><th>Use</th></tr>
+<tr><td class="m">--muted on --panel</td><td>5.4</td><td>6.1</td><td>hints, parts, positions</td></tr>
+<tr><td class="m">--ok on --panel / --field</td><td>5.1 / 5.4</td><td>5.4</td><td>links, end-fitting reason, Clear: verdict</td></tr>
+<tr><td class="m">--bad on --panel</td><td>5.0</td><td>4.7</td><td>Clash:, failing numbers</td></tr>
+<tr><td class="m">--warn on --panel (as text)</td><td><span class="fail">2.7</span></td><td>7.2</td><td><b>not for text in light</b>: markers, borders, tag fills</td></tr>
+<tr><td class="m">--warn-ink on --panel / --field</td><td>5.5 / 5.8</td><td>= --warn</td><td>new: amber words (tags, “Close:”, forced)</td></tr>
+<tr><td class="m">#1F2A36 on --warn</td><td>5.1</td><td>6.6</td><td><code>+n</code> chip (fixed ink, not <code>--paper</code>)</td></tr>
+<tr><td class="m">--focus ring on --panel</td><td>5.1</td><td>5.4</td><td>all focus rings (≥ 3 : 1)</td></tr>
+<tr><td class="m">--alt1 / --alt2 / --alt3 swatch on --panel</td><td>4.0 / 4.0 / 5.6</td><td>≥ 6</td><td>non-text, ≥ 3 : 1</td></tr>
+</table>
+<p>Colour is never the only signal. Reasons have words, failing numbers say their limit (<code>R 58 &lt; 65</code>), and verdicts start with a word (Clash: / Too tight: / Close: / Clear:).</p>
+<ul class="ck"><li>axe-core run on the built page at both sizes and in both themes: 0 serious or critical issues.</li><li>Tab through the main path with no mouse. Every stop is in the order above and has a visible ring.</li><li>Reorder S2 to position 4 with the keyboard only; the live region announces it.</li><li>No text pair below 4.5 : 1 (script: computed colour vs. the nearest opaque background).</li></ul>
+
+<h2 id="p1">B · Phase 1 · clamp list rows</h2>
+<div class="row"><div class="col"><p class="cap">Proposed rows (card 2, piping3, Ø12)</p><div class="rs solo" data-inc="rowsP1"></div></div>
+<div class="col"><h3 style="margin-top:0">Change list</h3><ul class="ch">
+<li><b>Two lines per row, never more.</b> Line 1: <code>S2</code> · name (mono 600) · part (muted, ellipsis, full path in <code>title</code>) · bore <code>Ø12.0 × 25</code> on the right. Line 2: the reason (marker + words) · position on the right (mono, muted, no commas: <code>−175 1282 −1663</code>).</li>
+<li><b>Reason colours:</b> end fitting = <code>--ok</code> words and marker; not in the Library = <code>--ink</code> words with a <code>--warn</code> marker (contrast), plus an <b>Add…</b> link; Library = <code>--muted</code>; mount or other = muted outline marker.</li>
+<li><b>Reason wording:</b> <code>End fitting of pipe 111 · start</code> / <code>· end</code>; <code>Library: clip</code>; <code>Not in the Library · Add…</code>; <code>Bolt hole, 3.0 mm long (under 10)</code>; <code>Holds pipe 211</code>; <code>Picked in 3D · remove</code>.</li>
+<li>Unticked rows: name and bore in <code>--muted</code>. Rows picked in 3D carry a small <code>3D</code> tag after the name.</li>
+<li>Fold “Other holes (n)” → <b>Other holes that fit Ø12 (n)</b>, closed. Each row inside says why it is unticked.</li>
+<li>Pipe · Through clamps rows keep one line + Add to library; same reason words.</li></ul></div></div>
+<h3>Acceptance checklist · Phase 1</h3>
+<ul class="ck"><li>piping3 Ø12: 5 ticked rows, S1 and S5 blue “End fitting of pipe 111 · start / end”, S2 and S3 “Library: clip”, S4 “Not in the Library · Add…”.</li><li>At a sidebar width of 492 px, no row wraps past 2 lines (part names ellipsise).</li><li>The reason is its own element; <code>textContent</code> of the row has a separator between part and reason (no run-together text).</li><li>“Other holes that fit Ø12 (n)” is closed by default, and n matches the unticked count.</li><li>Changing Hose Ø keeps rows picked in 3D, with their <code>3D</code> tag.</li></ul>
+
+<h2 id="p2">Phase 2 · assembly line</h2>
+<div class="row"><div class="col"><p class="cap">Before Ø is known / after / big file reading</p><div class="rs solo" data-inc="hdrP2"></div></div>
+<div class="col"><h3 style="margin-top:0">Change list</h3><ul class="ch">
+<li><b>Position:</b> a boxed row between the top bar and the module switch, in every module (it is one file per session).</li>
+<li><b>Wording:</b> <code>piping3_practice_asm.stp</code> (mono) · <code>41 parts · 2 pipes · 40 holes with a CSYS</code>. Once Hose / Cable has a Ø: <code>3 clamps for Ø12</code> replaces the holes count. The trailing “pipes” link goes; “2 pipes” is plain text.</li>
+<li>When n &gt; 0, add <code>· 3 CSYS made here</code> as a link to the dock tab CSYS.</li>
+<li><b>Change…</b> (link) opens the file picker and replaces the assembly. It keeps Hose Ø, the Library and the per-file choices; it clears stations and parts from the old file; runs stay.</li>
+<li><b>Remove</b> (link) unloads it with no confirm dialog. The status says <code>Removed piping3_practice_asm.stp. Undo</code>; Undo is offered for 10 s, and a later Open replaces it.</li>
+<li><b>Status after Open</b> (long sentence) → <code>Opened in 0.2 s.</code> The counts live on the assembly line only, and card 2 shows what was found.</li>
+<li>While reading: <code>Reading frame_asm.stp, 20.3 MB: parts 59 %</code> with a 2 px bar (Q1–Q7 §4).</li></ul></div></div>
+<h3>Acceptance checklist · Phase 2</h3>
+<ul class="ck"><li>The assembly line is visible in every module and task without scrolling at 1366 × 768.</li><li>Typing Hose Ø 12 changes the line to “3 clamps for Ø12” without a reload.</li><li>Remove → Undo restores stations and parts with no re-parse (under 0.1 s).</li><li>The status after Open is one line at 492 px.</li></ul>
+
+<h2 id="p3">Phase 3 · Next buttons and pre-check messages</h2>
+<div class="row"><div class="col"><p class="cap">The six result lines (card 3 unless noted)</p><div class="rs solo" data-inc="nextP3"></div></div>
+<div class="col"><h3 style="margin-top:0">Rules</h3><ul class="ch">
+<li><b>Place:</b> directly under the verdict line, in the card that produced it. Never inside a fold.</li>
+<li><b>At most 3 buttons. The first is primary</b> (<code>.btn.pri</code>, ink fill), the rest are outlined. Replace <code>.next button:first-of-type{font-weight:600}</code>.</li>
+<li><b>Order:</b> fix the worst problem → look at other options → deliver.</li>
+<li><b>Verdict keyword:</b> <code>Clash:</code> / <code>Too tight:</code> in <code>--bad</code>; <code>Close:</code> and the pre-checks in <code>--warn-ink</code> with an amber marker; <code>Clear:</code> in <code>--ok</code>. Facts after it in <code>--ink</code>, details in <code>--muted</code>.</li>
+<li><b>Error</b> = the result breaks a rule (into a part, below min R). <b>Warning</b> = it passes but inside the margin, or a pre-check doubts the input. Warnings never disable Check.</li>
+<li><b>After Alternatives:</b> yes. Use this / Use anyway replaces the verdict for that alternative and shows Next again (Download .pts · Suggest extra clamps).</li>
+<li>Labels are 4 words at most, and none wrap at 466 px.</li></ul></div></div>
+<h3>Acceptance checklist · Phase 3</h3>
+<ul class="ck"><li>Each of the six cases shows the exact line and buttons above (<code>tests/ui-walk.js</code> reads the text).</li><li>Exactly one <code>.btn.pri</code> per Next row.</li><li>The stations-too-close pair is marked amber in the station list with its distance.</li><li>A mount row reads “Mount of S2 (its clip is bolted to it) · not kept clear”.</li></ul>
+
+<h2 id="p4">Phase 4 · Alternatives cards and “no clean route”</h2>
+<div class="row"><div class="col"><p class="cap">Clean / not clean / no clean route at all</p><div class="rs solo" data-inc="altP4"></div></div>
+<div class="col"><h3 style="margin-top:0">Change list</h3><ul class="ch">
+<li><b>Card:</b> swatch · plain-word label (600) · facts in a fixed order, mono: <code>2512 mm · min R 71 · gap 4.6 mm</code>. A failing fact is red and shows its limit: <code>min R 49 &lt; 65</code>, <code>gap 0.8 &lt; 4</code>.</li>
+<li><b>Button:</b> <code>Use this</code> (primary) only on a clean card; <code>Use anyway</code> (outlined) on the others. The selected card has an ink border.</li>
+<li>The best card is listed first; ties go to the shorter one.</li>
+<li><b>No clean route</b>, one red line: <code>No clean route: every route tried passes FY26_TEST_FRAME_1 on the left, at best 8.5 mm into it.</code></li>
+<li>Its buttons: <b>Push away and check again</b> (primary) · <b>Try it on the right</b> (sets the side, Phase 4b) · <b>Stop checking FY26_TEST_FRAME_1</b>.</li>
+<li>The large Alternatives button and its long paragraph go. The hint becomes: <code>Other ways round the kept-clear parts, best 3 first.</code></li></ul></div></div>
+<h3>Acceptance checklist · Phase 4</h3>
+<ul class="ck"><li>piping3 gives ≥ 2 distinct cards, or the red line naming the part and side.</li><li>Every failing number has the <code>bad</code> class and a “&lt; limit” suffix.</li><li>No card shows a box id (<code>B47+Y</code>) when the part has a name.</li></ul>
+
+<h2 id="p4b">Phase 4b · pick the side</h2>
+<div class="row"><div class="col"><p class="cap">The same choice in two places, kept in sync</p><div class="rs solo" data-inc="sideP4b"></div></div>
+<div class="col"><h3 style="margin-top:0">Decisions</h3><ul class="ch">
+<li><b>Where:</b> both. The pick panel is the main place, because you see the part. The Keep clear row has a compact select for parts that are hard to click. It is one state, saved per file.</li>
+<li><b>Words:</b> <code>any · over · under · left · right</code>. Keep “over / under” (not Above / Below): it reads with “passes”. When the leg runs along the up axis, the row shows axis words instead: <code>any · +X · −X · +Y · −Y</code>.</li>
+<li><b>“Left” on a route that turns back:</b> it is judged on the leg that passes the part, looking from the earlier station to the next one. So the label always names the leg: <code>Route passes it · looking S3 → S4 · up +Z</code>. A part met by two legs shows the first one, with a muted line “also met S5 → S6; same side kept”.</li>
+<li><b>Forced:</b> an amber <code>forced side</code> tag on the card, the failing numbers in red, and one amber note over the cards: <code>Over 980709 cannot hold R 65; best that side is R 58. With any side: 2 clean routes, both under it.</code> [Clear the side choice]. Never red for the choice itself.</li>
+<li><b>Up:</b> a select in the Alternatives header and in card 1 Advanced: <code>Up +Z</code> ▾, with the options <code>+Z −Z +Y −Y +X −X</code>. A guessed value says so: <code>+Z (guessed)</code>. Its label is “Up (for over / under)”.</li>
+<li>Chosen sides show as chips above the cards (<code>over 980709 ×</code>). × clears that part’s choice.</li></ul></div></div>
+<h3>Acceptance checklist · Phase 4b</h3>
+<ul class="ck"><li>Setting “over” in the pick panel updates the Keep clear row select at once, and the reverse.</li><li>The side row label names the leg (S<i>a</i> → S<i>b</i>) and the up axis.</li><li>On a leg along the up axis, the seg shows axis words.</li><li>A forced result shows the tag and the amber note, and nothing red except the failing numbers.</li><li>The walk-through gains at most 1 step for a side choice.</li></ul>
+
+<h2 id="q">Q1–Q7 items</h2>
+<h3>Pick panel · button order and grouping</h3>
+<div class="row"><div class="col"><div class="rs" style="background:none" data-inc="pkB"></div></div>
+<div class="col"><ul class="ch">
+<li><b>Groups, in order:</b> Route · Keep clear of it · Route passes it · Creo · Library. Group labels are 11.5 px muted.</li>
+<li><b>Route:</b> the primary button is whichever is still needed, in the order <b>Use as start → Use as end → Add as station</b>. The others follow in that same order. (This replaces “station first” from Q1–Q7 §1, because start and end are now armed.)</li>
+<li>Header: name (mono 600) · kind · ×. Parent on its own muted line. Facts: size · role · where clicked.</li>
+<li>On a <code>+n</code> suggestion dot: <b>Make CSYS</b> (primary) · Add as station · Drop this one.</li></ul></div></div>
+<h3>CSYS made here · rows (dock tab CSYS)</h3>
+<div class="rs solo wide" data-inc="csysQ6"></div>
+<ul class="ch"><li>Two lines, never three. Line 1: name (edit in place) · Show · Flip Z · X +90° · ×. Line 2: <code>at</code> origin · <code>Z</code> select · <code>X</code> word.</li><li><b>Z is a select</b>, <code>+X −X +Y −Y +Z −Z typed…</code>. Choosing typed… shows the 3-number field in place of the select. Quick buttons would take 6 buttons per row; the select takes one control.</li><li>The Z select is <code>width:auto</code>; the separators are gaps, not “·”.</li></ul>
+<h3>Suggest extra clamps · result rows (dock tab Clamps to add)</h3>
+<div class="rs solo wide" data-inc="sugQ7"></div>
+<ul class="ch"><li>Four facts in four columns: <b>where</b> (<code>+n</code> chip, along mm) · <b>why</b> · <b>mounts on</b> · <b>like</b>. Make CSYS is a link in the last cell.</li><li>“Needs a bracket” is an amber outlined tag in the mounts-on cell, with the muted “no part within 60 mm” under it. Never red. The tab label counts it: <code>Clamps to add (3 · 1 needs a bracket)</code>.</li><li>Group rows per span (<code>S3 → S4 · 669 mm · 2 clamps</code>). Clicking a row selects its dot in 3D and opens the pick panel.</li><li>Sidebar line: <code>3 clamps to add on Generated R65 ×1.5; 1 needs a bracket.</code> Next: Make CSYS for all · Add all as stations.</li></ul>
+
+<h2 id="words">Wording table <small>old → new, everything this review changes</small></h2>
+<table class="t" id="wt"><tr><th style="width:120px">Where</th><th>Old</th><th>New</th></tr></table>
+
+<h2 id="cuts">Cuts and merges <small>to make the main job shorter</small></h2>
+<table class="t"><tr><th style="width:30%">Cut / merge</th><th>Why</th><th style="width:110px">Saves</th></tr>
+<tr><td class="n">Use as stations → merged into Check route</td><td>Check reads the ticked rows. Target points are filled from them, and you can see them under Points as text.</td><td>1 step, every run</td></tr>
+<tr><td class="n">Armed Start / End from a 3D click</td><td>The usual start is a connector you can see, not a clamp in the list.</td><td>2 steps on F</td></tr>
+<tr><td class="n">Large Alternatives button + its paragraph</td><td>It repeats the Next button; the paragraph explains the solver, not the task.</td><td>≈ 140 px</td></tr>
+<tr><td class="n">“Check the gap to the ticked parts” tick</td><td>A ticked part is always checked; the tick was a second switch for the same thing.</td><td>1 control</td></tr>
+<tr><td class="n">The section Load links (Load assembly .stp…, Load frame / parts file…, remove)</td><td>There is one assembly per session (Phase 2), so these links only duplicate Open….</td><td>3 links</td></tr>
+<tr><td class="n">Check adds runs → replaces the last generated run</td><td>A3 shows “As entered R65” and “Generated R65 ×1.5” twice each. Pin a run to keep it.</td><td>list stays short</td></tr>
+<tr><td class="n">Task column → task tabs</td><td>The cards gain 138 px of width, so rows stop wrapping.</td><td>width</td></tr>
+<tr><td class="n">Inspector, Paste table → More ▾</td><td>Neither is on any main path.</td><td>2 buttons</td></tr>
+<tr><td class="n">Long hints (stations, Keep clear, Check, Suggest)</td><td>Each becomes one line. The explanation moves to README, linked from More ▾ → How it works.</td><td>≈ 300 px</td></tr>
+<tr><td class="n">Clearance / Suggest tables → dock</td><td>Tables need width; the sidebar keeps the verdict and Next.</td><td>≈ 400 px</td></tr>
+</table>
+<p class="cap">Not cut, but worth asking: does Hose Ø have a Library default per clamp family? If the ticked clamps all say Ø12, step 2 could be a confirmation rather than typing.</p>
+</div>
+
+<template id="tTop"><div class="top"><h1>Route Studio</h1><button class="btn pri">Open…</button><button class="btn">Examples ▾</button><button class="btn">More ▾</button><button class="btn">Dark</button></div></template>
+<template id="tMods"><div class="mods" role="tablist"><button aria-selected="true">Hose / Cable</button><button>Pipe</button><button>Bundle</button><button>Library</button></div><div class="tasks"><button aria-current="true">Route through stations</button><button>Check as loaded</button><button>Offset B from A</button></div></template>
+<template id="tAsmA"><div class="asm"><b>piping3_practice_asm.stp</b><span class="unit">41 parts · 2 pipes · 3 clamps for Ø12</span><span class="acts"><button class="lnk">Change…</button><button class="lnk">Remove</button></span></div><p class="stat">Opened in 0.2 s.</p></template>
+<template id="tAdvOff"><div class="advrow"><button class="tog" aria-pressed="false"><i></i>Advanced</button><span class="advsum">R 65 · margin ×1.5 · gap 4 mm · fit +1.5</span></div></template>
+<template id="tRowsA"><div class="links"><button class="lnk">Auto order</button><button class="lnk">Untick all</button><button class="lnk">Only picked</button></div>
+<div class="stl"><div class="srow"><button class="grip" aria-label="Move S1 CS0, position 1 of 5">⠿</button><span class="chkbx on"></span><div><div class="l1"><span class="sn">S1</span><b>CS0</b><span class="pt" title="U104904_PIPING-3_PRACTICE_12">PIPING-3_PRACTICE_12</span><span class="bo">Ø12.2 × 8.6</span></div><div class="l2 r-end"><i class="mk"></i><span>End fitting of pipe 111 · start</span><span class="at">−592 1256 −1995</span></div></div></div>
+<div class="srow"><button class="grip fv" aria-label="Move S2 CS16, position 2 of 5">⠿</button><span class="chkbx on"></span><div><div class="l1"><span class="sn">S2</span><b>CS16</b><span class="pt">22402156</span><span class="bo">Ø12.0 × 25</span></div><div class="l2 r-lib"><i class="mk"></i><span>Library: clip</span><span class="at">−175 1282 −1663</span></div></div></div>
+<div class="srow"><button class="grip" aria-label="Move S3 CS17, position 3 of 5">⠿</button><span class="chkbx on"></span><div><div class="l1"><span class="sn">S3</span><b>CS17</b><span class="pt">22402156</span><span class="bo">Ø12.0 × 25</span></div><div class="l2 r-lib"><i class="mk"></i><span>Library: clip</span><span class="at">275 1282 −1663</span></div></div></div>
+<div class="srow"><button class="grip" aria-label="Move S4 CS0, position 4 of 5">⠿</button><span class="chkbx on"></span><div><div class="l1"><span class="sn">S4</span><b>CS0</b><span class="pt">25375330</span><span class="bo">Ø12.0 × 16.1</span></div><div class="l2 r-warn"><i class="mk"></i><span>Not in the Library · <button class="lnk" style="font-size:12px">Add…</button></span><span class="at">437 1209 −2465</span></div></div></div>
+<div class="srow"><button class="grip" aria-label="Move S5 CS0, position 5 of 5">⠿</button><span class="chkbx on"></span><div><div class="l1"><span class="sn">S5</span><b>CS0</b><span class="pt" title="U104904_PIPING-3_PRACTICE_12">PIPING-3_PRACTICE_12</span><span class="bo">Ø12.2 × 8.6</span></div><div class="l2 r-end"><i class="mk"></i><span>End fitting of pipe 111 · end</span><span class="at">394 1340 −3026</span></div></div></div></div>
+<button class="fold" aria-expanded="false">Other holes that fit Ø12 <b>(2)</b></button></template>
+<template id="tRuns"><div class="runs"><div class="rh"><span>Runs in 3D (3)</span><button class="btn sm">Clear</button></div>
+<div class="run"><span class="chkbx on" style="width:14px;height:14px;border:1px solid var(--ink);border-radius:3px;background:var(--ink)"></span><i class="sw" style="background:var(--ok)"></i><span class="nm">PIPING-3_PRACTICE_111 · pipe<small>R 35.0 · 23 pts</small></span><span class="pin">pinned</span></div>
+<div class="run"><span style="width:14px;height:14px;border:1px solid var(--ink);border-radius:3px;background:var(--ink)"></span><i class="sw" style="background:#2F9E44"></i><span class="nm">As entered R65<small>R 257.7 · 5 pts</small></span><span class="pin">pin</span></div>
+<div class="run sel"><span style="width:14px;height:14px;border:1px solid var(--ink);border-radius:3px;background:var(--ink)"></span><i class="sw" style="background:var(--alt3)"></i><span class="nm">Generated R65 ×1.5<small>R 87.0 · 20 pts</small></span><span class="pin">pin</span></div></div></template>
+
+<template id="sbB"><aside class="sb"><div data-inc="tTop"></div><div data-inc="tAsmA"></div><div data-inc="tMods"></div><div data-inc="tAdvOff"></div>
+<section class="card"><div class="hd"><span class="num">1</span><h3>Load</h3><span class="sum">Ø12 · 8 parts kept clear</span></div><div class="bd">
+<div class="g2"><div><span class="lbl">Hose Ø <span class="unit">mm</span></span><div class="in">12</div></div><p class="hint" style="align-self:end;padding-bottom:6px">5 stations fit: 2 end fittings, 3 clamps.</p></div>
+<button class="fold" aria-expanded="false">Keep clear of <b>8 parts</b> near the route <span class="unit">· 26 within 60 mm</span></button></div></section>
+<section class="card"><div class="hd"><span class="num">2</span><h3>Stations</h3><span class="sum">S1 → S5 · 5 ticked</span></div><div class="bd">
+<div class="g2"><div><span class="lbl">Start</span><div class="in sel">S1 CS0 · end fitting</div></div><div><span class="lbl">End</span><div class="in sel">S5 CS0 · end fitting</div></div></div>
+<p class="hint" style="margin-top:-4px">Or click a part or CSYS in 3D.</p>
+<div data-inc="tRowsA"></div>
+<div class="chk"><span class="bx on"></span><span>Hold the bore direction at each station</span></div>
+<button class="fold" aria-expanded="false">Points as text <b>(5)</b></button></div></section>
+<section class="card cur"><div class="hd"><span class="num">3</span><h3>Route</h3><span class="sum">Generated R65 ×1.5</span></div><div class="bd">
+<div class="chk"><span class="bx"></span><span>Push the route away from kept-clear parts</span></div>
+<button class="go">Check route</button>
+<div class="res"><div class="v"><span class="k bad">Clash:</span> 4.2 mm into 980709 between S3 and S4, over 96 mm.</div><div class="hint">R 87 over 20 points · 2468 mm · smallest gap elsewhere 10.3 mm.</div></div>
+<div class="next"><span class="unit">Next:</span><button class="btn pri sm">Push away and check again</button><button class="btn sm">Alternatives</button></div>
+<div class="links" style="border-top:1px solid var(--rule);padding-top:8px"><span class="unit">Tools:</span><button class="lnk">Alternatives</button><button class="lnk">Suggest extra clamps</button></div></div></section>
+<div data-inc="tRuns"></div></aside></template>
+
+<template id="pkB"><div class="pk" role="dialog" aria-label="Picked part 980709"><div class="hd"><b>980709</b><span class="unit">part</span><button class="x" aria-label="Close">×</button></div><div class="par">piping3_practice_asm / 22402229_ASM / 980709</div>
+<div class="fact">38 × 20 × 20 mm · frame part · clicked at 472 1211 −2500</div>
+<div class="grp"><span class="gl">Route</span><div class="acts"><button class="btn sm pri">Add as station</button><button class="btn sm">Use as start</button><button class="btn sm">Use as end</button></div></div>
+<div class="grp"><span class="gl">Keep clear of it</span><div class="seg" role="radiogroup"><button aria-checked="true">yes</button><button>no</button></div></div>
+<div class="grp"><span class="gl">Route passes it · looking <b>S3 → S4</b> · up <b>+Z</b></span><div class="seg" role="radiogroup"><button aria-checked="true">any</button><button>over</button><button>under</button><button>left</button><button>right</button></div></div>
+<div class="grp"><span class="gl">Creo · Library</span><div class="acts"><button class="btn sm">New CSYS here</button><button class="btn sm">Add to library</button></div></div></div></template>
+<template id="pkC"><div class="pk" role="dialog" aria-label="Picked part 980709"><div class="hd"><b>980709</b><span class="unit">part</span><button class="x" aria-label="Close">×</button></div><div class="par">piping3_practice_asm / 22402229_ASM / 980709</div>
+<div class="grp"><span class="gl">Keep clear of it</span><div class="seg"><button aria-checked="true">yes</button><button>no</button></div></div>
+<div class="grp"><span class="gl">Route passes it · looking <b>S3 → S4</b> · up <b>+Z</b></span><div class="seg"><button>any</button><button aria-checked="true">over</button><button>under</button><button>left</button><button>right</button></div></div>
+<div class="msg"><span class="unit">Saved for piping3_practice_asm.stp. Alternatives rerun on “over”.</span></div></div></template>
+<template id="tTools"><div class="tools"><button class="btn">Zoom to tightest bend</button><button class="btn">Fit</button><div class="seg" role="radiogroup"><button aria-checked="true">Colour by radius</button><button>By run</button></div><div class="seg" role="radiogroup"><button>No CSYS</button><button aria-checked="true">On holes</button><button>All</button></div><button class="btn" aria-pressed="true">Parts</button></div></template>
+<template id="tLegend"><div class="legend"><span><i style="background:var(--bad)"></i>below min radius</span><span><i style="background:var(--warn)"></i>inside safety margin</span><span><i style="background:var(--ok)"></i>OK</span></div></template>
+<template id="mainB"><div class="main"><div class="view"><div class="ph3d"><span>3D view · unchanged (outlines, route, CSYS arrows)</span></div>
+<div class="readout"><div class="big">R 87.0 <small>mm tightest bend · Generated R65 ×1.5</small></div><div class="verdict" style="color:var(--bad)">Clash: 4.2 mm into 980709 between S3 and S4.</div><div class="facts">20 points · 2468 mm</div></div>
+<div data-inc="tTools"></div>
+<span class="tag t" style="left:38%;top:22%">S1</span><span class="tag t" style="left:52%;top:15%">S2</span><span class="tag t" style="left:70%;top:18%">S3</span><span class="tag t" style="left:78%;top:52%">S5</span><span class="tag t" style="left:72%;top:36%">S4</span>
+<span class="ring" style="left:64%;top:30%"></span><span class="tag bad" style="left:65.2%;top:28.6%">980709 · −4.2 mm</span>
+<div class="bl"><div data-inc="pkB"></div><div data-inc="tLegend"></div></div><div class="help">Drag to rotate · shift-drag to pan · scroll to zoom · click to pick</div></div>
+<div class="dock"><div class="dtabs" role="tablist"><button>Bend radius</button><button aria-selected="true">Clearance (1)</button><button>Compare</button><button>Points</button><button>CSYS</button><button>Clamps to add</button><button>Bundle</button><button>Issues</button><button>Refine</button></div>
+<div class="dbody"><div class="dhead"><b>Generated R65 ×1.5</b><span class="unit">gap 4 mm to 8 kept-clear parts · clips at stations not counted</span></div>
+<table><tr><th>Where</th><th>Part</th><th>Gap</th><th>Note</th></tr>
+<tr><td class="m">P9–P10 · S3 → S4</td><td class="m">980709</td><td class="bad m">−4.2 mm</td><td>into the part over 96 mm<span class="sub">frame part 38 × 20 × 20 · kept clear</span></td></tr>
+<tr><td class="m">P5 · S2 → S3</td><td class="m">975843</td><td class="m" style="color:var(--warn-ink);font-weight:600">3.1 mm</td><td>inside the 4 mm gap</td></tr>
+<tr><td class="m">P16 · S4 → S5</td><td class="m">22402229_ASM</td><td class="m">10.3 mm</td><td class="unit">smallest gap that passes</td></tr></table></div></div></div></template>
+
+<template id="sbC"><aside class="sb"><div data-inc="tTop"></div><div data-inc="tAsmA"></div><div data-inc="tMods"></div><div data-inc="tAdvOff"></div>
+<section class="card min"><div class="hd"><span class="num">1</span><h3>Load</h3><span class="sum">Ø12 · 8 parts kept clear ▸</span></div></section>
+<section class="card min"><div class="hd"><span class="num">2</span><h3>Stations</h3><span class="sum">S1 → S5 · 5 ticked ▸</span></div></section>
+<section class="card cur"><div class="hd"><span class="num">3</span><h3>Route</h3><span class="sum">Alternatives</span></div><div class="bd">
+<div class="chk"><span class="bx"></span><span>Push the route away from kept-clear parts</span></div>
+<button class="go">Check route</button>
+<div class="res"><div class="v"><span class="k bad">Clash:</span> 4.2 mm into 980709 between S3 and S4.</div></div>
+<div class="sect"><div class="sh">Alternatives<span class="r"><span class="unit">Up</span><span class="side">+Z</span></span></div>
+<div class="links"><span class="unit">Your sides:</span><span class="chip">over 980709<button aria-label="Clear side for 980709">×</button></span></div>
+<div class="note warn"><i class="mk"></i><span>Over 980709 cannot hold R 65; best that side is R 58. With any side: 2 clean routes, both under it.</span></div>
+<div class="next"><button class="btn sm">Clear the side choice</button></div>
+<div class="alt on"><i style="background:var(--alt1)"></i><div class="at">over 980709, left of 22577598<span class="tagw">forced side</span></div><button class="btn sm">Use anyway</button><div class="af"><span>2531 mm</span><span class="bad">min R 58 &lt; 65</span><span>gap 4.6 mm</span></div></div>
+<div class="alt"><i style="background:var(--alt2)"></i><div class="at">over 980709, right of 22577598<span class="tagw">forced side</span></div><button class="btn sm">Use anyway</button><div class="af"><span>2604 mm</span><span class="bad">min R 61 &lt; 65</span><span class="bad">gap 0.8 &lt; 4</span></div></div>
+<p class="hint">Left and right are judged looking along each leg, start to end.</p></div>
+<div class="links" style="border-top:1px solid var(--rule);padding-top:8px"><span class="unit">Tools:</span><button class="lnk">Suggest extra clamps</button></div></div></section>
+<div data-inc="tRuns"></div></aside></template>
+<template id="mainC"><div class="main"><div class="view"><div class="ph3d"><span>3D view · unchanged</span></div>
+<div class="readout"><div class="big">R 58.0 <small>mm tightest bend · Alternative A1</small></div><div class="verdict" style="color:var(--bad)">Too tight: 7 mm below the 65 mm minimum.</div><div class="facts">22 points · 2531 mm</div></div>
+<div data-inc="tTools"></div>
+<span class="ring" style="left:62%;top:44%"></span><span class="tag t" style="left:63.5%;top:41%">980709</span>
+<div class="bl"><div data-inc="pkC"></div><div data-inc="tLegend"></div></div></div>
+<div class="dock"><div class="dtabs"><button aria-selected="true">Bend radius</button><button>Clearance (1)</button><button>Compare</button><button>Points</button><button>CSYS</button><button>Clamps to add</button><button>Bundle</button><button>Issues</button><button>Refine</button></div>
+<div class="dbody"><div class="ph3d"><span>bend-radius chart · unchanged</span></div></div></div></div></template>
+
+<template id="sbS0"><aside class="sb"><div data-inc="tTop"></div><div class="asm"><span class="unit">No assembly open.</span></div><p class="stat"></p><div data-inc="tMods"></div><div data-inc="tAdvOff"></div>
+<section class="card cur"><div class="hd"><span class="num">1</span><h3>Load</h3></div><div class="bd">
+<p class="hint" style="color:var(--ink)">Open a Creo assembly .stp, or drop it anywhere.</p>
+<div class="g2"><button class="btn pri" style="align-self:end;padding:8px 10px">Open assembly…</button><div><span class="lbl">Hose Ø <span class="unit">mm</span></span><div class="in ph">e.g. 12</div></div></div></div></section>
+<section class="card wait"><div class="hd"><span class="num">2</span><h3>Stations</h3><span class="sum">after Load: clamps that fit the hose</span></div></section>
+<section class="card wait"><div class="hd"><span class="num">3</span><h3>Route</h3><span class="sum">after 2 stations are ticked</span></div></section></aside></template>
+<template id="sbS1"><aside class="sb"><div data-inc="tTop"></div><div class="asm"><b>frame_asm.stp</b><span class="unit">338 parts · 769 CSYS · 40 holes fit Ø8</span><span class="acts"><button class="lnk">Change…</button><button class="lnk">Remove</button></span></div><p class="stat">Opened in 2.2 s.</p><div data-inc="tMods"></div><div data-inc="tAdvOff"></div>
+<section class="card"><div class="hd"><span class="num">1</span><h3>Load</h3><span class="sum">Ø8 · 31 parts kept clear ▸</span></div></section>
+<section class="card cur"><div class="hd"><span class="num">2</span><h3>Stations</h3><span class="sum">pick start and end</span></div><div class="bd">
+<div class="g2"><div><span class="lbl">Start</span><div class="in arm">Click a part or CSYS in 3D</div></div><div><span class="lbl">End</span><div class="in arm">then the end</div></div></div>
+<p class="hint">Or choose from the list. 40 holes fit Ø8; the ones between start and end are ticked when both are set.</p>
+<div class="links"><button class="lnk">Auto order</button><button class="lnk">Untick all</button><button class="lnk">Only picked</button></div>
+<button class="fold" aria-expanded="false">Holes that fit Ø8 <b>(40)</b> · none ticked yet</button></div></section>
+<section class="card wait"><div class="hd"><span class="num">3</span><h3>Route</h3><span class="sum">after start and end</span></div></section></aside></template>
+<template id="pkStart"><div class="pk"><div class="hd"><b>A_T_F_PORT2</b><span class="unit">CSYS</span><button class="x" aria-label="Close">×</button></div><div class="par">frame_asm / 22504304_ASM</div>
+<div class="msg" style="border:0;padding:0;font-size:12.5px"><span class="v"><span class="k ok">Start set</span> to A_T_F_PORT2. No hole there: its Z axis is the hose direction.</span></div>
+<div class="acts"><button class="btn sm pri">Undo</button><button class="btn sm">Make it the end</button></div>
+<div class="grp"><span class="gl">Creo · Library</span><div class="acts"><button class="btn sm">New CSYS here</button></div></div></div></template>
+<template id="sbS2"><aside class="sb"><div class="advrow"><button class="tog" aria-pressed="true"><i></i>Advanced</button><span class="advsum">saved for this browser</span></div>
+<section class="card"><div class="hd"><span class="num">1</span><h3>Load</h3><span class="sum">Ø12</span></div><div class="bd"><div class="g2"><div><span class="lbl">Hose Ø <span class="unit">mm</span></span><div class="in">12</div></div></div>
+<div class="adv"><span class="al">Advanced</span><div class="g3"><div><span class="lbl">Bore fit + <span class="unit">mm</span></span><div class="in">1.5</div></div><div><span class="lbl">Look within <span class="unit">mm</span></span><div class="in">60</div></div><div><span class="lbl">Up <span class="unit">over / under</span></span><div class="in sel">+Z (guessed)</div></div></div></div></div></section>
+<section class="card"><div class="hd"><span class="num">2</span><h3>Stations</h3><span class="sum">S1 → S5</span></div><div class="bd"><div class="chk"><span class="bx on"></span><span>Hold the bore direction at each station</span></div>
+<div class="adv"><span class="al">Advanced</span><div class="g2"><div><span class="lbl">Start direction</span><div class="in sel">from the bore</div></div><div><span class="lbl">End direction</span><div class="in sel">from the bore</div></div></div><div class="links"><span class="unit">Bore directions: 5 held</span><button class="lnk">Edit as text</button><button class="lnk">Clear</button></div></div></div></section>
+<section class="card cur"><div class="hd"><span class="num">3</span><h3>Route</h3></div><div class="bd"><div class="chk"><span class="bx"></span><span>Push the route away from kept-clear parts<span class="hint" style="display:block">Trial: works on face boxes; can force tighter bends.</span></span></div>
+<div class="adv"><span class="al">Advanced</span><div class="g4"><div><span class="lbl">Min R <span class="unit">mm</span></span><div class="in">65</div></div><div><span class="lbl">Margin <span class="unit">×</span></span><div class="in">1.5</div></div><div><span class="lbl">Gap <span class="unit">mm</span></span><div class="in">4</div></div><div><span class="lbl">Spacing <span class="unit">mm</span></span><div class="in">25</div></div></div>
+<div class="chk"><span class="bx on"></span><span>Fewest points (drop the ones the bends don’t need)</span></div>
+<span class="lbl" style="margin-top:2px">Suggest extra clamps</span><div class="g3"><div><span class="lbl">Max spacing <span class="unit">mm</span></span><div class="in">300</div></div><div><span class="lbl">Near a bend <span class="unit">mm</span></span><div class="in">60</div></div><div><span class="lbl">Mount reach <span class="unit">mm</span></span><div class="in">60</div></div></div></div>
+<button class="go">Check route</button></div></section></aside></template>
+
+<template id="pipeEmpty"><aside class="sb"><div class="mods"><button>Hose / Cable</button><button aria-selected="true">Pipe</button><button>Bundle</button><button>Library</button></div><div class="tasks"><button>Route through points</button><button>Check .pts against pipe</button><button aria-current="true">Through clamps</button><button>Table → .pts</button><button>Offset from another pipe</button></div>
+<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><p class="hint" style="color:var(--ink);font-size:12.5px;flex:1;min-width:240px">Through clamps: re-route the open pipe so it runs straight through its clamps.</p><button class="btn pri sm">Open assembly…</button></div></aside></template>
+
+<template id="rowsP1"><aside class="sb"><div data-inc="tRowsA"></div></aside></template>
+<template id="hdrP2"><aside class="sb" style="display:grid;gap:4px">
+<div class="asm" style="margin:0"><b>piping3_practice_asm.stp</b><span class="unit">41 parts · 2 pipes · 40 holes with a CSYS</span><span class="acts"><button class="lnk">Change…</button><button class="lnk">Remove</button></span></div><p class="stat" style="margin-bottom:8px">Opened in 0.2 s.</p>
+<div class="asm" style="margin:0"><b>piping3_practice_asm.stp</b><span class="unit">41 parts · 2 pipes · 3 clamps for Ø12</span><span class="acts"><button class="lnk">Change…</button><button class="lnk">Remove</button></span></div><p class="stat" style="margin-bottom:8px">Hose Ø 12 typed: 3 clamps and 2 end fittings fit.</p>
+<div class="asm" style="margin:0"><b>frame_asm.stp</b><span class="unit">338 parts · 769 CSYS · 40 holes fit Ø8 · <button class="lnk" style="font-size:12.5px">3 CSYS made here</button></span><span class="acts"><button class="lnk">Change…</button><button class="lnk">Remove</button></span></div><p class="stat" style="margin-bottom:8px"></p>
+<div class="asm" style="margin:0;color:var(--muted)">Reading frame_asm.stp, 20.3 MB: parts 59 %<div style="flex-basis:100%;height:2px;background:var(--rule)"><div style="width:59%;height:2px;background:var(--ok)"></div></div></div></aside></template>
+<template id="nextP3"><aside class="sb" style="display:grid;gap:12px">
+<div class="res"><div class="v"><span class="k bad">Clash:</span> 4.2 mm into 980709 between S3 and S4, over 96 mm.</div><div class="next"><span class="unit">Next:</span><button class="btn pri sm">Push away and check again</button><button class="btn sm">Alternatives</button></div></div>
+<div class="res"><div class="v"><span class="k warn">Close:</span> 3.1 mm from 975843 near P5; the gap is 4 mm.</div><div class="next"><span class="unit">Next:</span><button class="btn pri sm">Push away and check again</button><button class="btn sm">Alternatives</button><button class="btn sm">Download .pts</button></div></div>
+<div class="res"><div class="v"><span class="k bad">Too tight:</span> R 49 at P7, below the 65 mm minimum.</div><div class="next"><span class="unit">Next:</span><button class="btn pri sm">Refine tightest bend</button><button class="btn sm">Alternatives</button></div></div>
+<div class="res"><div class="v"><span class="k ok">Clear:</span> R 87 over 20 points; smallest gap 10.3 mm, to 22402229_ASM near P16.</div><div class="next"><span class="unit">Next:</span><button class="btn pri sm">Download .pts</button><button class="btn sm">Suggest extra clamps</button><button class="btn sm">Alternatives</button></div></div>
+<div class="res" style="border-top:1px solid var(--rule);padding-top:10px"><div class="note warn"><i class="mk"></i><span><b>Corner points?</b> These 5 points have long straights and sharp turns, like pipe corners. A hose through them cuts every corner.</span></div><div class="next"><span class="unit">Next:</span><button class="btn pri sm">Route as a pipe (arcs)</button><button class="btn sm">Use them anyway</button></div></div>
+<div class="res"><div class="note warn"><i class="mk"></i><span><b>S2 and S3 are 38 mm apart.</b> Holding both bore directions needs at least 130 mm (2 × R 65).</span></div><div class="next"><span class="unit">Next:</span><button class="btn pri sm">Free S2 and S3 directions</button><button class="btn sm">Check anyway</button></div></div>
+<div class="res" style="border-top:1px solid var(--rule);padding-top:10px"><span class="cap" style="font-size:11.5px;color:var(--muted)">Pipe · Through clamps</span><div class="v"><span class="k ok">Done:</span> pipe 111 now runs straight through 3 clamps; 2 points moved, most 6.4 mm.</div><div class="next"><span class="unit">Next:</span><button class="btn pri sm">Download .pts</button><button class="btn sm">Compare with your .pts</button></div></div>
+<div class="prow" style="border-top:1px solid var(--rule)"><span class="chkbx"></span><div><b>95651236</b> <span class="ps">80 × 92 × 54 mm</span><div class="ps">Mount of S2 (its clip is bolted to it) · not kept clear</div></div><span class="side">any</span></div></aside></template>
+<template id="altP4"><aside class="sb" style="display:grid;gap:8px">
+<div class="alt on"><i style="background:var(--alt1)"></i><div class="at">over 95651236, left of 22577598</div><button class="btn sm pri">Use this</button><div class="af"><span>2512 mm</span><span>min R 71</span><span>gap 4.6 mm</span></div></div>
+<div class="alt"><i style="background:var(--alt2)"></i><div class="at">under 95651236</div><button class="btn sm">Use anyway</button><div class="af"><span>2490 mm</span><span class="bad">min R 49 &lt; 65</span><span>gap 5.1 mm</span></div></div>
+<div class="alt"><i style="background:var(--alt3)"></i><div class="at">over 95651236, right of 22577598</div><button class="btn sm">Use anyway</button><div class="af"><span>2604 mm</span><span>min R 68</span><span class="bad">gap 0.8 &lt; 4</span></div></div>
+<div class="res" style="border-top:1px solid var(--rule);padding-top:10px"><div class="note bad"><i class="mk"></i><span><b>No clean route:</b> every route tried passes FY26_TEST_FRAME_1 on the left, at best 8.5 mm into it.</span></div><div class="next"><button class="btn pri sm">Push away and check again</button><button class="btn sm">Try it on the right</button><button class="btn sm">Stop checking FY26_TEST_FRAME_1</button></div></div></aside></template>
+<template id="sideP4b"><aside class="sb" style="display:grid;gap:10px"><div data-inc="pkC"></div>
+<div><span class="lbl">Keep clear of 8 parts near the route</span>
+<div class="prow" style="border-top:1px solid var(--rule)"><span class="chkbx on"></span><div><b>980709</b> <span class="ps">38 × 20 × 20 mm</span><div class="ps">frame part · 17.8 mm from the line</div></div><span class="side set">over</span></div>
+<div class="prow"><span class="chkbx on"></span><div><b>975843</b> <span class="ps">28 × 20 × 20 mm</span><div class="ps">frame part · 17.0 mm from the line</div></div><span class="side">any</span></div>
+<div class="prow"><span class="chkbx on"></span><div><b>PIPING-3_PRACTICE_22</b> <span class="ps">35 × 35 × 35 mm</span><div class="ps">pipe · on a leg along up (S4 → S5)</div></div><span class="side">any (±X ±Y)</span></div></div></aside></template>
+<template id="csysQ6"><div class="dock" style="border:1px solid var(--rule);border-radius:4px"><div class="dtabs"><button>Points</button><button aria-selected="true">CSYS (3)</button><button>Clamps to add</button></div><div class="dbody">
+<div class="dhead"><b>CSYS made here (3)</b><span class="r"><button class="btn sm pri">Download .stp for Creo</button><button class="btn sm">Copy table</button></span></div>
+<table><tr><td style="width:40%"><b class="m" style="font-weight:600">22504304_RS1</b></td><td><div class="links" style="justify-content:flex-end"><button class="lnk">Show</button><button class="lnk">Flip Z</button><button class="lnk">X +90°</button><button class="lnk" aria-label="Delete">×</button></div></td></tr>
+<tr><td colspan="2" style="padding-top:0"><div class="links m" style="gap:4px 10px"><span class="unit">at</span><span>2007.400 −452.000 1194.300</span><span class="unit">Z</span><span class="side">+Z</span><span class="unit">X</span><span>+X</span></div></td></tr>
+<tr><td><b class="m" style="font-weight:600">991063_CS1</b></td><td><div class="links" style="justify-content:flex-end"><button class="lnk">Show</button><button class="lnk">Flip Z</button><button class="lnk">X +90°</button><button class="lnk" aria-label="Delete">×</button></div></td></tr>
+<tr><td colspan="2" style="padding-top:0"><div class="links m" style="gap:4px 10px"><span class="unit">at</span><span>−464.000 1060.000 −2075.000</span><span class="unit">Z</span><span class="side">typed…</span><span>0.993 0.000 −0.115</span><span class="unit">X</span><span>0.115 0.000 0.993</span></div></td></tr></table></div></div></template>
+<template id="sugQ7"><div class="dock" style="border:1px solid var(--rule);border-radius:4px"><div class="dtabs"><button>Points</button><button>CSYS (3)</button><button aria-selected="true">Clamps to add (3 · 1 needs a bracket)</button></div><div class="dbody">
+<div class="dhead"><b>On Generated R65 ×1.5</b><span class="unit">max spacing 300 · near a bend 60 · mount reach 60</span><span class="r"><button class="btn sm pri">Make CSYS for all</button><button class="btn sm">Add all as stations</button></span></div>
+<table><tr><th>Where</th><th>Why</th><th>Mounts on</th><th>Like</th></tr>
+<tr class="grp"><td colspan="4">S3 → S4 · 669 mm · 2 clamps</td></tr>
+<tr><td class="m"><span class="tagn">+1</span> 392 mm</td><td>after the bend at 256–362 mm</td><td>on the surface of FY26_TEST_FRAME_1</td><td class="m">23256086_L<span class="sub"><button class="lnk" style="font-size:12px">Make CSYS</button></span></td></tr>
+<tr><td class="m"><span class="tagn">+2</span> 615 mm</td><td>span of 669 mm, split evenly</td><td><span class="tagw" style="margin:0">needs a bracket</span><span class="sub">no part within 60 mm</span></td><td class="m">22402156<span class="sub"><button class="lnk" style="font-size:12px">Make CSYS</button></span></td></tr>
+<tr class="grp"><td colspan="4">S4 → S5 · 412 mm · 1 clamp</td></tr>
+<tr><td class="m"><span class="tagn">+3</span> 1840 mm</td><td>before the bend at 1902–1990 mm</td><td>3.2 mm from 975843</td><td class="m">25375330<span class="sub"><button class="lnk" style="font-size:12px">Make CSYS</button></span></td></tr></table></div></div></template>
+
+<script>
+const W=[
+['Top bar','Open… · Paste table… · Examples · Inspector · Dark','Open… · Examples ▾ · More ▾ (Paste table…, Inspector) · Dark'],
+['Assembly line','Assembly: piping3_practice_asm.stp · 2 pipes · 41 parts · 40 holes with a coordinate system  pipes','piping3_practice_asm.stp · 41 parts · 2 pipes · 40 holes with a CSYS   Change… · Remove'],
+['Assembly line, Ø known','… 40 holes with a coordinate system','… 3 clamps for Ø12'],
+['Status after Open','Opened in 0.2 s. Stations and parts to keep clear of are in Hose / Cable · Route through stations; also open in Pipe.','Opened in 0.2 s.'],
+['Status, Remove','(new)','Removed piping3_practice_asm.stp. Undo'],
+['Strip','Route through stations (one panel)','1 Load · 2 Stations · 3 Route'],
+['Card 1','Stations from clamps (STEP assembly) › Load assembly .stp…','(removed; top Open… or “Open assembly…” in card 1 when empty)'],
+['Card 1','Keep clear of CAD parts (IGES / STEP solids) › Load frame / parts file… · remove','Keep clear of 8 parts near the route · 26 within 60 mm'],
+['Card 1','Check the gap to the ticked parts','(removed; a ticked part is always checked)'],
+['Card 1','Default ticks · Frame only · Tick all · Untick all','Default · Frame only · All · None'],
+['Card 1, Advanced','Bore up to + mm','Bore fit + mm'],
+['Card 1, Advanced','Up is +Z','Up (for over / under): +Z (guessed)'],
+['Card 2','Start at / End at','Start / End'],
+['Card 2, empty Start','(select)','Click a part or CSYS in 3D'],
+['Card 2, armed click','(new)','Start set to A_T_F_PORT2. No hole there: its Z axis is the hose direction.  Undo · Make it the end'],
+['Card 2','Use as stations','(removed; Check route uses the ticked rows)'],
+['Card 2','Hold the bore direction at each station when checking','Hold the bore direction at each station'],
+['Card 2','Target points (X Y Z per line)','Points as text (5)'],
+['Card 2','Other holes (n)','Other holes that fit Ø12 (n)'],
+['Row reason','end fitting of PRACTICE_111: start or end of the route','End fitting of pipe 111 · start  (· end)'],
+['Row reason','Library clip 22402156','Library: clip'],
+['Row reason','not in the Library','Not in the Library · Add…'],
+['Row reason','(mount)','Mount of S2 (its clip is bolted to it) · not kept clear'],
+['Card 2, disabled','Tick at least 2 stations','Tick at least 2 stations. (unchanged; now on Check route)'],
+['Card 3','Push the route away from them','Push the route away from kept-clear parts'],
+['Card 3','Trial: pushes off face boxes; curved faces other than cylinders still get generous boxes and can force tight bends.','Trial: works on face boxes; can force tighter bends.'],
+['Card 3','Check, then add to comparison','Check route'],
+['Card 3','Adds two runs: the spline through your points as entered, and a generated route…','(removed)'],
+['Verdict, clean','Added. Generated route holds R 87.0 mm over 20 points (38 before removing unneeded points). Nowhere closer than the 4.0 mm gap… Smallest gap… 10.3 mm…','Clear: R 87 over 20 points; smallest gap 10.3 mm, to 22402229_ASM near P16.'],
+['Verdict, clash','Too close — below the 4.0 mm gap (1 place, marked in 3D: red = into the part, amber = too close; clips at stations not counted): • P2–P3: …','Clash: 4.2 mm into 980709 between S3 and S4, over 96 mm.  (rows in dock › Clearance)'],
+['Verdict, margin','(various)','Close: 3.1 mm from 975843 near P5; the gap is 4 mm.'],
+['Verdict, radius','Too tight: 61.2 mm below the 65 mm minimum.','Too tight: R 49 at P7, below the 65 mm minimum.'],
+['Next','Check now','(removed with Use as stations)'],
+['Next','Push the route away and check again','Push away and check again'],
+['Next','Refine the tightest bend','Refine tightest bend'],
+['Next','Route it as a pipe instead','Route as a pipe (arcs)'],
+['Next','Untick “Hold the bore direction”','Free S2 and S3 directions'],
+['Next','Copy .pts','(moved to dock › Points)'],
+['Next, after Use this','(none)','Download .pts · Suggest extra clamps'],
+['Pre-check','these are corner points, not points on the hose','Corner points? These 5 points have long straights and sharp turns, like pipe corners. A hose through them cuts every corner.'],
+['Pre-check','stations closer than 2 × R (pair and distance)','S2 and S3 are 38 mm apart. Holding both bore directions needs at least 130 mm (2 × R 65).'],
+['Alternatives','Alternatives (large button) + “Other ways round the obstacles: each box the straight line…”','(button removed) Other ways round the kept-clear parts, best 3 first.'],
+['Alternatives','Use this (on a not-clean card)','Use anyway'],
+['Alternatives','B47+Y','over 95651236, left of 22577598'],
+['Alternatives, none','FY26_TEST_FRAME_1 is in the way on every route tried (all passed it left): left −8.5 mm…','No clean route: every route tried passes FY26_TEST_FRAME_1 on the left, at best 8.5 mm into it.'],
+['Alternatives, none','Push… · Stop keeping clear of FY26_TEST_FRAME_1','Push away and check again · Try it on the right · Stop checking FY26_TEST_FRAME_1'],
+['Forced','above 22577598: needs R 49, limit R 50; 0.04 mm into the keep-clear gap','Over 22577598 cannot hold R 50; best that side is R 49, 0.04 mm inside the gap. With any side: … [Clear the side choice]'],
+['Forced, card','not clean (red)','forced side (amber tag); failing numbers red'],
+['Side words','Any · Above · Below · Left · Right · Front · Back','any · over · under · left · right   (on a leg along up: any · +X · −X · +Y · −Y)'],
+['Pick panel','Route passes it (up +Z, looking from start to end)','Route passes it · looking S3 → S4 · up +Z'],
+['Pick panel','Use as start · Use as end · Add as station (station primary)','primary = the next one needed: start → end → station'],
+['Pick panel','(none)','Saved for piping3_practice_asm.stp. Alternatives rerun on “over”.'],
+['Suggest','Suggest extra clamps (fold under Alternatives)','Tools › Suggest extra clamps; results in dock › Clamps to add (n)'],
+['Suggest','Along the selected route, held at its stations: a clamp before and after each bend… (hint)','(removed; settings in card 3 Advanced)'],
+['Suggest','Make a CSYS for each · Add them as stations','Make CSYS for all · Add all as stations'],
+['Suggest','needs a bracket (inline text)','needs a bracket (amber tag) + “no part within 60 mm”'],
+['Suggest, status','1 clamp to add on Generated R65 x1.5.','3 clamps to add on Generated R65 ×1.5; 1 needs a bracket.'],
+['Runs','Comparison runs · Tick to show in the 3D view. Click a run to select it and load its settings.','Runs in 3D (n) · Tick to show; click to select.  (pin per row)'],
+['Run names','Generated R65 x1.5','Generated R65 ×1.5'],
+['Dock','(Clearance as long sidebar text)','Clearance (n) tab: Where · Part · Gap · Note'],
+['Pipe empty','Open or drop a Creo assembly .stp. The app finds each pipe or hose…','one line per task (see Pipe empty states)'],
+];
+const wt=document.getElementById('wt');W.forEach(([a,b,c])=>{const r=wt.insertRow();r.innerHTML=`<td class="n">${a}</td><td class="o">${b}</td><td>${c}</td>`;});
+function inc(root){root.querySelectorAll('[data-inc]').forEach(el=>{const t=document.getElementById(el.dataset.inc);if(!t)return;const f=t.content.cloneNode(true);inc(f);if(el.classList.contains('rs')){el.appendChild(f);el.removeAttribute('data-inc');}else el.replaceWith(f);});}
+document.querySelectorAll('.shot').forEach(s=>{const d=s.dataset,app=document.createElement('div');app.className='rs app'+('dark' in d?' dark':'');
+app.style.cssText=`--w:${d.w}px;--h:${d.h}px;--sbw:${d.sbw}px;--dock:${d.dock}px`;
+const a=document.getElementById(d.sb).content.cloneNode(true),b=document.getElementById(d.main).content.cloneNode(true);inc(a);inc(b);app.append(a,b);
+const sc=document.createElement('div');sc.className='scaler';sc.appendChild(app);s.replaceWith(sc);sc.dataset.w=d.w;sc.dataset.h=d.h;});
+inc(document);
+function fit(){document.querySelectorAll('.scaler').forEach(sc=>{const app=sc.firstElementChild,w=+sc.dataset.w,h=+sc.dataset.h;if(sc.classList.contains('full')){app.style.transform='';sc.style.height=(h+2)+'px';return;}const k=Math.min(1,sc.clientWidth/w);app.style.transform=`scale(${k})`;sc.style.height=(h*k)+'px';});}
+document.querySelectorAll('[data-z]').forEach(b=>{const sc=b.closest('.shotcap').nextElementSibling;b.onclick=()=>{sc.classList.toggle('full');b.textContent=sc.classList.contains('full')?'Fit':'100 %';fit();};});
+new ResizeObserver(fit).observe(document.querySelector('.doc'));fit();
+</script>
+</body></html>

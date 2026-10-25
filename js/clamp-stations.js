@@ -101,7 +101,8 @@ root.ClampStations=API;
 if(typeof document==='undefined'||!document.getElementById('csBox'))return;
 // extra: stations picked in the 3D view (a connector port, a CSYS with no hole, a point on a part); kept across refreshes
 // picked: ids of the stations picked in the 3D view (a hole already in the list keeps its id)
-const CS={own:null,list:[],use:new Set(),start:null,end:null,extra:[],next:1e6,near:new Map(),picked:new Set()};
+// from: name of the assembly the extras were picked in (their points mean nothing in another file)
+const CS={own:null,list:[],use:new Set(),start:null,end:null,extra:[],from:null,next:1e6,near:new Map(),picked:new Set()};
 // a start and an end both set: tick only the holes within BETWEEN mm of the straight line from start to end (start, end and
 // stations picked in 3D stay ticked); the rest stay listed, unticked
 const BETWEEN=150;
@@ -120,6 +121,11 @@ const frame=()=>typeof CAD!=='undefined'&&CAD.frame?CAD.frame:null;
 const tf=p=>frame()?cadToFrame(p):p,tv=v=>frame()?V.sub(cadToFrame(v),cadToFrame([0,0,0])):v;
 const ticked=()=>CS.list.filter(s=>CS.use.has(s.id));
 const tag=s=>`${s.name} · ${s.part}`;
+const addExtra=s=>{if(!CS.extra.length)CS.from=openAsm()?openAsm().name:null;CS.extra.push(s);CS.list.push(s);};
+// another file opened: its stations picked in 3D (and Start / End on them) go; the same file re-read (pipe marks changed) keeps them
+function dropExtra(name){if(!CS.extra.length||CS.from===name)return;const gone=new Set(CS.extra.map(s=>s.id));CS.extra=[];CS.from=null;
+  CS.list=CS.list.filter(s=>!gone.has(s.id));gone.forEach(id=>{CS.use.delete(id);CS.picked.delete(id);CS.near.delete(id);});
+  if(gone.has(CS.start))CS.start=null;if(gone.has(CS.end))CS.end=null;}
 
 function refresh(note){const a=src();CS.near=new Map();CS.picked=new Set(CS.extra.map(s=>s.id));$('csUseAsm').hidden=!openAsm()||CS.own===null;
   if(!a){CS.list=[];render();return say('Load a STEP assembly (or open one in Pipe · Check .pts against pipe). A fixing is a hole with a coordinate system on its axis, inside the hole.');}
@@ -204,7 +210,7 @@ function load(file){say(`Reading ${file.name}...`);
 $('csLoad').onclick=()=>$('csFile').click();
 // Load here = open the assembly for the whole page (shell.js), so Keep clear and Pipe get it too
 $('csFile').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f)return;if(typeof openAssembly==='function'){CS.own=null;openAssembly(f);}else load(f);};
-document.addEventListener('asm:loaded',()=>{if(!CS.own&&!$('csBox').hidden)refresh();});
+document.addEventListener('asm:loaded',e=>{dropExtra(e.detail&&e.detail.name);if(!CS.own&&!$('csBox').hidden)refresh();else render();});
 $('csUseAsm').onclick=()=>{CS.own=null;refresh();};
 $('csAuto').onclick=autoOrder;
 $('csNone').onclick=()=>{CS.use.clear();CS.near.clear();CS.start=CS.end=null;render();say(`All ${CS.list.length} unticked. Tick stations in the list, or pick them in 3D.`);};
@@ -229,7 +235,7 @@ function fromPick(p,r){
 function usePick(p,r,as){
   if(!CS.list.length&&src())refresh();
   const st=fromPick(p,r);let s=CS.list.find(x=>len(sub(x.c,st.c))<0.5);
-  if(!s){s={id:CS.next++,...st,role:'picked',use:true,reason:'picked in 3D'};CS.extra.push(s);CS.list.push(s);}
+  if(!s){s={id:CS.next++,...st,role:'picked',use:true,reason:'picked in 3D'};addExtra(s);}
   CS.use.add(s.id);CS.picked.add(s.id);if(as==='start'){CS.start=s.id;if(CS.end===s.id)CS.end=null;}if(as==='end'){CS.end=s.id;if(CS.start===s.id)CS.start=null;}
   $('csBox').open=true;const bt=as!=='station'&&CS.start!=null&&CS.end!=null?between():'';if(!bt)autoOrder();
   const verb=as==='station'?'Station added':as==='start'?'Start set':'End set',on=st.part?` on ${st.part}`:'';
@@ -241,7 +247,7 @@ function usePick(p,r,as){
 root.clampStationsTicked=()=>ticked();
 root.csAddStations=L=>{if(!CS.list.length&&src())refresh();
   L.forEach(st=>{if(CS.list.some(x=>len(sub(x.c,st.c))<0.5))return;const s={id:CS.next++,label:'',D:null,length:0,...st,role:'picked',use:true,reason:'suggested clamp'};
-    CS.extra.push(s);CS.list.push(s);CS.use.add(s.id);});
+    addExtra(s);CS.use.add(s.id);});
   $('csBox').open=true;autoOrder();say(`${L.length} suggested clamps added; ${ticked().length} stations ticked. Use as stations, then Check.`);};
 (root.AV_ACTIONS=root.AV_ACTIONS||[]).push((p,r)=>$('csBox').hidden||(p.kind!=='csys'&&p.kind!=='part')?[]:[
   {group:'Route',label:'Add as station',go:x=>usePick(x,r,'station'),title:'A station the hose passes through (Stations from clamps)',order:1,primary:true},

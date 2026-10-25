@@ -1,7 +1,8 @@
 // ---------------- Route through stations: straight where stations line up, keep clear of CAD parts ----------------
 // Loaded after route-studio.js. runBend asks bendCad(P) for fixed directions (straight runs), obstacle boxes
 // (faces of the parts the user keeps clear of) and a report on the finished route.
-const BC={cad:null,sv:null,key:'',user:new Map(),focus:0};
+// asm: name of the open assembly BC.cad was taken from (bcFromAsm); null for a file loaded here (its solids' inst are its own)
+const BC={cad:null,sv:null,key:'',user:new Map(),focus:0,asm:null};
 {
 const say=(m,bad)=>{const e=$('statusCad');e.textContent=m;e.style.color=bad?'var(--bad)':'';};
 const opt=()=>({d:Math.max(0.1,+$('cdD').value||8),gap:Math.max(0,+$('cdGap').value||0),reach:Math.max(10,+$('cdReach').value||60)});
@@ -47,7 +48,9 @@ window.bendCadBoxes=function(){const o=opt(),sv=$('cdUse').checked?survey():null
   // each face box carries its part name, so Alternatives can say "over 95651236"
   return{faces:sv?sv.parts.filter(keepClear).flatMap(p=>p.faces.map(f=>({...f,part:p.name}))):[],rad:o.d/2+o.gap,parts:sv?sv.parts.filter(keepClear).length:0};};
 // keep clear on / off from the 3D view (asm-view.js): the solids of the picked instance
-(window.AV_ACTIONS=window.AV_ACTIONS||[]).push((p,r)=>{if(!BC.cad||!BC.cad.solids.some(s=>s.inst!=null)||$('cdBox').hidden)return[];
+// only when BC.cad is the open assembly's parse: a pick's inst indexes ASM.r.instances, not another file's
+const sameAsm=()=>!!BC.cad&&BC.asm!=null&&typeof ASM!=='undefined'&&!!ASM&&ASM.name===BC.asm;
+(window.AV_ACTIONS=window.AV_ACTIONS||[]).push((p,r)=>{if(!BC.cad||!sameAsm()||!BC.cad.solids.some(s=>s.inst!=null)||$('cdBox').hidden)return[];
   const inst=p.kind==='part'?p.inst:null;if(inst==null)return[];
   const sids=BC.cad.solids.filter(s=>s.inst===inst).map(s=>s.sid);if(!sids.length)return[];
   // a part away from the stations is not in the survey: it gets the default the survey would give it (frame-sized → kept
@@ -134,6 +137,7 @@ function throughOpenings(A,P,faces,o){const pts=A.d.pts,s=A.d.s,sv=BC.sv,out=[],
 function load(f){say(`Reading ${f.name} (${(f.size/1e6).toFixed(1)} MB)...`);f.text().then(t=>setTimeout(()=>fromText(f.name,t),30));}
 // parsed: the StepAsm result of the same text when the assembly is already open (no second read)
 function fromText(name,t,parsed){const t0=performance.now();let cad;
+    BC.asm=null;
     // STEP: the parts marked pipe / not a pipe in the part tree for this file name count as such here too
     try{cad=CadSolids.read(t,name,{pipe:window.AsmTree?AsmTree.load(name):{},parsed});}catch(e){return say(`${name}: ${e.message}`,true);}
     if(!cad.solids.length)return say(`${name}: no solids found. Export from Creo with solids (IGES: BREP / "Solid", or STEP AP214).`,true);
@@ -141,14 +145,14 @@ function fromText(name,t,parsed){const t0=performance.now();let cad;
     const ex=cad.faces.filter(x=>x.shape).length,np=cad.solids.filter(x=>x.pipe).length;
     say(`${name}: ${cad.solids.length} solids, ${cad.faces.length} faces (${cad.format}${ex?`; ${ex} flat or cylindrical, gap exact`:''}${np?`; ${np} solid${np>1?'s':''} of existing pipes, not checked`:''}), read in ${((performance.now()-t0)/1000).toFixed(1)} s.${BC.sv?'':' Use the stations to see which parts are near.'}`);}
 // the open assembly's parse is reused (no second read of the file, and no text of it is kept)
-window.bcFromAsm=a=>{if(a&&a.r)fromText(a.name,'',a.r);};
+window.bcFromAsm=a=>{if(a&&a.r){fromText(a.name,'',a.r);if(BC.cad&&BC.cad.name===a.name)BC.asm=a.name;}};
 $('cdLoad').onclick=()=>$('cdFile').click();
 window.bcLoad=f=>{$('cdBox').open=true;load(f);};
 window.bcName=()=>BC.cad?BC.cad.name:null;window.bcCad=()=>BC.cad;
 // keep clear on / off for one solid (Alternatives' "Stop keeping clear of …")
 window.bcKeepClear=(sid,on)=>{if(!BC.cad)return;BC.user.set(sid,!!on);render();};
 $('cdFile').onchange=e=>{if(e.target.files[0])load(e.target.files[0]);e.target.value='';};
-$('cdClear').onclick=()=>{BC.cad=null;BC.sv=null;BC.key='';BC.focus=0;$('cdClear').hidden=true;render();say('');};
+$('cdClear').onclick=()=>{BC.cad=null;BC.asm=null;BC.sv=null;BC.key='';BC.focus=0;$('cdClear').hidden=true;render();say('');};
 ['cdD','cdGap','cdReach'].forEach(k=>$(k).addEventListener('change',()=>{survey();}));
 $('pts').addEventListener('change',()=>{survey();});
 }

@@ -43,9 +43,12 @@ function tokenize(text){
 // get(id), size, clear(), and iteration in file order. head: the text before DATA; (FILE_NAME).
 function tokenizeBytes(chunks){
   const dec=new TextDecoder('utf-8'),DATA=[68,65,84,65,59];
-  let cap=1<<16,at=new Int32Array(cap),ln=new Int32Array(cap),pc=new Int16Array(cap).fill(-1),order=new Int32Array(cap),n=0;
-  const spill=new Map();
-  const grow=id=>{if(id<cap)return;let c=cap;while(c<=id)c*=2;const a=new Int32Array(c),l=new Int32Array(c),q=new Int16Array(c).fill(-1);
+  // by id: piece (pc; -1 none, -2 kept whole in spill: it ran across two pieces), offset and length. Arrays indexed by id, as
+  // Creo numbers densely; an id that would make them far larger than the entity count (#300000000=…, or past 2^31) is
+  // kept in far (id → text) instead. order: ids in file order, a far one as -1-(its index in farIds)
+  let cap=1<<16,at=new Int32Array(cap),ln=new Int32Array(cap),pc=new Int32Array(cap).fill(-1),order=new Int32Array(cap),n=0;
+  const spill=new Map(),far=new Map(),farIds=[],FAR=1<<26;
+  const grow=id=>{if(id<cap)return;let c=cap;while(c<=id)c*=2;const a=new Int32Array(c),l=new Int32Array(c),q=new Int32Array(c).fill(-1);
     a.set(at);l.set(ln);q.set(pc);at=a;ln=l;pc=q;cap=c;};
   const keep=id=>{if(n>=order.length){const o=new Int32Array(order.length*2);o.set(order);order=o;}order[n++]=id;};
   // where DATA; starts (it is in the header, near the top): the head is the text before it
@@ -63,11 +66,14 @@ function tokenizeBytes(chunks){
       if(st===3){
         if(q){if(x===39)q=false;continue;}
         if(x===39)q=true;else if(x===40)depth++;else if(x===41)depth--;
-        else if(x===59&&depth===0){grow(id);
-          // the first #id wins, as in tokenize(); pc -2 = kept whole in spill (it ran across two pieces)
-          if(pc[id]===-1){if(sc===c){pc[id]=c;at[id]=so;ln[id]=i-so;}
-            else{span.push(b.subarray(0,i));spill.set(id,span.map(u=>dec.decode(u,{stream:true})).join('')+dec.decode());pc[id]=-2;}
-            keep(id);}
+        else if(x===59&&depth===0){
+          // a repeated #id: its last text wins, at the place of its first (as Map.set in tokenize())
+          let w=null;if(sc!==c){span.push(b.subarray(0,i));w=span.map(u=>dec.decode(u,{stream:true})).join('')+dec.decode();}
+          const f=far.size>0&&far.has(id);
+          if(!f&&(id<cap||id<FAR&&id<=8*(n+65536))){grow(id);const was=pc[id];
+            if(w===null){if(was===-2)spill.delete(id);pc[id]=c;at[id]=so;ln[id]=i-so;}else{spill.set(id,w);pc[id]=-2;}
+            if(was===-1)keep(id);}
+          else{far.set(id,(w===null?dec.decode(b.subarray(so,i)):w).trim());if(!f){keep(-1-farIds.length);farIds.push(id);}}
           span.length=0;st=0;}
         continue;}
       if(st===0){if(x===35){st=1;id=0;digits=false;}continue;}
@@ -77,9 +83,11 @@ function tokenizeBytes(chunks){
         st=x===35?1:0;id=0;digits=false;continue;}}
     // the entity runs on into the next piece: keep its bytes so far
     if(st===3){span.push(sc===c?b.subarray(so):b);sc=-1;}}
-  const get=k=>{if(k<0||k>=cap||pc[k]===-1)return undefined;if(pc[k]===-2)return spill.get(k).trim();return dec.decode(chunks[pc[k]].subarray(at[k],at[k]+ln[k])).trim();};
-  return{head,get,get size(){return n;},clear(){spill.clear();cap=0;at=ln=order=new Int32Array(0);pc=new Int16Array(0);n=0;},
-    *[Symbol.iterator](){for(let j=0;j<n;j++){const k=order[j];yield[k,get(k)];}}};
+  // any key a Map takes: a $ (omitted) reference arrives as null, as from tokenize() it gives undefined
+  const get=k=>{if(!Number.isInteger(k)||k<0||k>=cap||pc[k]===-1)return far.size?far.get(k):undefined;
+    if(pc[k]===-2)return spill.get(k).trim();return dec.decode(chunks[pc[k]].subarray(at[k],at[k]+ln[k])).trim();};
+  return{head,get,get size(){return n;},clear(){spill.clear();far.clear();farIds.length=0;cap=0;at=ln=order=pc=new Int32Array(0);n=0;},
+    *[Symbol.iterator](){for(let j=0;j<n;j++){const o=order[j],k=o<0?farIds[-1-o]:o;yield[k,get(k)];}}};
 }
 function splitArgs(raw){
   const out=[];let depth=0,cur='',q=false;
@@ -351,9 +359,11 @@ function parse(text,opts){
           ep.forEach((p,i)=>{if(i===0&&lp.length&&len(sub(lp[lp.length-1],p))<1e-6)return;lp.push(p);});}
         if(lp.length>=3)face.loops.push(lp);}
       face.verts.forEach(v=>verts.push(v));types[kind]=(types[kind]||0)+1;faces.push(face);}
-    // box from vertices plus the full extent of every circular edge (a round part's seam vertices sit on one side)
+    // box from vertices plus the full extent of every circular edge (a round part's seam vertices sit on one side), plus the
+    // sampled boundary loops (a face bounded by spline edges reaches past its vertices)
     let bbox=null;if(verts.length){bbox={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};const grow=(k,v)=>{bbox.min[k]=Math.min(bbox.min[k],v);bbox.max[k]=Math.max(bbox.max[k],v);};
       for(const v of verts)for(let k=0;k<3;k++)grow(k,v[k]);
+      for(const f of faces)for(const l of f.loops)for(const q of l)for(let k=0;k<3;k++)grow(k,q[k]);
       for(const c of ext)for(let k=0;k<3;k++){const s=c.r*Math.sqrt(Math.max(0,1-c.n[k]*c.n[k]));grow(k,c.c[k]-s);grow(k,c.c[k]+s);}}
     return{id,name:str(e.args[0]),faces,types,bbox,nVerts:verts.length};}
 
@@ -446,10 +456,13 @@ function parse(text,opts){
 
   // ---- world data ----
   const csys=[],points=[],pipes=[];
-  // world box of a placed solid from its vertices and circular edges placed in the world (rotating the 8 corners of the local
-  // box instead made a rotated part's box too big: 980464_AF54 read 55 × 70 × 77 mm for 45 × 58 × 48)
-  const bboxWorld=(M,sol)=>{const o={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]},grow=p=>{for(let k=0;k<3;k++){if(p[k]<o.min[k])o.min[k]=p[k];if(p[k]>o.max[k])o.max[k]=p[k];}};
-    for(const f of sol.faces){for(const v of f.verts)grow(F.pt(M,v));
+  // world box of a placed solid from its vertices, circular edges and sampled boundary loops placed in the world (rotating the
+  // 8 corners of the local box instead made a rotated part's box too big: 980464_AF54 read 55 × 70 × 77 mm for 45 × 58 × 48).
+  // The same points as CadSolids.step() takes for each face box, so this is the union of those
+  // (points placed as F.pt does, in the same order of sums, without its arrays: every loop sample of every placed part)
+  const bboxWorld=(M,sol)=>{const o={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]},
+    grow=p=>{for(let k=0;k<3;k++){const v=M.o[k]+(M.x[k]*p[0]+(M.y[k]*p[1]+M.z[k]*p[2]));if(v<o.min[k])o.min[k]=v;if(v>o.max[k])o.max[k]=v;}};
+    for(const f of sol.faces){for(const v of f.verts)grow(v);for(const l of f.loops)for(const q of l)grow(q);
       for(const ed of f.edges){const c=F.pt(M,ed.ax.o),n=F.vec(M,ed.ax.z);for(let k=0;k<3;k++){const e=ed.r*Math.sqrt(Math.max(0,1-n[k]*n[k]));
         if(c[k]-e<o.min[k])o.min[k]=c[k]-e;if(c[k]+e>o.max[k])o.max[k]=c[k]+e;}}}
     return o.min[0]<=o.max[0]?o:null;};
@@ -555,7 +568,7 @@ function parseAsync(text,opts){opts=opts||{};
   });
 }
 
-const API={parse,parseAsync,attach,chain,describe,sample,nearest,F,tokenizeBytes};
+const API={parse,parseAsync,attach,chain,describe,sample,nearest,F,tokenize,tokenizeBytes};
 if(typeof module!=="undefined"&&module.exports)module.exports=API;
 root.StepAsm=API;
 })(typeof globalThis!=="undefined"?globalThis:this);
