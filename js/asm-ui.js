@@ -90,7 +90,8 @@ function asmApply(note){
   asmProgress(`${head}: loading the file`,0);
   StepAsm.parseAsync(A.file,{pipe:A.ov,progress:(stage,f)=>{if(id!==asmSeq)return;const pc=stage==='parts',ld=stage==='loading the file';
     asmProgress(`${head}: ${stage}${pc||ld?` ${Math.round(f*100)} %`:''}`,ld?0.25*f:pc?0.3+0.7*f:0.27);}})
-    .then(r=>{if(id===asmSeq&&ASM===A){asmProgress('',null);asmApplied(r,note,t0);}},e=>{if(id===asmSeq){asmProgress('',null);cadSay('statusPipe',`${A.name}: ${e.message}`,true);}});
+    .then(r=>{if(id===asmSeq&&ASM===A){asmProgress('',null);asmApplied(r,note,t0);}},e=>{if(id===asmSeq){asmProgress('',null);cadSay('statusPipe',`${A.name}: ${e.message}`,true);
+      document.dispatchEvent(new CustomEvent('asm:failed',{detail:{name:A.name,message:e.message}}));}});
 }
 function asmApplied(r,note,t0){
   ASM.r=r;TH.pick={};TH.last=null;TH.cmp=null;const ms=Math.round(performance.now()-t0),s=r.summary,parts=r.instances.filter(i=>i.solids).length;

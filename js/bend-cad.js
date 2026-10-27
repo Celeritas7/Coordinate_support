@@ -135,7 +135,7 @@ function throughOpenings(A,P,faces,o){const pts=A.d.pts,s=A.d.s,sv=BC.sv,out=[],
       hole:L.outer?null:{pts:CadSolids.loop3(sh,L),bad:low},mark:{p:g.c.x,text:`${span(g.i)} · ${fmt(Math.max(gap,0),1)} mm`,bad:low}};});}
 
 function load(f){say(`Reading ${f.name} (${(f.size/1e6).toFixed(1)} MB)...`);f.text().then(t=>setTimeout(()=>fromText(f.name,t),30));}
-// parsed: the StepAsm result of the same text when the assembly is already open (no second read)
+// parsed: the StepAsm result of the same text when the assembly is already open (no second read). True when BC.cad was replaced.
 function fromText(name,t,parsed){const t0=performance.now();let cad;
     BC.asm=null;
     // STEP: the parts marked pipe / not a pipe in the part tree for this file name count as such here too
@@ -143,9 +143,11 @@ function fromText(name,t,parsed){const t0=performance.now();let cad;
     if(!cad.solids.length)return say(`${name}: no solids found. Export from Creo with solids (IGES: BREP / "Solid", or STEP AP214).`,true);
     BC.cad=cad;BC.key='';BC.user=new Map();$('cdClear').hidden=false;survey();
     const ex=cad.faces.filter(x=>x.shape).length,np=cad.solids.filter(x=>x.pipe).length;
-    say(`${name}: ${cad.solids.length} solids, ${cad.faces.length} faces (${cad.format}${ex?`; ${ex} flat or cylindrical, gap exact`:''}${np?`; ${np} solid${np>1?'s':''} of existing pipes, not checked`:''}), read in ${((performance.now()-t0)/1000).toFixed(1)} s.${BC.sv?'':' Use the stations to see which parts are near.'}`);}
-// the open assembly's parse is reused (no second read of the file, and no text of it is kept)
-window.bcFromAsm=a=>{if(a&&a.r){fromText(a.name,'',a.r);if(BC.cad&&BC.cad.name===a.name)BC.asm=a.name;}};
+    say(`${name}: ${cad.solids.length} solids, ${cad.faces.length} faces (${cad.format}${ex?`; ${ex} flat or cylindrical, gap exact`:''}${np?`; ${np} solid${np>1?'s':''} of existing pipes, not checked`:''}), read in ${((performance.now()-t0)/1000).toFixed(1)} s.${BC.sv?'':' Use the stations to see which parts are near.'}`);
+    return true;}
+// the open assembly's parse is reused (no second read of the file, and no text of it is kept). Tagged as the assembly's only
+// when this read replaced BC.cad: a failed read of a file with the same name must not mark the parts left from before as current
+window.bcFromAsm=a=>{if(a&&a.r&&fromText(a.name,'',a.r))BC.asm=a.name;};
 $('cdLoad').onclick=()=>$('cdFile').click();
 window.bcLoad=f=>{$('cdBox').open=true;load(f);};
 window.bcName=()=>BC.cad?BC.cad.name:null;window.bcCad=()=>BC.cad;

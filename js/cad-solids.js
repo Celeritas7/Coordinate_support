@@ -174,16 +174,16 @@ function step(text,opts){
         const sh=!z?null:f.kind==='plane'?planeShape(o,z,L):cylShape(o,z,unit(F.vec(inst.M,f.ax.x)),f.r,L);
         if(sh)face.shape=sh;}
       // spheres, tori, cones and swept profiles: the untrimmed surface, held to the face box (surfDist)
-      if(exactStep&&!face.shape){const W=q=>F.pt(inst.M,q),Vv=q=>unit(F.vec(inst.M,q)),box={min:face.min,max:face.max};
-        if(f.kind==='spherical'&&f.ax&&f.r>0)face.shape={kind:'sph',c:W(f.ax.o),R:f.r,box};
-        else if(f.kind==='toroidal'&&f.ax&&f.R>0&&f.r>0)face.shape={kind:'tor',c:W(f.ax.o),z:Vv(f.ax.z),R:f.R,r:f.r,box};
-        else if(f.kind==='conical'&&f.ax&&f.ang!=null&&Math.abs(f.ang)<1.5)face.shape={kind:'cone',a:W(f.ax.o),z:Vv(f.ax.z),r0:f.r||0,ang:f.ang,box};
-        else if(f.ext&&f.loops&&f.loops.length){const d=Vv(f.ext.d),P0=f.ext.pts.map(W),o=P0[0],segs=[];
+      if(exactStep&&!face.shape){const Vv=q=>unit(F.vec(inst.M,q)),box={min:face.min,max:face.max};
+        if(f.kind==='spherical'&&f.ax&&f.r>0)face.shape={kind:'sph',c:P(f.ax.o),R:f.r,box};
+        else if(f.kind==='toroidal'&&f.ax&&f.R>0&&f.r>0)face.shape={kind:'tor',c:P(f.ax.o),z:Vv(f.ax.z),R:f.R,r:f.r,box};
+        else if(f.kind==='conical'&&f.ax&&f.ang!=null&&Math.abs(f.ang)<1.5)face.shape={kind:'cone',a:P(f.ax.o),z:Vv(f.ax.z),r0:f.r||0,ang:f.ang,box};
+        else if(f.ext&&f.loops&&f.loops.length){const d=Vv(f.ext.d),P0=f.ext.pts.map(P),o=P0[0],segs=[];
           // the profile projected across the sweep (onto the plane through its first point, normal to the sweep)
-          const P=d?P0.map(q=>{const t=dot3(sub3(q,o),d);return sub3(q,d.map(v=>v*t));}):P0;
-          for(let i=1;i<P.length;i++)segs.push(...P[i-1],...P[i]);
+          const Pj=d?P0.map(q=>{const t=dot3(sub3(q,o),d);return sub3(q,d.map(v=>v*t));}):P0;
+          for(let i=1;i<Pj.length;i++)segs.push(...Pj[i-1],...Pj[i]);
           // the face's extent along the sweep: its boundary measured from the profile
-          let t0=Infinity,t1=-Infinity;f.loops.forEach(l=>l.forEach(q=>{const t=dot3(sub3(W(q),o),d);if(t<t0)t0=t;if(t>t1)t1=t;}));
+          let t0=Infinity,t1=-Infinity;f.loops.forEach(l=>l.forEach(q=>{const t=dot3(sub3(P(q),o),d);if(t<t0)t0=t;if(t>t1)t1=t;}));
           if(d&&isFinite(t0))face.shape={kind:'ext',o,d,segs:Float64Array.from(segs),t0:Math.min(t0,0),t1:Math.max(t1,0),box};}}
       faces.push(face);grow(sb,face.min);grow(sb,face.max);made++;});
     if(made)solids.push({sid,inst:idx,name:inst.label||inst.name||`solid ${sid}`,faces:made,min:sb.min,max:sb.max,...(pipe?{pipe}:{})});});});

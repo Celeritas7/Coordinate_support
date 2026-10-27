@@ -84,15 +84,23 @@ async function open(list){
 // One assembly per session, read once. In Hose / Cable · Route through stations it feeds Stations from clamps and
 // Keep clear of CAD parts; anywhere else it opens in Pipe. Both see the same parse, so switching task needs no reload.
 // rest: names of files dropped with it and not opened
+let asmPend=null;
 function openAssembly(f,rest){const n=rest?rest.length:0,also=n?` ${n} other file${n>1?'s were':' was'} not opened (${rest.join(', ')}); open ${n>1?'them':'it'} now the assembly has loaded.`:'';
   const hose=st.mod==='hose'&&st.task.hose==='route'&&$('shape').value!=='arc';
   if(!hose)go('pipe',st.task.pipe==='clamps'||st.task.pipe==='offset'?st.task.pipe:'asm');
   else{$('csBox').open=true;$('cdBox').open=true;}
   const where=hose?`Stations and parts to keep clear of are in ${label('hose','route')}; also open in Pipe.`:`Open in ${label('pipe',st.task.pipe)}.`;
-  document.addEventListener('asm:loaded',e=>{const a=e.detail;if(!a||a.name!==f.name)return;
+  // one of the two answers this open: the other listener goes with it (a failed read must not leave one armed for a later
+  // open), and so do both when another assembly is opened before this one has loaded
+  if(asmPend)asmPend();
+  const done=()=>{document.removeEventListener('asm:loaded',ok);document.removeEventListener('asm:failed',bad);$('shStatus').title='';asmPend=null;};
+  asmPend=done;
+  const ok=e=>{const a=e.detail;if(!a||a.name!==f.name)return;done();
     if(hose&&typeof bcFromAsm==='function')bcFromAsm(a);
-    say(`Opened in ${(a.secs||0).toFixed(1)} s. ${where}${also}`);$('shStatus').title='';
-    $('shAsm').hidden=false;$('shAsmTxt').textContent=asmLine(a);},{once:true});
+    say(`Opened in ${(a.secs||0).toFixed(1)} s. ${where}${also}`);
+    $('shAsm').hidden=false;$('shAsmTxt').textContent=asmLine(a);};
+  const bad=e=>{const x=e.detail;if(!x||x.name!==f.name)return;done();say(`${x.name} could not be read: ${x.message}`);};
+  document.addEventListener('asm:loaded',ok);document.addEventListener('asm:failed',bad);
   // while reading, the header shows asm-ui's progress line ("Reading <file>, 20.3 MB: parts 59 %"); the others in its tooltip
   $('shStatus').title=n?`Not opened: ${rest.join(', ')} (one assembly at a time; open ${n>1?'them':'it'} once this one has loaded)`:'';asmLoad(f);}
 window.openAssembly=openAssembly;window.goTask=go;
