@@ -119,12 +119,30 @@ check(res.none === null && up.none === null, "a clean result has no 'none' repor
   check(M.blockers(st[0].p, st[1].p, [thin], rad, null, M.zones(st, [thin], rad)).length === 1, "a 14 mm plate across the leg is a blocker (samples every ≤ rad)");
   check(th.candidates.every(c => c.ok || c.clearance < 0 || c.minR < R), "every route that is not clean says why by its gap or its radius (no hidden solver depth)");
   check(th.none && th.none.rule !== "radius" && th.none.part === "B1" && !/Infinity/.test(th.none.text), `the report is a gap one and names the plate (${th.none && th.none.rule})`); }
-// a solver that still counts depth where the measured gap holds (r.obs > 0, clearance ≥ 0) on a straight route (min R ∞):
-// a gap failure in plain words, not “needs a bend tighter than R 50 (best R Infinity)”
+// a solver that still counts depth where the measured gap holds (r.obs > 0, clearance ≥ 0, as round a box corner): the
+// measured gap decides, so the route is clean and nothing is reported
 { const stuck = (route, dR) => ({ step: () => { const e = route.evalX(route.x, 60); return { x: route.x.slice(), it: 900, minR: 1 / e.kmax, len: e.len, obs: 1, done: true }; } });
   const sk = M.enumerate([A, B], { R, rad, boxes: [{ min: [400, 300, -50], max: [600, 400, 50] }], makeRoute, optimiser: stuck });
-  console.log(`     solver depth only: ${sk.none && sk.none.text}`);
-  check(sk.none && sk.none.rule === "gap" && !/Infinity|tighter/.test(sk.none.text) && /in the way/.test(sk.none.text), `solver depth only: reported as a part in the way (${sk.none && sk.none.rule})`); }
+  check(sk.candidates[0].ok && !sk.none, `solver depth only, measured gap holds: clean (${sk.candidates[0].clearance.toFixed(1)} mm)`); }
+// the zone exempts every face of the part that holds the station: a 60 mm long bore (one solid, sid 7) whose end faces are
+// far from the station point is not a clash at its ends; another solid next to it still is
+{ const st = [{ p: [0, 0, 0], dir: [1, 0, 0] }, { p: [800, 0, 0], dir: [1, 0, 0] }],
+    bore = { min: [-30, -rad - 0.5, -20], max: [30, -rad, 20], sid: 7 }, endA = { min: [-30, -20, -20], max: [-29, 20, 20], sid: 7 },
+    endB = { min: [29, -20, -20], max: [30, -rad - 0.5, 20], sid: 7 }, other = { min: [29, rad, -20], max: [30, 20, 20], sid: 8 },
+    Z = M.zones(st, [bore, endA, endB, other], rad);
+  check(Z[0].hold.has(bore) && Z[0].hold.has(endA) && Z[0].hold.has(endB) && !Z[0].hold.has(other),
+    "zones: every face of the solid holding the station is exempt there, not a face of another solid");
+  check(M.heldAt([20, 0, 0], Z).has(endB) && M.heldAt([200, 0, 0], Z) === null, "heldAt: inside the zone the holder, outside nothing");
+  const nb = { ...endB, sid: undefined }, Zn = M.zones(st, [bore, nb], rad);
+  check(Zn[0].hold.has(bore) && !Zn[0].hold.has(nb), "faces with no solid id count alone"); }
+// a long route with many segments: the clearance's dense samples (tens of thousands) no longer overflow Math.min's arguments
+{ const W = [], n = 80; for (let i = 0; i <= n; i++) W.push([i * 2000, (i % 2) * 300, 0]);
+  const far = { min: [0, 5000, 0], max: [10, 5010, 10] };
+  let ok = true, msg = "";
+  try { const lr = M.enumerate(W, { R: 20, SF: 1, rad: 0.5, boxes: [far], makeRoute, optimiser: (route) => ({ step: () => { const e = route.evalX(route.x, 60);
+      return { x: route.x.slice(), it: 900, minR: 1 / e.kmax, len: e.len, obs: 0, done: true }; } }) });
+    msg = `gap ${lr.candidates[0].clearance.toFixed(0)} mm`; ok = lr.candidates[0].clearance > 4000; } catch (e) { ok = false; msg = e.message; }
+  check(ok, `${n} segments of 2 m at 0.5 mm sample spacing (240 000 samples): clearance measured (${msg})`); }
 // an unnamed plate given as two faces is one obstacle, named after its first face whichever face a route is closest to
 { const halves = [{ min: [490, -600, -600], max: [510, 600, 0] }, { min: [490, -600, 0], max: [510, 600, 600] }];
   const hv = M.enumerate([{ p: [420, 0, 0], dir: [1, 0, 0] }, { p: [580, 0, 0], dir: [1, 0, 0] }], { R, SF: 1.5, rad, boxes: halves, makeRoute, optimiser });
