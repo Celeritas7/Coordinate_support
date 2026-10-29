@@ -137,10 +137,10 @@ document.addEventListener('cs:changed',()=>{if(typeof ASM!=='undefined'&&ASM&&AS
 function showAsm(a){const on=!!(a&&a.r);$('shAsmTxt').classList.toggle('unit',!on);$('shAsmTxt').innerHTML=on?asmLine(a):'No assembly open.';$('shAsmAct').hidden=!on;}
 let undoT=0;
 $('shChange').onclick=()=>$('shFile').click();
-$('shRemove').onclick=()=>{const a=typeof asmRemove==='function'?asmRemove():null;if(!a)return;showAsm(null);clearTimeout(undoT);
+$('shRemove').onclick=()=>{const parts=typeof bcName==='function'&&typeof ASM!=='undefined'&&ASM&&bcName()===ASM.name,a=typeof asmRemove==='function'?asmRemove():null;if(!a)return;showAsm(null);clearTimeout(undoT);
   const el=$('shStatus');el.classList.add('on');el.innerHTML=`Removed ${esc(a.name)}. <button type="button" class="linkish" id="shUndo">Undo</button>`;$('shUndo').focus();
   $('shUndo').onclick=()=>{clearTimeout(undoT);if(typeof ASM!=='undefined'&&ASM)return say('Another assembly is open; nothing to undo.');
-    document.addEventListener('asm:loaded',e=>{if(e.detail&&e.detail.name===a.name&&typeof bcFromAsm==='function'&&st.mod==='hose')bcFromAsm(e.detail);showAsm(e.detail);},{once:true});
+    document.addEventListener('asm:loaded',e=>{if(e.detail&&e.detail.name===a.name&&typeof bcFromAsm==='function'&&parts)bcFromAsm(e.detail);showAsm(e.detail);},{once:true});
     asmRestore(a);say(`${a.name} is back.`);$('shChange').focus();};
   undoT=setTimeout(()=>{const u=$('shUndo');if(u)u.replaceWith(document.createTextNode(''));},10000);};
 document.addEventListener('asm:removed',()=>showAsm(null));
