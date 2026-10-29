@@ -158,6 +158,11 @@ function autoOrder(){const T=ticked();if(T.length<2){render();return;}
 // clamps the hose's ticked stations use (end fittings and points picked in 3D not counted), for the assembly line
 const CLAMP=new Set(['fixing','clip','clamp','grommet']);
 root.csCount=()=>CS.list.length&&openAsm()&&!CS.own?{n:ticked().filter(s=>CLAMP.has(s.role)||s.lib).length,D:+$('csD').value||8}:null;
+// Check route is disabled while the list is in use with fewer than 2 ticked, but never while it is Stop (a Check running);
+// route-studio.js calls this again when a run ends
+function checkState(){const few=CS.list.length&&!$('csBox').hidden&&!CS.manual&&ticked().length<2,running=typeof bendJob!=='undefined'&&!!bendJob;
+  if(!running){$('runBend').title=few?'Tick at least 2 stations.':'';$('runBend').disabled=!!few;}}
+root.csCheckState=checkState;
 function render(){document.dispatchEvent(new Event('cs:changed'));const box=$('csList'),T=ticked();
   // the name only (the select is narrow); the part in the tooltip
   const opts=sel=>`<option value="">auto</option>`+T.map(s=>`<option value="${s.id}" title="${esc(tag(s))}" ${sel===s.id?'selected':''}>${esc(s.name)}</option>`).join('');
@@ -165,7 +170,7 @@ function render(){document.dispatchEvent(new Event('cs:changed'));const box=$('c
   $('csAuto').disabled=T.length<2;$('csNone').disabled=!T.length;$('csPicked').disabled=!CS.list.some(s=>CS.picked.has(s.id));
   const why=T.length<2?(CS.list.length?'Tick at least 2 stations.':''):'';$('csAuto').title=why;
   // Check route reads this list once it is built: say why it will not run
-  const few=CS.list.length&&!$('csBox').hidden&&!CS.manual&&T.length<2;$('runBend').title=few?'Tick at least 2 stations.':'';$('runBend').disabled=!!few;
+  checkState();
   if(!CS.list.length){box.innerHTML='';$('csLen').textContent='';return;}
   let k=0;
   // two lines: S2 · name · part … bore | reason (marker + words) … position. The reason is its own element.
@@ -232,8 +237,8 @@ $('csClearDirs').onclick=()=>{$('csDirs').value='';store.set('rs.csDirs','');say
 
 // points typed, pasted or dropped into Points as text: they are the route now, so the station list is unticked (and says so)
 // until a row is ticked or picked again. Check route's own writes send no input event.
-$('pts').addEventListener('input',()=>{if(!CS.list.length||CS.manual||!CS.use.size)return;CS.use.clear();CS.start=CS.end=null;CS.near.clear();CS.manual=true;render();
-  say('Points as text changed: the station list is unticked and Check route uses the points as typed. Tick a row to route through the stations again.');});
+$('pts').addEventListener('input',()=>{if(!CS.list.length||CS.manual)return;const had=CS.use.size;CS.use.clear();CS.start=CS.end=null;CS.near.clear();CS.manual=true;render();
+  if(had)say('Points as text changed: the station list is unticked and Check route uses the points as typed. Tick a row to route through the stations again.');});
 document.addEventListener('asm:loaded',e=>{dropExtra(e.detail&&e.detail.name);if(!CS.own&&!$('csBox').hidden)refresh();else render();});
 // Remove: the stations of that file go (an Undo sends asm:loaded again with the same file, which rebuilds them)
 document.addEventListener('asm:removed',()=>{if(CS.own)return;dropExtra('');CS.list=[];CS.use.clear();CS.start=CS.end=null;CS.near.clear();CS.armed=null;render();say('');});
@@ -269,7 +274,8 @@ function usePick(p,r,as){
 // The pick panel says so and offers Undo (focused) and Make it the end / start; CS.armed holds what Undo puts back.
 const snap=()=>({list:CS.list.slice(),extra:CS.extra.slice(),from:CS.from,use:new Set(CS.use),picked:new Set(CS.picked),hand:new Map(CS.hand),start:CS.start,end:CS.end,
   near:new Map(CS.near),next:CS.next});
-const armed=()=>!$('csBox').hidden&&$('shape').value!=='arc'&&!!openAsm()&&!CS.own&&(CS.start==null||CS.end==null);
+const hoseShown=()=>!$('csBox').hidden&&!$('panBend').hidden&&$('shape').value!=='arc';
+const armed=()=>hoseShown()&&!!openAsm()&&!CS.own&&(CS.start==null||CS.end==null);
 document.addEventListener('asm:pick',e=>{const p=e.detail;CS.armed=null;if(!p||(p.kind!=='csys'&&p.kind!=='part')||(p.kind==='csys'&&p.c.made)||!armed())return;
   const as=CS.start==null?'start':'end',before=snap(),m=usePick(p,openAsm().r,as);
   CS.armed={p,as,before,id:as==='start'?CS.start:CS.end};
@@ -287,7 +293,7 @@ root.csAddStations=L=>{if(!CS.list.length&&src())refresh();
   $('csBox').open=true;autoOrder();say(`${L.length} suggested clamps added; ${ticked().length} stations ticked. Check route again.`);};
 // the Route group: start → end → station, the first one still needed is the primary button. Right after an armed click:
 // Undo · Make it the end (or start) instead
-(root.AV_ACTIONS=root.AV_ACTIONS||[]).push((p,r)=>{if($('csBox').hidden||(p.kind!=='csys'&&p.kind!=='part'))return[];
+(root.AV_ACTIONS=root.AV_ACTIONS||[]).push((p,r)=>{if(!hoseShown()||(p.kind!=='csys'&&p.kind!=='part'))return[];
   if(CS.armed&&CS.armed.p===p){const other=CS.armed.as==='start'?'end':'start';
     return[{group:'Route',label:'Undo',go:()=>undoArmed(),title:`Clear the ${CS.armed.as} again`,order:1,primary:true},
       {group:'Route',label:`Make it the ${other}`,go:()=>swapArmed(),order:2}];}
@@ -299,7 +305,8 @@ root.csAddStations=L=>{if(!CS.list.length&&src())refresh();
 // lines + arcs (Pipe · Route through points) holds no tangents at stations: the section is for the spline route only
 const dWrap=()=>$('cdD').closest('div');
 // render() after: Check route's disabled state depends on the list being in use (it is not, for lines + arcs)
-const sync=()=>{const arc=$('shape').value==='arc';$('csBox').hidden=arc;dWrap().hidden=!arc;setTimeout(render,0);if(!arc&&$('cdD').value!==$('csD').value){$('cdD').value=$('csD').value;$('cdD').dispatchEvent(new Event('change'));}};
+// and refresh() instead when an assembly was opened while the section was hidden: its list was never built
+const sync=()=>{const arc=$('shape').value==='arc';$('csBox').hidden=arc;dWrap().hidden=!arc;setTimeout(()=>{if(!arc&&!CS.list.length&&!CS.own&&openAsm())refresh();else render();},0);if(!arc&&$('cdD').value!==$('csD').value){$('cdD').value=$('csD').value;$('cdD').dispatchEvent(new Event('change'));}};
 $('csD').addEventListener('change',()=>{if($('shape').value!=='arc'){$('cdD').value=$('csD').value;$('cdD').dispatchEvent(new Event('change'));}});$('shape').addEventListener('change',sync);sync();
 $('csDirs').value=store.get('rs.csDirs')||'';$('csHold').checked=store.get('rs.csHold')!=='0';
 render();

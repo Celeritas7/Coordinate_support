@@ -724,7 +724,7 @@ document.querySelectorAll('[data-preset]').forEach(b=>b.onclick=()=>{
 
 let bendJob=0,bendSeq=0,checkAnyway=false;const BEND_LABEL=$('runBend').textContent;
 $('runBend').onclick=()=>{
-  if(bendJob){bendJob=0;$('runBend').textContent=BEND_LABEL;$('statusBend').textContent='Stopped. The "as entered" run was kept; press Check to shape again.';return;}
+  if(bendJob){bendJob=0;$('runBend').textContent=BEND_LABEL;if(typeof csCheckState==='function')csCheckState();$('statusBend').textContent='Stopped. The "as entered" run was kept; press Check to shape again.';return;}
   // the ticked stations (clamp-stations.js) go into Target points first; with the list in use, fewer than 2 ticked is the reason
   const cs=typeof csSync==='function'?csSync():null;if(typeof nextClear==='function')nextClear('statusBend');
   if(cs&&cs.short){$('statusBend').style.color='';return $('statusBend').textContent='Tick at least 2 stations.';}
@@ -758,7 +758,7 @@ $('runBend').onclick=()=>{
   const tick=()=>{if(bendJob!==job)return;const t0=performance.now();let r;do{r=o.step(6);}while(!r.done&&performance.now()-t0<30);$('statusBend').textContent=`Shaping the curve... tightest bend so far R ${fmt(r.minR)} mm (${P.length} points, step ${r.it} of up to 900)`;
     if(!r.done)return defer(tick);
     let sp=SP,res;for(let a=0;a<4;a++){const s=samplePoints(route,r.x,sp,$('adapt').checked,R*SF);const A=analyse(s.Q);res={A,s};if(A.minR>=R*1.15)break;sp*=0.7;}
-    const finish=(A,tidx,thinNote)=>{A.tidx=tidx;if(bendJob!==job&&bendJob!==-job)return;bendJob=0;$('runBend').textContent=BEND_LABEL;
+    const finish=(A,tidx,thinNote)=>{A.tidx=tidx;if(bendJob!==job&&bendJob!==-job)return;bendJob=0;$('runBend').textContent=BEND_LABEL;if(typeof csCheckState==='function')csCheckState();
       const cx=X?X.report(A):null;
       addRun(Object.assign(A,{fromCheck:true,name:`Generated R${R} ×${SF}`,kind:'bend',kindLabel:'bend radius, generated',parts:cx?cx.parts:undefined,holes:cx?cx.holes:undefined,marks:cx?cx.marks:undefined,clearDense:cx?cx.clearDense:undefined,gapLimit:cx?cx.gapLimit:undefined,spots:cx?cx.spots:undefined,clearRows:cx?cx.rows:undefined,clearHead:cx?cx.head:undefined,
         params:{R,SF,spacing:SP},settings:`gap ${sp.toFixed(0)} mm between points${$('adapt').checked?', closer in bends':''}, ×${SF} margin${nloc?`, ${nloc} local radius override${nloc>1?'s':''}`:''}${thinNote}${cx?cx.note:''}${SD?SD.note:''}${frameNote}`,

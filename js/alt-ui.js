@@ -106,23 +106,24 @@ $('runAlt').onclick=()=>{
     const clean=C.filter(a=>a.ok).length;
     const notes=r.result.notes.map(n=>n+'.').join(' ');
     const none=!clean&&r.result.none,f=r.result.forced;
-    if(f){sayLine('warn','Forced side:',forcedText(f,C)+(notes?' '+notes:''));
-      if(typeof nextSteps==='function')nextSteps('statusAlt',[{label:'Clear the side choice',title:'Any side for the parts with a chosen side, and run again',
-        go:()=>{const o=ALT.prefer();C.flatMap(a=>a.prefs||[]).forEach(p=>delete o[p.part]);savePrefer(o);sidesLine();$('runAlt').click();}}]);return;}
-    if(none){sayLine('bad','No clean route:',noneText(none,r.result.tried)+(notes?' '+notes:''));
-      // fix the worst problem → another side → stop checking that part
-      const N=[];
-      // Push only helps when it is off and there are CAD faces to push from (Check never sees typed boxes): as Check's canPush
+    // fix the worst problem → another side → stop checking that part (Push only when it is off and there are CAD faces to
+    // push from: Check never sees typed boxes, as Check's canPush). With a side chosen, "another side" is Clear the side choice.
+    const recover=(none,withSide)=>{const N=[];if(!none)return N;
       if(none.rule!=='radius'&&!$('cdPush').checked&&cad&&cad.faces.length)N.push({label:'Push away and check again',title:'Ticks “Push the route away” under Keep clear of CAD parts and runs Check',
         go:()=>{$('cdBox').open=true;$('cdPush').checked=true;$('cdPush').dispatchEvent(new Event('change'));$('runBend').click();}});
-      const S=none.sides||[],opp=none.part&&none.every&&S.length===1&&OPP[S[0].side];
+      const S=none.sides||[],opp=withSide&&none.part&&none.every&&S.length===1&&OPP[S[0].side];
       if(opp){const nm=shortName(none.part),w={left:'on the left',right:'on the right',above:'over it',below:'under it'}[opp];
         N.push({label:`Try it ${opp==='above'?'over':opp==='below'?'under':'on the '+opp}`,title:`Alternatives keep only routes that pass ${nm} ${w}, and run again`,
           go:()=>{const o=ALT.prefer();o[none.part]=opp;savePrefer(o);sidesLine();$('runAlt').click();}});}
       if(none.part&&none.sid!=null&&typeof bcKeepClear==='function'){const nm=shortName(none.part);
         N.push({label:`Stop checking ${nm}`,title:`Unticks ${nm} under Keep clear of CAD parts (its gap is no longer checked) and runs Alternatives again`,
           go:()=>{bcKeepClear(none.sid,false);$('runAlt').click();}});}
-      if(N.length&&typeof nextSteps==='function')nextSteps('statusAlt',N);return;}
+      return N;};
+    if(f){sayLine('warn','Forced side:',forcedText(f,C)+(none?' No clean route: '+noneText(none,r.result.tried):'')+(notes?' '+notes:''));
+      if(typeof nextSteps==='function')nextSteps('statusAlt',[{label:'Clear the side choice',title:'Any side for the parts with a chosen side, and run again',
+        go:()=>{const o=ALT.prefer();C.flatMap(a=>a.prefs||[]).forEach(p=>delete o[p.part]);savePrefer(o);sidesLine();$('runAlt').click();}}].concat(recover(none,false)));return;}
+    if(none){sayLine('bad','No clean route:',noneText(none,r.result.tried)+(notes?' '+notes:''));
+      const N=recover(none,true);if(N.length&&typeof nextSteps==='function')nextSteps('statusAlt',N);return;}
     say(`${C.length} distinct route${C.length>1?'s':''} from ${r.result.tried} way${r.result.tried>1?'s':''} round${extra}; ${clean===C.length?'all clean':`${clean} clean`}. Click one to highlight it.${notes?' '+notes:''}`);};
   defer(tick);
 };
