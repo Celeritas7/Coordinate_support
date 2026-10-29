@@ -107,7 +107,7 @@ const make=q=>typeof csysMake==='function'?csysMake(q.p,q.t,null,'RS_CLAMP'):nul
 function makeAll(){SG.res.list.forEach(make);say(`${SG.res.list.length} CSYS made (Z along the route), listed in the CSYS tab for Download .stp.`);}
 const asStation=(q,i)=>({name:`NEW_CLAMP_${i+1}`,c:q.p,d:q.t,part:q.like?q.like.part:''});
 function addAll(){if(typeof csAddStations!=='function')return;csAddStations(SG.res.list.map(asStation));
-  say(`${SG.res.list.length} new clamps added to Stations from clamps. Use as stations, then Check again.`);}
+  say(`${SG.res.list.length} new clamps added to Stations from clamps. Check route again.`);}
 const shown=()=>SG.res&&runs.some(r=>r.id===SG.run&&r.visible);
 // 3D: amber dots with +n on the route (route-studio rebuild → asm-view overlay hook); the picked one gets the ink ring
 (root.VIEW_OVERLAYS=root.VIEW_OVERLAYS||[]).push((content,g)=>{$('sgRun').textContent=`Suggest clamps for ${runName()}`;if(!shown())return;

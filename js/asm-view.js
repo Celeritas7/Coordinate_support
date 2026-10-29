@@ -149,6 +149,9 @@ function panel(){
   el.querySelector('[data-x]').onclick=()=>setPick(null);
 }
 window.asmPanel=panel;
+// a module answers a pick itself (clamp-stations.js: an armed Start / End): its message under the panel, focus on a button
+window.asmSay=(m,focus)=>{if(!AV.pick)return;AV.msg=m||'';panel();rebuild(false);
+  const b=focus&&[...$('avPick').querySelectorAll('button')].find(x=>x.textContent===focus);if(b)b.focus({preventScroll:true});};
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&AV.pick)setPick(null);});
 
 // ---------- header controls ----------

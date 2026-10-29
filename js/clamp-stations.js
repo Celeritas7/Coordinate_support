@@ -74,7 +74,7 @@ function forCheck(P,text,ptsText){const t=String(text||'').trim();if(!t)return n
   if(bad.length)return skip(`line${bad.length>1?'s':''} ${bad.join(', ')} not read as dX dY dZ.`);
   if(dirs.length!==P.length)return skip(`${dirs.length} line${dirs.length===1?'':'s'} for ${P.length} target points.`);
   if(ptsText!=null){const pn=pointNames(ptsText),k=pn.length===names.length?names.findIndex((nm,i)=>nm&&pn[i]&&nm!==pn[i]):-1;
-    if(k>=0)return skip(`line ${k+1} is for ${names[k]}, target point ${k+1} is ${pn[k]}. Use as stations again, or clear the list.`);}
+    if(k>=0)return skip(`line ${k+1} is for ${names[k]}, target point ${k+1} is ${pn[k]}. Check route rewrites them from the station list; or clear the directions.`);}
   if(!n)return null;
   const D=orient(P,dirs);
   return{fixDirs:base=>P.map((_,i)=>D[i]||(base&&base[i])||null),note:`, bore direction held at ${n} station${n>1?'s':''}`,msg:''};}
@@ -102,14 +102,15 @@ if(typeof document==='undefined'||!document.getElementById('csBox'))return;
 // extra: stations picked in the 3D view (a connector port, a CSYS with no hole, a point on a part); kept across refreshes
 // picked: ids of the stations picked in the 3D view (a hole already in the list keeps its id)
 // from: name of the assembly the extras were picked in (their points mean nothing in another file)
-const CS={own:null,list:[],use:new Set(),start:null,end:null,extra:[],from:null,next:1e6,near:new Map(),picked:new Set()};
+const CS={own:null,list:[],use:new Set(),start:null,end:null,extra:[],from:null,next:1e6,near:new Map(),picked:new Set(),free:new Set(),hand:new Map(),srcName:null,armed:null};
 // a start and an end both set: tick only the holes within BETWEEN mm of the straight line from start to end (start, end and
-// stations picked in 3D stay ticked); the rest stay listed, unticked
+// stations picked in 3D stay ticked); the rest stay listed, unticked. A tick set by hand stays as the user set it (CS.hand:
+// id → ticked), so picking the end does not wipe the rows ticked or unticked in the list
 const BETWEEN=150;
 function between(){const a=CS.list.find(s=>s.id===CS.start),b=CS.list.find(s=>s.id===CS.end);if(!a||!b)return'';
   const ab=sub(b.c,a.c),L2=dot(ab,ab)||1e-12,off=c=>{const t=Math.max(0,Math.min(1,dot(sub(c,a.c),ab)/L2));return dist(c,[0,1,2].map(k=>a.c[k]+ab[k]*t));};
-  const pool=CS.list.filter(s=>s.use||CS.picked.has(s.id));CS.near.clear();
-  CS.use=new Set(pool.filter(s=>s.id===a.id||s.id===b.id||CS.picked.has(s.id)||off(s.c)<=BETWEEN).map(s=>s.id));
+  const pool=CS.list.filter(s=>CS.hand.has(s.id)?CS.hand.get(s.id):s.use||CS.picked.has(s.id));CS.near.clear();
+  CS.use=new Set(pool.filter(s=>s.id===a.id||s.id===b.id||CS.picked.has(s.id)||CS.hand.get(s.id)||off(s.c)<=BETWEEN).map(s=>s.id));
   autoOrder();return`${CS.use.size} of ${pool.length} holes ticked, the ones between start and end. Tick more in the list.`;}
 const say=(m,bad)=>{const e=$('statusCs');e.textContent=m;e.style.color=bad?'var(--bad)':'';if(typeof nextClear==='function')nextClear('statusCs');};
 const openAsm=()=>typeof ASM!=='undefined'&&ASM&&ASM.r?ASM:null;
@@ -127,17 +128,27 @@ function dropExtra(name){if(!CS.extra.length||CS.from===name)return;const gone=n
   CS.list=CS.list.filter(s=>!gone.has(s.id));gone.forEach(id=>{CS.use.delete(id);CS.picked.delete(id);CS.near.delete(id);});
   if(gone.has(CS.start))CS.start=null;if(gone.has(CS.end))CS.end=null;}
 
-function refresh(note){const a=src();CS.near=new Map();CS.picked=new Set(CS.extra.map(s=>s.id));$('csUseAsm').hidden=!openAsm()||CS.own===null;
+// a refresh (Hose Ø or the fit changed, the file re-read) rebuilds the list with new ids: holes of the same file that were
+// picked in 3D stay picked and ticked (found again by position), and Start / End on them stay
+const atKey=c=>c.map(v=>v.toFixed(1)).join(' ');
+function refresh(note){const a=src();
+  const same=a&&CS.srcName===a.name,was=same?CS.list.filter(s=>CS.picked.has(s.id)&&!CS.extra.includes(s)):[],wasKey=new Set(was.map(s=>atKey(s.c))),
+    endKey=[CS.start,CS.end].map(id=>{const s=was.find(x=>x.id===id);return s?atKey(s.c):null;}),
+    handKey=new Map(same?CS.list.filter(s=>CS.hand.has(s.id)).map(s=>[atKey(s.c),CS.hand.get(s.id)]):[]);
+  CS.near=new Map();CS.free=new Set();CS.hand=new Map();CS.picked=new Set(CS.extra.map(s=>s.id));CS.srcName=a?a.name:null;$('csUseAsm').hidden=!openAsm()||CS.own===null;
   if(!a){CS.list=[];render();return say('Load a STEP assembly (or open one in Pipe · Check .pts against pipe). A fixing is a hole with a coordinate system on its axis, inside the hole.');}
   const o=opt(a.r),keep=[CS.start,CS.end].map(id=>CS.extra.some(s=>s.id===id)?id:null);
   CS.list=candidates(a.r,o).concat(CS.extra);CS.use=new Set(CS.list.filter(s=>s.use).map(s=>s.id));
   const ends=CS.list.filter(s=>s.use&&s.role==='end');CS.start=ends.length===2?ends[0].id:null;CS.end=ends.length===2?ends[1].id:null;
   if(keep[0]!=null)CS.start=keep[0];if(keep[1]!=null)CS.end=keep[1];
-  if(CS.list.length)autoOrder();else render();
+  CS.list.forEach(s=>{const k=atKey(s.c);if(handKey.has(k)){CS.hand.set(s.id,handKey.get(k));if(handKey.get(k))CS.use.add(s.id);else CS.use.delete(s.id);}
+    if(!wasKey.has(k))return;CS.picked.add(s.id);CS.use.add(s.id);if(k===endKey[0])CS.start=s.id;if(k===endKey[1])CS.end=s.id;});
+  // Start and End picked in 3D kept: the holes between them are ticked again, as when they were picked
+  if(CS.list.length&&endKey[0]&&endKey[1]&&CS.start!=null&&CS.end!=null)between();else if(CS.list.length)autoOrder();else render();
   const on=CS.use.size,off=CS.list.length-on;
   say(`${note?note+' ':''}${a.name}: ${on} station${on===1?'':'s'} for a Ø${fmt(o.D)} hose (bore Ø${fmt(o.D-0.2)}–${fmt(o.D+o.tol)})`+
     (ends.length===2?', starting and ending at the two end fittings':'')+(off?`; ${off} other hole${off===1?'':'s'} left unticked`:'')+
-    (CS.list.length?'. Check the list, then Use as stations.':'. No bore fits: change Hose Ø or the fit.'),!CS.list.length);}
+    (CS.list.length?'. Check route uses the ticked ones.':'. No bore fits: change Hose Ø or the fit.'),!CS.list.length);}
 
 function autoOrder(){const T=ticked();if(T.length<2){render();return;}
   const idx=id=>T.findIndex(s=>s.id===id),si=CS.start==null?null:idx(CS.start),ei=CS.end==null?null:idx(CS.end);
@@ -151,16 +162,17 @@ function render(){document.dispatchEvent(new Event('cs:changed'));const box=$('c
   // the name only (the select is narrow); the part in the tooltip
   const opts=sel=>`<option value="">auto</option>`+T.map(s=>`<option value="${s.id}" title="${esc(tag(s))}" ${sel===s.id?'selected':''}>${esc(s.name)}</option>`).join('');
   $('csStart').innerHTML=opts(CS.start);$('csEnd').innerHTML=opts(CS.end);
-  $('csAuto').disabled=$('csUse').disabled=T.length<2;$('csNone').disabled=!T.length;$('csPicked').disabled=!CS.list.some(s=>CS.picked.has(s.id));
-  const why=T.length<2?(CS.list.length?'Tick at least 2 stations.':''):'';['csAuto','csUse'].forEach(id=>$(id).title=why);
-  staleDirs();
+  $('csAuto').disabled=T.length<2;$('csNone').disabled=!T.length;$('csPicked').disabled=!CS.list.some(s=>CS.picked.has(s.id));
+  const why=T.length<2?(CS.list.length?'Tick at least 2 stations.':''):'';$('csAuto').title=why;
+  // Check route reads this list once it is built: say why it will not run
+  $('runBend').title=CS.list.length&&!$('csBox').hidden&&T.length<2?'Tick at least 2 stations.':'';
   if(!CS.list.length){box.innerHTML='';$('csLen').textContent='';return;}
   let k=0;
   // two lines: S2 · name · part … bore | reason (marker + words) … position. The reason is its own element.
   const T1=ticked(),first=T1[0],last=T1[T1.length-1],pos=c=>c.map(v=>Math.round(v)).join(' ').replace(/-/g,'−');
   const lib=typeof FixLib!=='undefined'&&openAsm();
   const row=(s,i)=>{const on=CS.use.has(s.id),no=on?++k:0;
-    const nr=on&&CS.near.get(s.id),picked=s.role==='picked',end=s.role==='end'&&on?(s===first?' · start':s===last?' · end':''):'';
+    const nr=on&&CS.near.get(s.id),picked=s.role==='picked'||CS.picked.has(s.id),end=s.role==='end'&&on?(s===first?' · start':s===last?' · end':''):'';
     const bore=s.D?`Ø${fmt(s.D,1)} × ${+fmt(s.length,1)}`:s.d?'CSYS direction':'direction free';
     const add=s.role==='fixing'&&lib&&s.inst!=null?` · <button type="button" class="linkish" data-addlib="${s.inst}" title="Add ${esc(s.part)} to the Library">Add…</button>`:'';
     const rm=picked&&CS.extra.some(x=>x.id===s.id)?` · <button type="button" class="linkish" data-drop="${s.id}">remove</button>`:'';
@@ -182,7 +194,7 @@ function render(){document.dispatchEvent(new Event('cs:changed'));const box=$('c
     render();say(`${x.pattern} added to the Library as a ${x.type} (bore Ø${fmt(x.boreMin,1)}–${fmt(x.boreMax,1)}). Edit it under Library.`);});
   box.querySelectorAll('[data-drop]').forEach(b=>b.onclick=e=>{e.preventDefault();const id=+b.dataset.drop;CS.extra=CS.extra.filter(s=>s.id!==id);
     CS.list=CS.list.filter(s=>s.id!==id);CS.use.delete(id);if(CS.start===id)CS.start=null;if(CS.end===id)CS.end=null;autoOrder();});
-  box.querySelectorAll('input[data-id]').forEach(el=>el.onchange=()=>{const id=+el.dataset.id;CS.near.clear();if(el.checked)CS.use.add(id);else{CS.use.delete(id);if(CS.start===id)CS.start=null;if(CS.end===id)CS.end=null;}render();});
+  box.querySelectorAll('input[data-id]').forEach(el=>el.onchange=()=>{const id=+el.dataset.id;CS.near.clear();CS.hand.set(id,el.checked);if(el.checked)CS.use.add(id);else{CS.use.delete(id);if(CS.start===id)CS.start=null;if(CS.end===id)CS.end=null;}render();});
   let drag=-1;
   box.querySelectorAll('.csrow').forEach(row=>{const i=+row.dataset.i;
     row.ondragstart=e=>{drag=i;row.classList.add('drag');e.dataTransfer.effectAllowed='move';try{e.dataTransfer.setData('text/plain',String(i));}catch(x){}};
@@ -192,41 +204,28 @@ function render(){document.dispatchEvent(new Event('cs:changed'));const box=$('c
     row.ondrop=e=>{e.preventDefault();e.stopPropagation();row.classList.remove('over');if(drag>=0&&drag!==i)move(drag,i);};});
   box.querySelectorAll('[data-grip]').forEach(b=>b.onkeydown=e=>{const i=+b.dataset.grip,j=e.key==='ArrowUp'?i-1:e.key==='ArrowDown'?i+1:-1;
     if(j<0||j>=CS.list.length)return;e.preventDefault();move(i,j);const g=box.querySelector(`[data-grip="${j}"]`);if(g)g.focus();});}
-// Bore directions name their stations ("! 23135437_L"): when the ticked stations (or their order) no longer match, the list
-// is greyed with a note until Use as stations rewrites it. Not cleared: Check still holds it at the points in Target points
-function staleDirs(){const t=$('csDirs').value.trim(),names=t?parseDirs(t).names:[],T=ticked();
-  const stale=!!t&&T.length>0&&(names.length!==T.length||names.some((n,i)=>n&&n!==T[i].name));
-  $('csDirs').classList.toggle('stale',stale);$('csDirsNote').hidden=!stale;}
 // a hand-made order: start / end pickers go back to auto so they never contradict the list
 function move(from,to){CS.near.clear();const [s]=CS.list.splice(from,1);CS.list.splice(to,0,s);CS.start=CS.end=null;render();}
 
-function useAsStations(){const T=ticked();if(T.length<2)return;
-  const write=()=>{$('csAsk').hidden=true;
-    $('pts').value=stationsText(T,tf);$('pts').dispatchEvent(new Event('input'));store.set('rs.pts',$('pts').value);
-    $('csDirs').value=$('csHold').checked?dirsText(T,tv):'';store.set('rs.csDirs',$('csDirs').value);staleDirs();
-    const f=frame(),R=+$('r').value||65,near=$('csHold').checked?closePairs(T.map(s=>s.c),orient(T.map(s=>s.c),T.map(s=>s.d)),R):[];
-    // each pair in amber in the list, with its gap; one red line here
-    CS.near=new Map();near.forEach(p=>[[p.i,p.j],[p.j,p.i]].forEach(([a,b])=>{const id=T[a].id;if(!CS.near.has(id))CS.near.set(id,[]);CS.near.get(id).push({to:`S${b+1}`,L:p.L,need:2*R});}));render();
-    say(`${T.length} stations written to Target points${f?` (in the ${f.name} frame)`:''}${$('csHold').checked?', bore directions below':''}.`);
-    // a pair too close for both bores held: a warning (amber), never a block. Next frees those two stations' directions only
-    if(near.length){const p0=near[0],a=`S${p0.i+1}`,b=`S${p0.j+1}`,e=document.createElement('div');e.className='verdict-line';
-      e.innerHTML=`<b class="vk vk-warn">${a} and ${b}</b> are ${fmt(p0.L,0)} mm apart. Holding both bore directions needs at least ${fmt(2*R,0)} mm (2 × R ${+R}).`+
-        (near.length>1?` <span class="unit">${near.length-1} more pair${near.length>2?'s':''} marked in the list.</span>`:'');
-      e.title='Neighbouring stations with both bores held need 2 × R between them unless the bores line up.';$('statusCs').appendChild(e);}
-    const free=near.length?{label:`Free ${near.length>1?'those':`S${near[0].i+1} and S${near[0].j+1}`} directions`,title:'Writes “-” (free) for the bore direction of both stations of each pair that is too close',
-      go:()=>{const L=$('csDirs').value.split(/\r?\n/),idx=[];L.forEach((l,k)=>{if(l.trim())idx.push(k);});
-        near.forEach(p=>[p.i,p.j].forEach(i=>{const k=idx[i];if(k!=null)L[k]='-   ! '+nameOf(L[k]);}));
-        $('csDirs').value=L.join('\n');store.set('rs.csDirs',$('csDirs').value);CS.near.clear();render();
-        say(`Bore directions freed at ${[...new Set(near.flatMap(p=>[p.i,p.j]))].sort((x,y)=>x-y).map(i=>'S'+(i+1)).join(', ')}.`);
-        if(typeof nextSteps==='function')nextSteps('statusCs',[{label:'Check now',go:()=>$('runBend').click()}]);}}:null;
-    if(typeof nextSteps==='function')nextSteps('statusCs',free?[free,{label:'Check anyway',go:()=>$('runBend').click()}]:[{label:'Check now',go:()=>$('runBend').click()}]);};
-  if(!$('pts').value.trim())return write();
-  $('csAskTxt').textContent=`Target points already hold ${parsePts($('pts').value).length} point(s). Replace them with the ${T.length} clamp stations?`;
-  $('csAsk').hidden=false;$('csYes').onclick=write;$('csNo').onclick=()=>{$('csAsk').hidden=true;say('Target points kept.');};$('csYes').focus();}
+// Check route and Alternatives read the ticked rows (no Use as stations step): just before they run, the ticked stations
+// and their held bore axes are written into Target points and Bore directions, so those always show what was routed.
+// A station freed after a too-close warning stays free (CS.free) until the list is rebuilt. Returns null when the list is not
+// in use (empty, or the section hidden: Pipe), {n, short:true} with fewer than 2 ticked, else {n, near:[{i, j, L, a, b}], R}.
+function syncStations(){if($('csBox').hidden||!CS.list.length)return null;const T=ticked();if(T.length<2)return{n:T.length,short:true};
+  const hold=$('csHold').checked,TD=T.map(s=>CS.free.has(s.id)?{...s,d:null}:s);
+  $('pts').value=stationsText(T,tf);store.set('rs.pts',$('pts').value);
+  $('csDirs').value=hold?dirsText(TD,tv):'';store.set('rs.csDirs',$('csDirs').value);
+  const R=+$('r').value||65,near=hold?closePairs(T.map(s=>s.c),orient(T.map(s=>s.c),TD.map(s=>s.d)),R):[];
+  // each pair in amber in the list, with its gap
+  CS.near=new Map();near.forEach(p=>[[p.i,p.j],[p.j,p.i]].forEach(([a,b])=>{const id=T[a].id;if(!CS.near.has(id))CS.near.set(id,[]);CS.near.get(id).push({to:`S${b+1}`,L:p.L,need:2*R});}));
+  render();return{n:T.length,R,near:near.map(p=>({...p,a:T[p.i],b:T[p.j]}))};}
+root.csSync=syncStations;
+// free the bore direction of these stations (the too-close pre-check's Next)
+root.csFree=ids=>{ids.forEach(id=>CS.free.add(id));CS.near.clear();render();};
 
 // Check (route-studio.js runBend) asks for the held directions; null = none, Check runs as before
 root.clampStationDirs=P=>$('csHold').checked?forCheck(P,$('csDirs').value,$('pts').value):null;
-$('csClearDirs').onclick=()=>{$('csDirs').value='';store.set('rs.csDirs','');staleDirs();say('Bore directions cleared: Check uses the start / end directions only.');};
+$('csClearDirs').onclick=()=>{$('csDirs').value='';store.set('rs.csDirs','');say('Bore directions cleared: Check uses the start / end directions only.');};
 
 function load(file){say(`Reading ${file.name}...`);
   file.text().then(text=>{let r;try{r=StepAsm.parse(text);}catch(e){return say(`${file.name}: ${e.message}`,true);}
@@ -237,14 +236,13 @@ $('csFile').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f)retur
 document.addEventListener('asm:loaded',e=>{dropExtra(e.detail&&e.detail.name);if(!CS.own&&!$('csBox').hidden)refresh();else render();});
 $('csUseAsm').onclick=()=>{CS.own=null;refresh();};
 $('csAuto').onclick=autoOrder;
-$('csNone').onclick=()=>{CS.use.clear();CS.near.clear();CS.start=CS.end=null;render();say(`All ${CS.list.length} unticked. Tick stations in the list, or pick them in 3D.`);};
-$('csPicked').onclick=()=>{CS.use=new Set(CS.list.filter(s=>CS.picked.has(s.id)).map(s=>s.id));CS.near.clear();
+$('csNone').onclick=()=>{CS.use.clear();CS.near.clear();CS.hand=new Map(CS.list.map(s=>[s.id,false]));CS.start=CS.end=null;render();say(`All ${CS.list.length} unticked. Tick stations in the list, or pick them in 3D.`);};
+$('csPicked').onclick=()=>{CS.use=new Set(CS.list.filter(s=>CS.picked.has(s.id)).map(s=>s.id));CS.near.clear();CS.hand=new Map();
   if(!CS.use.has(CS.start))CS.start=null;if(!CS.use.has(CS.end))CS.end=null;autoOrder();say(`${CS.use.size} station${CS.use.size===1?'':'s'} picked in 3D ticked; the rest unticked.`);};
-$('csUse').onclick=useAsStations;
 ['csStart','csEnd'].forEach(id=>$(id).onchange=()=>{const v=$(id).value===''?null:+$(id).value;if(id==='csStart')CS.start=v;else CS.end=v;
   const bt=CS.start!=null&&CS.end!=null?between():'';if(bt)say(bt);else autoOrder();});
 ['csD','csTol'].forEach(id=>$(id).onchange=()=>refresh());
-$('csDirs').oninput=()=>{store.set('rs.csDirs',$('csDirs').value);staleDirs();};
+$('csDirs').oninput=()=>store.set('rs.csDirs',$('csDirs').value);
 $('csHold').onchange=()=>store.set('rs.csHold',$('csHold').checked?'1':'0');
 // opening the section picks up an assembly opened elsewhere since
 $('csBox').addEventListener('toggle',()=>{if($('csBox').open&&!CS.own&&openAsm()&&!CS.list.length)refresh();});
@@ -263,20 +261,40 @@ function usePick(p,r,as){
   CS.use.add(s.id);CS.picked.add(s.id);if(as==='start'){CS.start=s.id;if(CS.end===s.id)CS.end=null;}if(as==='end'){CS.end=s.id;if(CS.start===s.id)CS.start=null;}
   $('csBox').open=true;const bt=as!=='station'&&CS.start!=null&&CS.end!=null?between():'';if(!bt)autoOrder();
   const verb=as==='station'?'Station added':as==='start'?'Start set':'End set',on=st.part?` on ${st.part}`:'';
-  const m=st.snapped!=null?`${verb} at the Ø${fmt(st.D,1)} hole${on}, ${fmt(st.snapped,0)} mm from where you clicked.`
-    :p.kind==='csys'?`${verb} at ${st.name}${st.D?` (Ø${fmt(st.D,1)} hole${on})`:''}${st.d?'':'; direction left free'}.`
-    :`${verb} at the clicked point${on}; direction left free.`;
+  const m=st.snapped!=null?`${verb} to the Ø${fmt(st.D,1)} hole${on}, ${fmt(st.snapped,0)} mm from where you clicked.`
+    :p.kind==='csys'?(st.D?`${verb} to ${st.name} (Ø${fmt(st.D,1)} hole${on}).`:`${verb} to ${st.name}. No hole there: its Z axis is the hose direction.`)
+    :`${verb} to the clicked point${on}; direction free.`;
   say(bt?`${m} ${bt}`:`${m} ${ticked().length} stations ticked.`);return bt?`${m} ${bt}`:m;}
+// an empty Start or End is filled by the next click on a part or CSYS in 3D (Hose · Route through stations, an assembly open).
+// The pick panel says so and offers Undo (focused) and Make it the end / start; CS.armed holds what Undo puts back.
+const snap=()=>({list:CS.list.slice(),extra:CS.extra.slice(),from:CS.from,use:new Set(CS.use),picked:new Set(CS.picked),hand:new Map(CS.hand),start:CS.start,end:CS.end,
+  near:new Map(CS.near),next:CS.next});
+const armed=()=>!$('csBox').hidden&&$('shape').value!=='arc'&&!!openAsm()&&!CS.own&&(CS.start==null||CS.end==null);
+document.addEventListener('asm:pick',e=>{const p=e.detail;CS.armed=null;if(!p||(p.kind!=='csys'&&p.kind!=='part')||(p.kind==='csys'&&p.c.made)||!armed())return;
+  const as=CS.start==null?'start':'end',before=snap(),m=usePick(p,openAsm().r,as);
+  CS.armed={p,as,before,id:as==='start'?CS.start:CS.end};
+  if(typeof asmSay==='function')asmSay(m,'Undo');});
+function undoArmed(){const a=CS.armed;if(!a)return'';Object.assign(CS,a.before);CS.armed=null;autoOrder();
+  const t=`${a.as==='start'?'Start':'End'} cleared.`;say(t);return t;}
+function swapArmed(){const a=CS.armed;if(!a)return'';const id=a.id;
+  if(a.as==='start'){CS.start=a.before.start;CS.end=id;a.as='end';}else{CS.end=a.before.end;CS.start=id;a.as='start';}
+  const bt=CS.start!=null&&CS.end!=null?between():'';if(!bt)autoOrder();const s=CS.list.find(x=>x.id===id),t=`${a.as==='start'?'Start':'End'} set to ${s?s.name:'it'} instead.${bt?' '+bt:''}`;say(t);return t;}
 // for Suggest extra clamps (clamp-suggest.js): what is ticked, and adding its suggestions as stations
 root.clampStationsTicked=()=>ticked();
 root.csAddStations=L=>{if(!CS.list.length&&src())refresh();
   L.forEach(st=>{if(CS.list.some(x=>len(sub(x.c,st.c))<0.5))return;const s={id:CS.next++,label:'',D:null,length:0,...st,role:'picked',use:true,reason:'Suggested clamp'};
     addExtra(s);CS.use.add(s.id);});
-  $('csBox').open=true;autoOrder();say(`${L.length} suggested clamps added; ${ticked().length} stations ticked. Use as stations, then Check.`);};
-(root.AV_ACTIONS=root.AV_ACTIONS||[]).push((p,r)=>$('csBox').hidden||(p.kind!=='csys'&&p.kind!=='part')?[]:[
-  {group:'Route',label:'Add as station',go:x=>usePick(x,r,'station'),title:'A station the hose passes through (Stations from clamps)',order:1,primary:true},
-  {group:'Route',label:'Use as start',go:x=>usePick(x,r,'start'),title:'First station of the hose route',order:2},
-  {group:'Route',label:'Use as end',go:x=>usePick(x,r,'end'),title:'Last station of the hose route',order:3}]);
+  $('csBox').open=true;autoOrder();say(`${L.length} suggested clamps added; ${ticked().length} stations ticked. Check route again.`);};
+// the Route group: start → end → station, the first one still needed is the primary button. Right after an armed click:
+// Undo · Make it the end (or start) instead
+(root.AV_ACTIONS=root.AV_ACTIONS||[]).push((p,r)=>{if($('csBox').hidden||(p.kind!=='csys'&&p.kind!=='part'))return[];
+  if(CS.armed&&CS.armed.p===p){const other=CS.armed.as==='start'?'end':'start';
+    return[{group:'Route',label:'Undo',go:()=>undoArmed(),title:`Clear the ${CS.armed.as} again`,order:1,primary:true},
+      {group:'Route',label:`Make it the ${other}`,go:()=>swapArmed(),order:2}];}
+  const need=CS.start==null?'start':CS.end==null?'end':'station';
+  return[{group:'Route',label:'Use as start',go:x=>usePick(x,r,'start'),title:'First station of the hose route',order:1,primary:need==='start'},
+    {group:'Route',label:'Use as end',go:x=>usePick(x,r,'end'),title:'Last station of the hose route',order:2,primary:need==='end'},
+    {group:'Route',label:'Add as station',go:x=>usePick(x,r,'station'),title:'A station the hose passes through (Stations from clamps)',order:3,primary:need==='station'}];});
 
 // lines + arcs (Pipe · Route through points) holds no tangents at stations: the section is for the spline route only
 const dWrap=()=>$('cdD').closest('div');

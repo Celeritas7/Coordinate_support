@@ -55,8 +55,6 @@ const server = http.createServer((q, s) => {
   await shot("A1-stations");
   const pinned = await pg.evaluate(() => document.getElementById("csStart").value !== "" && document.getElementById("csEnd").value !== "");
   if (!pinned) { await pg.click("#csAuto"); step("Auto order"); } else console.log("     (start / end picked from the end fittings, already in order)");
-  await pg.click("#csUse"); await pg.waitForTimeout(200); step("Use as stations");
-  if (await pg.evaluate(() => !document.getElementById("csAsk").hidden)) { await pg.click("#csYes"); step("Replace the example points"); }
   if (await expand("cdBox")) step("open “Keep clear of CAD parts”");
   const needD = await pg.evaluate(() => { const e = document.getElementById("cdD"); return e && !e.closest("[hidden]") && e.offsetParent !== null; });
   if (needD) { await pg.fill("#cdD", "12"); flows[cur].typedD++; step("Hose Ø 12 again"); }
@@ -64,7 +62,7 @@ const server = http.createServer((q, s) => {
   const haveParts = await pg.evaluate(() => typeof bcName === "function" && !!bcName());
   if (needLoad && !haveParts) { await pg.setInputFiles("#cdFile", ASM); flows[cur].loads++; await pg.waitForTimeout(6000); step("Load frame / parts file… (same file)"); }
   else if (haveParts) console.log("     (parts already loaded from the open assembly)");
-  await pg.click("#runBend"); const chk = await until("statusBend", /^Added|No |Paste|cannot|can't/i, 90); step("Check, then add to comparison");
+  await pg.click("#runBend"); const chk = await until("statusBend", /^(Clash|Too tight|Close|Clear):|apart\. Holding|Tick at least|Paste|cannot|can't/i, 90); step("Check route");
   console.log("     " + chk.slice(0, 220)); flows[cur].clash = /into it|below the .* gap|-\d+(\.\d+)? mm/.test(chk);
   await shot("A2-check");
   await pg.click("#runAlt"); const alt = await until("altList", /distinct|No obstacles|none|Click one|Use this/i, 120); step("Alternatives");
@@ -134,9 +132,7 @@ const server = http.createServer((q, s) => {
       for (let i = 0; i < n; i++) { const b = bx()[i]; if (b && b.checked !== i < 5) { b.click(); await new Promise(r => setTimeout(r, 20)); } }
       return [bx().length, document.querySelectorAll("#csList .csrow input[type=checkbox]:checked").length]; });
     flows[cur].rows = tk[0]; flows[cur].ticked = tk[1]; step(`tick ${tk[1]} of ${tk[0]} stations`, (await text("statusCs")).slice(0, 120));
-    await pg.click("#csUse"); await pg.waitForTimeout(200); step("Use as stations");
-    if (await pg.evaluate(() => !document.getElementById("csAsk").hidden)) { await pg.click("#csYes"); step("Replace the example points"); }
-    await pg.click("#runBend"); const fchk = await until("statusBend", /^Added|No |Paste|cannot|can't/i, 90); step("Check, then add to comparison");
+    await pg.click("#runBend"); const fchk = await until("statusBend", /^(Clash|Too tight|Close|Clear):|apart\. Holding|Tick at least|Paste|cannot|can't/i, 90); step("Check route");
     console.log("     " + fchk.slice(0, 220));
     if (await expand("sgBox")) step("open “Suggest extra clamps”");
     await pg.click("#sgRun"); await pg.waitForTimeout(500); step("Suggest for the selected route", (await text("sgStatus")).slice(0, 200));
@@ -152,6 +148,8 @@ const server = http.createServer((q, s) => {
     await pg.evaluate(() => { document.querySelectorAll(".taskpane, #panBend").forEach(e => e.scrollTop = 0); window.scrollTo(0, 0); });
     if (await pickCsys()) step("asmSetPick() on a CSYS on a hole", (await pickMsg()).slice(0, 160));
     await shot("F6-pick-dark");
+    // with Start or End empty that click filled it (armed): put it back
+    if (await pg.evaluate(() => [...document.querySelectorAll("#avPick button")].some(b => b.textContent === "Undo"))) { await act("Undo"); step("Undo the armed Start / End"); }
     await pg.click("#shTheme"); await pg.evaluate(() => asmSetPick(null));
     // start and end picked in 3D: only the holes between them stay ticked
     const ends = await pg.evaluate(() => { const names = new Set([...document.querySelectorAll("#csList > .csrow b")].map(b => b.textContent.replace(/^S\d+ · /, "").trim()));
@@ -159,8 +157,10 @@ const server = http.createServer((q, s) => {
       for (const a of H) { const b = H.find(b => d(a, b) > 500 && d(a, b) < 1500); if (b) return [a.name, b.name, Math.round(d(a, b))]; } return null; });
     if (ends) {
       const pickNamed = n => pg.evaluate(n => { const c = AV.shown.find(c => c.name === n && c.hole); asmSetPick({ kind: "csys", c, inst: c.inst }); }, n);
-      await pickNamed(ends[0]); await act("Use as start"); step(`Use as start: ${ends[0]}`, await text("statusCs"));
-      await pickNamed(ends[1]); await act("Use as end"); step(`Use as end: ${ends[1]} (${ends[2]} mm away)`, await text("statusCs"));
+      // an empty Start / End is filled by the click itself (armed); with both set already, the pick panel's buttons
+      const pickAs = async (n, as) => { await pickNamed(n); if (!(await pg.evaluate(() => [...document.querySelectorAll("#avPick button")].some(b => b.textContent === "Undo")))) await act(`Use as ${as}`); };
+      await pickAs(ends[0], "start"); step(`click ${ends[0]} in 3D: start`, await text("statusCs"));
+      await pickAs(ends[1], "end"); step(`click ${ends[1]} in 3D: end (${ends[2]} mm away)`, await text("statusCs"));
       const tk2 = await pg.evaluate(() => document.querySelectorAll("#csList .csrow input[type=checkbox]:checked").length);
       console.log(`     ticked now: ${tk2}`);
       await pg.evaluate(() => { asmSetPick(null); document.getElementById("csBox").scrollIntoView({ block: "start" }); });
