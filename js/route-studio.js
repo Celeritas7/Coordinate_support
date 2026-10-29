@@ -760,7 +760,7 @@ $('runBend').onclick=()=>{
     let sp=SP,res;for(let a=0;a<4;a++){const s=samplePoints(route,r.x,sp,$('adapt').checked,R*SF);const A=analyse(s.Q);res={A,s};if(A.minR>=R*1.15)break;sp*=0.7;}
     const finish=(A,tidx,thinNote)=>{A.tidx=tidx;if(bendJob!==job&&bendJob!==-job)return;bendJob=0;$('runBend').textContent=BEND_LABEL;
       const cx=X?X.report(A):null;
-      addRun(Object.assign(A,{fromCheck:true,name:`Generated R${R} ×${SF}`,kind:'bend',kindLabel:'bend radius, generated',parts:cx?cx.parts:undefined,holes:cx?cx.holes:undefined,marks:cx?cx.marks:undefined,clearDense:cx?cx.clearDense:undefined,gapLimit:cx?cx.gapLimit:undefined,spots:cx?cx.spots:undefined,
+      addRun(Object.assign(A,{fromCheck:true,name:`Generated R${R} ×${SF}`,kind:'bend',kindLabel:'bend radius, generated',parts:cx?cx.parts:undefined,holes:cx?cx.holes:undefined,marks:cx?cx.marks:undefined,clearDense:cx?cx.clearDense:undefined,gapLimit:cx?cx.gapLimit:undefined,spots:cx?cx.spots:undefined,clearRows:cx?cx.rows:undefined,clearHead:cx?cx.head:undefined,
         params:{R,SF,spacing:SP},settings:`gap ${sp.toFixed(0)} mm between points${$('adapt').checked?', closer in bends':''}, ×${SF} margin${nloc?`, ${nloc} local radius override${nloc>1?'s':''}`:''}${thinNote}${cx?cx.note:''}${SD?SD.note:''}${frameNote}`,
         text:toPts(A.Q,{R,designR:+(R*SF).toFixed(1),minR:A.minR,len:A.len,tidx})}));
       const corners=typeof ClampStations!=='undefined'&&A.minR<R?ClampStations.cornerLike(P,R):[];
@@ -774,9 +774,13 @@ $('runBend').onclick=()=>{
         :['ok','Clear:',`R ${fmt(A.minR,0)} over ${A.Q.length} points${cx&&cx.min?`; smallest gap ${fmt(cx.min.gap,1)} mm${cx.min.name?`, to ${last(cx.min.name)}`:''} near P${cx.min.at}`:''}.`];
       const det=[`Generated R${R} ×${SF}: R ${fmt(A.minR)} mm over ${A.Q.length} points${thinNote?` (${res.s.Q.length} before removing unneeded points)`:''}, ${fmt(A.len,0)} mm.`,
         corners.length?`Corner points? These ${P.length} points have long straights and sharp turns (${corners.map(c=>`P${c.i+1} turns ${fmt(c.deg,0)}°`).join(', ')}), like pipe corners. A hose through them cuts every corner.`:'',
-        cx&&cx.msg||'',SD&&SD.msg||''].filter(Boolean).join('\n');
+        cx&&cx.lead||'',SD&&SD.msg||''].filter(Boolean).join('\n');
       const st=$('statusBend');st.style.whiteSpace='';st.style.color='';
-      st.innerHTML=`<div class="verdict-line"><b class="vk vk-${V0[0]}">${V0[1]}</b> ${esc(V0[2])}</div><div class="vdet">${esc(det)}</div>`;
+      // the places and their gaps are rows in the dock's Clearance tab; here a link to it with the count
+      const nRows=cx&&cx.rows?cx.rows.filter(x=>x.bad||x.warn).length:0;
+      st.innerHTML=`<div class="verdict-line"><b class="vk vk-${V0[0]}">${V0[1]}</b> ${esc(V0[2])}</div><div class="vdet">${esc(det)}</div>`+
+        (cx&&cx.rows&&cx.rows.length?`<button type="button" class="linkish vclr">${nRows?`${nRows} place${nRows>1?'s':''} in the Clearance tab`:'Gaps in the Clearance tab'}</button>`:'');
+      const vl=st.querySelector('.vclr');if(vl)vl.onclick=()=>{dock='clr';showPane();};
       // what to do with this result: fix the worst problem → other options → deliver (at most 3, the first is primary)
       if(typeof nextSteps==='function'){
         const push={label:'Push away and check again',title:'Ticks “Push the route away” under Keep clear of CAD parts and runs Check',go:()=>{$('cdBox').open=true;$('cdPush').checked=true;$('cdPush').dispatchEvent(new Event('change'));$('runBend').click();}},

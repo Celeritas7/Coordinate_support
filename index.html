@@ -117,7 +117,7 @@
           <div class="status" id="statusAlt"></div>
           <div id="altList" class="altlist"></div>
         </div>
-        <div id="sgBox"><div class="status" id="sgStatus"></div><div id="sgList" class="sglist"></div></div>
+        <div id="sgBox"><div class="status" id="sgStatus"></div></div>
         <div class="advblk">
           <div class="fields c2">
             <div hidden><label for="shape">Route shape</label><select id="shape"><option value="spline">Spline, many points</option><option value="arc">Lines + arcs, corner points only</option></select></div>
@@ -391,12 +391,16 @@
       <button role="tab" id="dCmp" aria-selected="false">Compare</button>
       <button role="tab" id="dPts" aria-selected="false">Points</button>
       <button role="tab" id="dCsys" aria-selected="false" hidden>CSYS</button>
+      <button role="tab" id="dSg" aria-selected="false" hidden>Clamps to add</button>
       <button role="tab" id="dBun" aria-selected="false">Bundle</button>
       <button role="tab" id="dIss" aria-selected="false">Issues</button>
       <button role="tab" id="dRef" aria-selected="false">Refine</button>
+      <span class="right seg" id="clrSeg" role="radiogroup" aria-label="Clearance as" hidden><button type="button" role="radio" data-v="table">Table</button><button type="button" role="radio" data-v="chart">Chart</button></span>
     </div>
     <div class="dockbody">
       <div class="pane" id="paneChart" data-on="1"><canvas id="ch"></canvas></div>
+      <div class="pane dpane" id="paneClr"><div class="ptshead" id="clrHead"></div><div id="clrList"></div></div>
+      <div class="pane dpane" id="paneSg"><div class="ptshead" id="sgHead"></div><div id="sgList" class="sglist"></div></div>
       <div class="pane" id="paneCmp"><div id="cmp"></div></div>
       <div class="pane" id="paneBun"><div id="bun"></div></div>
       <div class="pane" id="paneIss"><div id="iss"></div></div>
@@ -470,6 +474,7 @@
 <script src="js/shell.js"></script>
 <script src="js/asm-view.js"></script>
 <script src="js/csys-make.js"></script>
+<script src="js/dock-tables.js"></script>
 <script src="js/clamp-suggest.js"></script>
 </body>
 </html>

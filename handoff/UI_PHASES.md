@@ -235,6 +235,23 @@ button and its paragraph go; Inspector and Paste table move into More ▾; the l
   `tests/ui-walk.js` updated for the cuts (no section Load links, Alternatives from Tools); **not run** (samples), so the step
   counts (target A 5, F 7) and the `handoff/shots/P5-*.png` set are still to do on the real files.
 
+### Phase 5-D — Clearance, Clamps to add and CSYS in the dock (BUILT 2026-10-29, `js/dock-tables.js`)
+- **Clearance (n):** the selected run's gaps as a table, **Where · Part · Gap · Note**: one row per place below the gap
+  ("into the part over 96 mm" / "inside the 4 mm gap", red / amber), per plate crossing, and the smallest gap that passes; the part's
+  role, size and "kept clear / unticked" under the note. Header: run name · "gap 4 mm to 8 kept-clear parts · clips at stations not
+  counted". **Table · Chart** in the tab bar (Chart is the old gap-along-the-route chart). n counts the rows below the gap. The rows
+  come from Check's report (`bend-cad.js` → `run.clearRows`, also for a route taken from Alternatives).
+- **Sidebar after Check:** the verdict line, the straight-run / unticked-part notes only, and a link "2 places in the Clearance tab";
+  the long "Too close — … • P2–P3: …" text is gone.
+- **Clamps to add (n · k need a bracket):** Suggest's rows move to the dock: **Where** (+n chip, mm along) · **Why** · **Mounts on**
+  (needs a bracket = amber outlined tag, "no part within 60 mm" under it) · **Like** (+ Make CSYS), one group per span
+  ("S1 → S2 · 600 mm · 2 clamps"). Header: "On <run> · max spacing · near a bend · mount reach" · Make CSYS for all · Add all as
+  stations. Suggest opens the tab; the sidebar keeps its one line and Next. The +n chip is ink #1F2A36 on --warn.
+- **CSYS (n):** the existing tab, with its count.
+- Checked in Chromium (1600 × 1000, light and dark): Suggest → tab with groups, Make CSYS per row and for all (CSYS (7)), a run with
+  clearance rows → Clearance (2) table, Table / Chart switch both ways, other tabs hide both panes, no page errors. The rows from a
+  real parts file are **not** checked here (no samples).
+
 ## Phase 6 — Pipe module parity (Claude Code, later)
 - Clearance to parts for pipe runs and obstacle-aware Through clamps (ROADMAP Phase 12d steps 2–3) so Pipe gets the same
   "clash → fix" loop as Hose. Not a UI phase as such; listed so Design knows Pipe will need the Phase 3 next-step lines too.

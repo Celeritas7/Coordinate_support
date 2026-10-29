@@ -92,10 +92,15 @@ window.bendCad=function(P){
         // gap along the whole route, for the Clearance chart: to the same parts the spots use; capped where nothing is near
         const ixAll=CadSolids.index(sv.parts.filter(watched).flatMap(p=>p.faces),50),cap=o.gap*5+o.d;
         out.spots=spots.map(x=>x.spot);out.clearDense=A.d.pts.map(q=>Math.min(cap,ixAll.nearest(q,cap+o.d/2).d-o.d/2));out.gapLimit=o.gap;
+        // the Clearance tab's table (dock): one row per place below the gap, per plate crossing, and the smallest gap that holds
+        out.lead=msg.replace(/\nToo close[\s\S]*$|\nNowhere closer[\s\S]*$/,'')+(spots.some(x=>!x.ticked)?`\nUnticked parts were taken as clips without a CSYS; tick one in Keep clear if it is a screw, bolt or bracket.`:'');
+        out.rows=spots.map(x=>x.row).concat(open.map(x=>x.row));
+        if(isFinite(w.gap)&&w.gap>=o.gap-0.05)out.rows.push({where:`near P${near.i+1}`,part:p?last(p.name):'',full:p?p.name:'',gap:w.gap,bad:false,warn:false,note:'smallest gap that passes',sub:''});
+        out.head=`gap ${fmt(o.gap)} mm to ${kept.length} kept-clear part${kept.length===1?'':'s'} · clips at stations not counted`;
         if(spots.some(x=>!x.ticked))msg+=`\nUnticked parts were taken as clips without a CSYS. Press “show” in the list to see one; tick it if it is a screw, bolt or bracket.`;if(open.length)msg+=`\nPlate crossings (marked in 3D):`;open.forEach(x=>{msg+=`\n• ${x.msg}`;if(x.hole)holes.push(x.hole);marks.push(x.mark);});
         out.min=isFinite(w.gap)?{gap:w.gap,name:p?p.name:null,at:near.i+1}:null;
         msg+=isFinite(w.gap)?`\nSmallest gap to the kept-clear parts: ${fmt(w.gap,1)} mm${p?` (${p.name})`:''} near point ${near.i+1}${w.gap<o.gap-0.05?` — below the ${fmt(o.gap)} mm gap`:''}.`:`\nNo kept-clear part within ${fmt(o.d/2+o.gap+40)} mm of the route.`;}
-      return{parts:parts.length?parts:undefined,holes:holes.length?holes:undefined,marks:marks.length?marks:undefined,clearDense:out.clearDense,gapLimit:out.gapLimit,spots:out.spots,min:out.min,tooClose:out.tooClose,canPush:out.canPush,note:bits.length?', '+bits.join(', '):'',msg:msg.trim(),bad:false};}};
+      return{parts:parts.length?parts:undefined,holes:holes.length?holes:undefined,marks:marks.length?marks:undefined,clearDense:out.clearDense,gapLimit:out.gapLimit,spots:out.spots,min:out.min,rows:out.rows,head:out.head,lead:out.lead!=null?out.lead.trim():msg.trim(),tooClose:out.tooClose,canPush:out.canPush,note:bits.length?', '+bits.join(', '):'',msg:msg.trim(),bad:false};}};
 };
 
 // where the route crosses the plane of a flat face off its material — through a hole, or past the face's edge:
@@ -115,7 +120,9 @@ function closeSpots(A,P,o,span){const sv=BC.sv,pts=A.d.pts,s=A.d.s,out=[];
     close();});
   return out.sort((x,y)=>x.i-y.i).map(r=>{const len=s[r.i1]-s[r.i0],ticked=keepClear(r.part),bad=r.gap<0;
     return{msg:`${span(r.i)}: ${r.part.name} (${r.part.dims.map(v=>Math.round(v)).join('×')} mm${ticked?'':', unticked'}) — ${bad?`hose ${fmt(-r.gap,1)} mm into it`:`${fmt(r.gap,1)} mm clear`}${r.exact?'':' (to a face box)'}, over ${fmt(Math.max(len,2),0)} mm of route`,
-      ticked,spot:{i0:r.i0,i1:r.i1,i:r.i,gap:r.gap,name:r.part.name,span:span(r.i),len:Math.max(len,2)},mark:{p:r.p,text:`${last(r.part.name)} · ${fmt(r.gap,1).replace('-','−')} mm`,bad,warn:!bad}};});}
+      ticked,spot:{i0:r.i0,i1:r.i1,i:r.i,gap:r.gap,name:r.part.name,span:span(r.i),len:Math.max(len,2)},
+      row:{where:span(r.i),part:last(r.part.name),full:r.part.name,gap:r.gap,bad,warn:!bad,note:bad?`into the part over ${fmt(Math.max(len,2),0)} mm`:`inside the ${fmt(o.gap)} mm gap`,
+        sub:`${r.part.role==='obstacle'?'frame part':roleTxt(r.part)} ${r.part.dims.map(v=>Math.round(v)).join(' × ')} mm · ${ticked?'kept clear':'unticked'}${r.exact?'':' · to a face box'}`},mark:{p:r.p,text:`${last(r.part.name)} · ${fmt(r.gap,1).replace('-','−')} mm`,bad,warn:!bad}};});}
 function throughOpenings(A,P,faces,o){const pts=A.d.pts,s=A.d.s,sv=BC.sv,out=[],span=spanOf(A,P);
   CadSolids.openings(pts,faces,Math.max(o.reach,100)).forEach(c=>{const part=sv.parts.find(x=>x.faces.includes(c.face));if(!part)return;
     const g=out.find(g=>g.part===part&&Math.abs(s[g.i]-s[c.i])<40);
@@ -128,11 +135,14 @@ function throughOpenings(A,P,faces,o){const pts=A.d.pts,s=A.d.s,sv=BC.sv,out=[],
     const low=gap<o.gap-0.05,T=sh.plate.t,other=CadSolids.planeName(sh.plate.other.shape),ax=pn&&other&&pn[0]===other[0]?`${pn[0]} ${[+pn.slice(2),+other.slice(2)].sort((x,y)=>x-y).join(' / ')}`:pn,
       face=`${fmt(T,T%1?1:0)} mm plate${ax?` at ${ax}`:''}`;
     if(!L.outer&&g.part.role==='station'){const at=g.part.stations.map(i=>'P'+(i+1)).join(', ');   // a ticked clip at a station: the hose is meant to sit in it
-      return{msg:`${at}: through the ${L.round?`Ø${fmt(2*L.round.r,1)}`:`${Math.round(L.bb[2]-L.bb[0])}×${Math.round(L.bb[3]-L.bb[1])} mm`} opening of ${g.part.name}, the clip at ${at}, ${fmt(Math.max(gap,0),1)} mm clear. It is ticked, so it counts as an obstacle — untick it (the hose sits in it) unless it must keep clear`,
+      return{row:{where:at,part:last(g.part.name),full:g.part.name,gap,bad:false,warn:true,note:`through the opening of the clip at ${at}`,sub:'ticked, so it counts: untick it, the hose sits in it'},
+        msg:`${at}: through the ${L.round?`Ø${fmt(2*L.round.r,1)}`:`${Math.round(L.bb[2]-L.bb[0])}×${Math.round(L.bb[3]-L.bb[1])} mm`} opening of ${g.part.name}, the clip at ${at}, ${fmt(Math.max(gap,0),1)} mm clear. It is ticked, so it counts as an obstacle — untick it (the hose sits in it) unless it must keep clear`,
         hole:{pts:CadSolids.loop3(sh,L),bad:false},mark:{p:g.c.x,text:`${g.part.name} · clip at ${at}, ticked`,bad:false}};}
     const what=L.outer?`past the edge of the ${face} of ${g.part.name}, ${fmt(Math.max(gap,0),1)} mm clear`
       :`through ${L.round?`a Ø${fmt(2*L.round.r,1)} hole`:`a ${Math.round(L.bb[2]-L.bb[0])}×${Math.round(L.bb[3]-L.bb[1])} mm opening`} in the ${face} of ${g.part.name}, ${fmt(Math.max(gap,0),1)} mm clear all round`;
-    return{msg:`${span(g.i)}: ${what}${gap<0?` (hose ${fmt(-gap,1)} mm into it)`:low?` — below the ${fmt(o.gap)} mm gap`:''}`,
+    const hole=L.outer?`past the edge of the ${face}`:`through ${L.round?`a Ø${fmt(2*L.round.r,1)} hole`:`a ${Math.round(L.bb[2]-L.bb[0])}×${Math.round(L.bb[3]-L.bb[1])} mm opening`} in the ${face}`;
+    return{row:{where:span(g.i),part:last(g.part.name),full:g.part.name,gap,bad:gap<0,warn:low&&gap>=0,note:hole,sub:'plate crossing'},
+      msg:`${span(g.i)}: ${what}${gap<0?` (hose ${fmt(-gap,1)} mm into it)`:low?` — below the ${fmt(o.gap)} mm gap`:''}`,
       hole:L.outer?null:{pts:CadSolids.loop3(sh,L),bad:low},mark:{p:g.c.x,text:`${span(g.i)} · ${fmt(Math.max(gap,0),1)} mm`,bad:low}};});}
 
 function load(f){say(`Reading ${f.name} (${(f.size/1e6).toFixed(1)} MB)...`);f.text().then(t=>setTimeout(()=>fromText(f.name,t),30));}
