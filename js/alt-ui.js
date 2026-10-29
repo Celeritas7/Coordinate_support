@@ -21,7 +21,7 @@ function sidesLine(){const o=ALT.prefer(),k=Object.keys(o),el=$('altSides');
   el.querySelectorAll('[data-clr]').forEach(b=>b.onclick=()=>{const p=ALT.prefer();delete p[b.dataset.clr];savePrefer(p);sidesLine();if(typeof asmPanel==='function')asmPanel();});}
 $('altUp').onchange=()=>store.set('rs.altUp.'+fileKey(),$('altUp').value);
 document.addEventListener('asm:loaded',()=>{$('altUp').value=store.get('rs.altUp.'+fileKey())||'+Z';sidesLine();});
-(window.AV_ACTIONS=window.AV_ACTIONS||[]).push((p,r)=>{if(p.kind!=='part'||$('altBox').hidden)return[];
+(window.AV_ACTIONS=window.AV_ACTIONS||[]).push((p,r)=>{if(p.kind!=='part'||$('shape').value==='arc'||$('panBend').hidden)return[];
   const I=r.instances[p.inst],name=I.label||I.name,cur=ALT.prefer()[name]||'any';
   // the leg that passes the part (nearest to its box centre), looking from its earlier point to the next; on a leg along the
   // up axis over / under / left / right do not apply, so the choice is by axis
@@ -80,6 +80,8 @@ function stop(msg){ALT.job=0;$('runAlt').textContent=LABEL;if(msg)say(msg);}
 
 $('runAlt').onclick=()=>{
   if(ALT.job)return stop('Stopped.');
+  // the section opens below the verdict (Tools · Alternatives, or a Next button)
+  $('altBox').classList.remove('shut');
   // the same stations Check routes: the ticked rows of Stations from clamps, written into Target points
   const cs=typeof csSync==='function'?csSync():null;if(cs&&cs.short)return say('Tick at least 2 stations.',true);
   const P=parsePts($('pts').value);

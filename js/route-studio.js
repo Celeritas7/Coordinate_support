@@ -357,6 +357,9 @@ function parseDir(s){const v=(s||'').split(/[,\s]+/).filter(Boolean).map(Number)
 function addRun(run){run.id=nextId++;run.color=PALETTE[(run.id-1)%PALETTE.length];run.visible=true;
   runs.push(run);if(runs.length>12){const gone=runs.shift();if(selId===gone.id)selId=null;}
   selId=run.id;renderRuns();rebuild(true);return run;}
+// Check route replaces the runs the last Check made (as entered + generated, or lines + arcs) unless they are pinned
+function dropCheckRuns(){const gone=runs.filter(r=>r.fromCheck&&!r.pinned).map(r=>r.id);if(!gone.length)return;
+  runs=runs.filter(r=>!gone.includes(r.id));if(gone.includes(selId))selId=null;}
 function selected(){return runs.find(r=>r.id===selId)||runs[runs.length-1]||null;}
 function visible(){return runs.filter(r=>r.visible);}
 
@@ -639,12 +642,13 @@ function renderRuns(){
       <input type="checkbox" ${r.visible?'checked':''} aria-label="show ${r.name}">
       <span class="sw" style="background:${r.color}"></span>
       <span class="nm">${r.name}<small>R ${fmt(r.minR)} mm &middot; ${r.Q.length} pts${r.clear?' &middot; gap '+fmt(Math.min(...r.clear.after)):''}${r.clr&&isFinite(r.clr.min)?' &middot; gap '+fmt(r.clr.min):''}</small></span>
-      <button class="solo" title="show only this run in 3D" aria-label="show only ${r.name}">only</button><button class="del" title="remove" aria-label="remove ${r.name}">&times;</button></div>`).join('');
+      ${r.fromCheck?`<button class="pin" aria-pressed="${!!r.pinned}" title="${r.pinned?'Pinned: the next Check keeps it':'Pin to keep it when Check runs again'}" aria-label="${r.pinned?'unpin':'pin'} ${r.name}">${r.pinned?'pinned':'pin'}</button>`:''}<button class="solo" title="show only this run in 3D" aria-label="show only ${r.name}">only</button><button class="del" title="remove" aria-label="remove ${r.name}">&times;</button></div>`).join('');
   }
   box.querySelectorAll('.run').forEach(el=>{
     const id=+el.dataset.id,r=runs.find(x=>x.id===id);
     // the checkbox only shows / hides: its click must not reach the row (selecting re-draws the list before the change is read)
     const cb=el.querySelector('input');cb.onclick=e=>e.stopPropagation();cb.onchange=e=>{r.visible=e.target.checked;rebuild(true);renderRuns();};
+    const pin=el.querySelector('.pin');if(pin)pin.onclick=e=>{e.stopPropagation();r.pinned=!r.pinned;renderRuns();};
     el.querySelector('.solo').onclick=e=>{e.stopPropagation();runs.forEach(x=>x.visible=x.id===id);selId=id;loadSettings(r);renderRuns();rebuild(true);renderCmp();renderPts();};
     el.querySelector('.del').onclick=e=>{e.stopPropagation();runs=runs.filter(x=>x.id!==id);
       if(selId===id)selId=runs.length?runs[runs.length-1].id:null;renderRuns();rebuild(true);renderCmp();renderPts();};
@@ -714,7 +718,7 @@ function showPanel(which){
 }
 $('tabBend').onclick=()=>showPanel('bend');$('tabClear').onclick=()=>showPanel('clear');$('tabBundle').onclick=()=>showPanel('bundle');
 document.querySelectorAll('[data-preset]').forEach(b=>b.onclick=()=>{
-  if(b.dataset.preset==='target')$('pts').value=PRESETS.target;
+  if(b.dataset.preset==='target'){$('pts').value=PRESETS.target;$('pts').dispatchEvent(new Event('input'));}
   else if(b.dataset.preset==='bundle'){$('bcab').value=PRESETS.bcab;$('brt').value=PRESETS.brt;$('bcl').value=PRESETS.bcl;$('bob').value=PRESETS.bob;}
   else{$('mpts').value=PRESETS.master;$('spts').value=PRESETS.slave;}});
 
@@ -737,7 +741,8 @@ $('runBend').onclick=()=>{
   const X=typeof bendCad==='function'?bendCad(P):null;
   const R=+$('r').value||65,SF=+$('sf').value||1.5,SP=+$('sp').value||85;
   const asEntered=analyse(P),frameNote=(typeof CAD!=='undefined'&&CAD.frame&&$('cadpick_pts')&&!$('cadpick_pts').hidden)?`, in ${CAD.frame.name} frame`:'';
-  addRun(Object.assign(asEntered,{name:`As entered R${R}`,kind:'bend',kindLabel:'bend radius, as entered',
+  dropCheckRuns();
+  addRun(Object.assign(asEntered,{fromCheck:true,name:`As entered R${R}`,kind:'bend',kindLabel:'bend radius, as entered',
     params:{R,SF},settings:`${P.length} points as entered${frameNote}`,text:toPts(P,{R,designR:R*SF,minR:asEntered.minR,len:asEntered.len,tidx:P.map((_,i)=>i)})}));
   store.set('rs.pts',$('pts').value);
   // optional bore directions per station (clamp-stations.js); null when none are given: start / end directions only
@@ -755,7 +760,7 @@ $('runBend').onclick=()=>{
     let sp=SP,res;for(let a=0;a<4;a++){const s=samplePoints(route,r.x,sp,$('adapt').checked,R*SF);const A=analyse(s.Q);res={A,s};if(A.minR>=R*1.15)break;sp*=0.7;}
     const finish=(A,tidx,thinNote)=>{A.tidx=tidx;if(bendJob!==job&&bendJob!==-job)return;bendJob=0;$('runBend').textContent=BEND_LABEL;
       const cx=X?X.report(A):null;
-      addRun(Object.assign(A,{name:`Generated R${R} ×${SF}`,kind:'bend',kindLabel:'bend radius, generated',parts:cx?cx.parts:undefined,holes:cx?cx.holes:undefined,marks:cx?cx.marks:undefined,clearDense:cx?cx.clearDense:undefined,gapLimit:cx?cx.gapLimit:undefined,spots:cx?cx.spots:undefined,
+      addRun(Object.assign(A,{fromCheck:true,name:`Generated R${R} ×${SF}`,kind:'bend',kindLabel:'bend radius, generated',parts:cx?cx.parts:undefined,holes:cx?cx.holes:undefined,marks:cx?cx.marks:undefined,clearDense:cx?cx.clearDense:undefined,gapLimit:cx?cx.gapLimit:undefined,spots:cx?cx.spots:undefined,
         params:{R,SF,spacing:SP},settings:`gap ${sp.toFixed(0)} mm between points${$('adapt').checked?', closer in bends':''}, ×${SF} margin${nloc?`, ${nloc} local radius override${nloc>1?'s':''}`:''}${thinNote}${cx?cx.note:''}${SD?SD.note:''}${frameNote}`,
         text:toPts(A.Q,{R,designR:+(R*SF).toFixed(1),minR:A.minR,len:A.len,tidx})}));
       const corners=typeof ClampStations!=='undefined'&&A.minR<R?ClampStations.cornerLike(P,R):[];

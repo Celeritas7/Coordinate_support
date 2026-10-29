@@ -152,7 +152,9 @@ window.asmPanel=panel;
 // a module answers a pick itself (clamp-stations.js: an armed Start / End): its message under the panel, focus on a button
 window.asmSay=(m,focus)=>{if(!AV.pick)return;AV.msg=m||'';panel();rebuild(false);
   const b=focus&&[...$('avPick').querySelectorAll('button')].find(x=>x.textContent===focus);if(b)b.focus({preventScroll:true});};
-document.addEventListener('keydown',e=>{if(e.key==='Escape'&&AV.pick)setPick(null);});
+// Esc closes the pick panel and gives focus back to the 3D view
+$('gl').tabIndex=0;
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&AV.pick){setPick(null);$('gl').focus({preventScroll:true});}});
 
 // ---------- header controls ----------
 // ---------- view tools: Parts, No CSYS / On holes / All ----------
@@ -164,4 +166,5 @@ $('avCsys').onkeydown=e=>{const V=['off','fix','all'],d=e.key==='ArrowRight'?1:e
   const v=V[(V.indexOf(AV.csys)+d+3)%3];csysSet(v);$('avCsys').querySelector(`[data-v="${v}"]`).focus();};
 window.asmCsys=csysSet;
 document.addEventListener('asm:loaded',()=>{AV.geo=null;AV.r=null;AV.pick=null;$('avCsys').hidden=$('avParts').hidden=false;panel();rebuild(true);});
+document.addEventListener('asm:removed',()=>{AV.geo=null;AV.r=null;AV.pick=null;$('avCsys').hidden=$('avParts').hidden=true;panel();rebuild(true);});
 }

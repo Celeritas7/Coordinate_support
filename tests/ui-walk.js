@@ -31,7 +31,7 @@ const server = http.createServer((q, s) => {
   const text = id => pg.evaluate(i => { const e = document.getElementById(i); return e ? e.textContent.replace(/\s+/g, " ").trim() : ""; }, id);
   const shot = n => SHOTS ? pg.screenshot({ path: path.join(SHOTS, n + ".png") }) : null;
   const go = (m, t) => pg.evaluate(([m, t]) => { document.querySelector(`.modsw button[data-mod="${m}"]`).click(); document.querySelector(`#tasks button[data-task="${t}"]`).click(); }, [m, t]);
-  const expand = async id => { const was = await pg.evaluate(i => { const d = document.getElementById(i); if (!d || d.open) return true; d.open = true; return false; }, id); if (!was) flows[cur].collapsed++; return !was; };
+  const expand = async id => { const was = await pg.evaluate(i => { const d = document.getElementById(i); if (!d || d.tagName !== "DETAILS" || d.open) return true; d.open = true; return false; }, id); if (!was) flows[cur].collapsed++; return !was; };
   const until = async (id, re, s = 60) => { for (let i = 0; i < s * 2; i++) { const t = await text(id); if (re.test(t)) return t; await pg.waitForTimeout(500); } return text(id); };
 
   await pg.goto(url); await pg.evaluate(() => localStorage.clear()); await pg.reload(); await pg.waitForTimeout(800);
@@ -46,8 +46,7 @@ const server = http.createServer((q, s) => {
   await until("shStatus", /^Opened in/, 60); await pg.waitForTimeout(3000); step("Open… piping3_practice_asm.stp", (await text("shStatus")).slice(0, 120));
   if (await expand("csBox")) step("open “Stations from clamps”");
   await pg.fill("#csD", "12"); await pg.dispatchEvent("#csD", "change"); flows[cur].typedD++; await pg.waitForTimeout(300); step("Hose Ø 12");
-  if (!(await pg.evaluate(() => document.querySelectorAll("#csList .csrow").length))) {
-    await pg.setInputFiles("#csFile", ASM); flows[cur].loads++; await until("statusCs", /station|fixing/, 30); step("Load assembly .stp… (again)"); }
+  if (!(await pg.evaluate(() => document.querySelectorAll("#csList .csrow").length))) console.log("     !! no station rows after Open…");
   const cs = await text("statusCs"); console.log("     " + cs.slice(0, 160));
   const rows = await pg.evaluate(() => document.querySelectorAll("#csList .csrow").length);
   const ticked = await pg.evaluate(() => document.querySelectorAll("#csList input[type=checkbox]:checked").length);
@@ -55,18 +54,12 @@ const server = http.createServer((q, s) => {
   await shot("A1-stations");
   const pinned = await pg.evaluate(() => document.getElementById("csStart").value !== "" && document.getElementById("csEnd").value !== "");
   if (!pinned) { await pg.click("#csAuto"); step("Auto order"); } else console.log("     (start / end picked from the end fittings, already in order)");
-  if (await expand("cdBox")) step("open “Keep clear of CAD parts”");
-  const needD = await pg.evaluate(() => { const e = document.getElementById("cdD"); return e && !e.closest("[hidden]") && e.offsetParent !== null; });
-  if (needD) { await pg.fill("#cdD", "12"); flows[cur].typedD++; step("Hose Ø 12 again"); }
-  const needLoad = await pg.evaluate(() => { const e = document.getElementById("cdLoad"); return e && e.offsetParent !== null; });
-  const haveParts = await pg.evaluate(() => typeof bcName === "function" && !!bcName());
-  if (needLoad && !haveParts) { await pg.setInputFiles("#cdFile", ASM); flows[cur].loads++; await pg.waitForTimeout(6000); step("Load frame / parts file… (same file)"); }
-  else if (haveParts) console.log("     (parts already loaded from the open assembly)");
+  console.log(`     parts from the open assembly: ${await pg.evaluate(() => typeof bcName === "function" && !!bcName())}; ${await text("cdSum")}`);
   await pg.click("#runBend"); const chk = await until("statusBend", /^(Clash|Too tight|Close|Clear):|apart\. Holding|Tick at least|Paste|cannot|can't/i, 90); step("Check route");
   console.log("     " + chk.slice(0, 220)); flows[cur].clash = /into it|below the .* gap|-\d+(\.\d+)? mm/.test(chk);
   await shot("A2-check");
-  await pg.click("#runAlt"); const alt = await until("altList", /distinct|No obstacles|none|Click one|Use this/i, 120); step("Alternatives");
-  flows[cur].alts = (alt.match(/A\d+ ·/g) || []).length; flows[cur].cleanAlts = (alt.match(/A\d+ ·[^A]*?(?<!not )clean/g) || []).length;
+  await pg.click("#runAlt"); const alt = await until("statusAlt", /distinct|No clean|Forced|No obstacles|Tick at least/i, 120); step("Tools · Alternatives");
+  [flows[cur].alts, flows[cur].cleanAlts] = await pg.evaluate(() => { const C = [...document.querySelectorAll("#altList .altrow")]; return [C.length, C.filter(c => c.querySelector("button.pri")).length]; });
   console.log("     " + alt.slice(0, 160)); await shot("A3-alternatives");
 
   // ---- B: Pipe · Through clamps on pipe 111
@@ -104,9 +97,7 @@ const server = http.createServer((q, s) => {
     const picked = await pickCsys();
     step("asmSetPick() on a CSYS on a hole", picked ? (await pickMsg()).slice(0, 160) : "no CSYS on a hole");
     await shot("F2-pick-csys");
-    if (await pg.evaluate(() => !(typeof bcName === "function" && bcName()))) {
-      await pg.setInputFiles("#cdFile", FRAME); flows[cur].loads++; await pg.waitForTimeout(6000); step("Load frame / parts file… (same file)", (await text("statusCad")).slice(0, 120)); }
-    else console.log("     (parts already loaded from the open assembly)");
+    console.log(`     parts from the open assembly: ${await pg.evaluate(() => typeof bcName === "function" && !!bcName())}`);
     const part = await pg.evaluate(() => { const cad = bcCad(), r = ASM.r;
       const ii = r.instances.findIndex((I, i) => I.bbox && cad && cad.solids.some(s => s.inst === i));
       if (ii < 0) return null; const I = r.instances[ii], p = I.bbox.min.map((v, k) => (v + I.bbox.max[k]) / 2);
@@ -125,8 +116,7 @@ const server = http.createServer((q, s) => {
     await pg.evaluate(() => asmSetPick(null));
     // stations: tick the first 5 listed
     if (await expand("csBox")) step("open “Stations from clamps”");
-    if (!(await pg.evaluate(() => document.querySelectorAll("#csList .csrow").length))) {
-      await pg.setInputFiles("#csFile", FRAME); flows[cur].loads++; await until("statusCs", /station|fixing/, 30); step("Load assembly .stp… (again)"); }
+    if (!(await pg.evaluate(() => document.querySelectorAll("#csList .csrow").length))) console.log("     !! no station rows after Open…");
     console.log("     " + (await text("statusCs")).slice(0, 160));
     const tk = await pg.evaluate(async () => { const bx = () => [...document.querySelectorAll("#csList .csrow input[type=checkbox]")], n = bx().length;
       for (let i = 0; i < n; i++) { const b = bx()[i]; if (b && b.checked !== i < 5) { b.click(); await new Promise(r => setTimeout(r, 20)); } }

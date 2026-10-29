@@ -197,6 +197,44 @@ the strip, cuts, dock tables and armed Start / End are P5-B…D.
   primary, Ø change, Check → pre-check → Free → verdict, none ticked). Walk-through updated (no Use as stations step; armed
   clicks), **not run** here (samples).
 
+### Phase 5-C — Layout: 1 Load · 2 Stations · 3 Route (BUILT 2026-10-29)
+**Decided by the user (2026-10-29):** 2a: they never load a separate parts file, so the section Load links go (top Open… or a
+drop is the only way in; the parts always come from the open assembly); the "Check the gap" tick goes; the big Alternatives
+button and its paragraph go; Inspector and Paste table move into More ▾; the long hints move to the README (How it works).
+2b: Remove unloads at once with a 10 s Undo. 2c: Check replaces the last generated run unless it is pinned.
+- **Top bar:** Open… (primary) · Examples ▾ · More ▾ (Paste table…, Inspector, How it works) · Dark. Esc or a click elsewhere
+  closes a menu.
+- **Assembly line:** a boxed row under the top bar, above the module switch, in every module: "No assembly open." or
+  `name · parts · pipes · holes with a CSYS / n clamps for Ø12` · CSYS made here · **Change…** · **Remove**. Remove keeps the parse:
+  "Removed name. Undo" for 10 s; Undo sends the same assembly back (`asmRemove` / `asmRestore`, events `asm:removed` /
+  `asm:loaded`), no re-read.
+- **Task tabs:** a row under the module switch at every width; module switch and task tabs are one tab stop each, ← / →.
+- **Route through stations:** an **Advanced** toggle (saved) with the values line `R 65 · margin ×1.5 · gap 4 mm · fit +1.5`;
+  three cards (`js/strip.js`), the current one with the filled number, later ones dashed with what they wait for, a summary on
+  each heading (`Ø12 · 8 parts kept clear`, `S1 → S5 · 5 ticked`, the selected run). Below 900 px of height the cards before
+  the current one fold to their heading (a button with aria-expanded).
+  - Card 1: Open assembly… (when none), Hose Ø, the station count line, **Keep clear of n parts near the route · m within 60 mm**
+    (fold, closed). Advanced: Bore fit, Look within.
+  - Card 2: Start / End ("Or click a part or CSYS in 3D."), Auto order · Untick all · Only picked, the rows, Other holes, Hold the
+    bore direction, **Points as text (n)** (fold). Typing, pasting or dropping points there unticks the list and says so; Check
+    then uses them as typed. Advanced: start / end directions, bore directions.
+  - Card 3: Push tick, **Check route** (disabled with "Tick at least 2 stations." while the list is in use with fewer), the
+    verdict and Next, **Tools: Alternatives · Suggest extra clamps**, the Alternatives section (opens from Tools or Next; Up in its
+    header), Suggest's results. Advanced: Min R, margin, gap, spacing, Fewest points + Max shift, closer points in bends, straight
+    runs, Suggest's settings, obstacle boxes typed by hand.
+  - Pipe · Route through points uses the same panel without the card chrome (points open, settings under Advanced).
+- **Runs in 3D:** Check (and lines + arcs) replaces the runs the last Check made unless pinned (`pin` / `pinned` per row).
+- **Pipe empty states:** one line per task (exact wording from the review), Open assembly… beside it while none is open; Table →
+  .pts shows its line until the table has input. The old "Open or drop a Creo assembly…" paragraph and Pipe's own Open link go.
+- **Keyboard:** station grips are 24 × 28 buttons, `aria-label="Move S2 CS16, position 2 of 5"`, described by "Arrow keys move
+  it"; ↑ / ↓ / Home / End move the row, focus stays on its grip, a polite live region announces the move. Esc closes the pick
+  panel and focuses the 3D view. Dock 190 px tall under 820 px of height.
+- Checked in Chromium at 1600 × 1000 and 1366 × 768, light and dark: S0 (Load current, others waiting), Open → Remove → Undo,
+  a synthetic clamp list (assembly line "4 clamps for Ø12", cards' summaries), Check twice with a pin, grip End, Pipe empty
+  lines, Check disabled with none ticked and enabled again in Pipe / after typing points, no sideways scroll, no page errors.
+  `tests/ui-walk.js` updated for the cuts (no section Load links, Alternatives from Tools); **not run** (samples), so the step
+  counts (target A 5, F 7) and the `handoff/shots/P5-*.png` set are still to do on the real files.
+
 ## Phase 6 — Pipe module parity (Claude Code, later)
 - Clearance to parts for pipe runs and obstacle-aware Through clamps (ROADMAP Phase 12d steps 2–3) so Pipe gets the same
   "clash → fix" loop as Hose. Not a UI phase as such; listed so Design knows Pipe will need the Phase 3 next-step lines too.

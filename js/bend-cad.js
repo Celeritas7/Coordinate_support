@@ -44,7 +44,7 @@ function straightRuns(P,tol){const runs=[],n=P.length,dot=(a,b)=>a[0]*b[0]+a[1]*
   return runs;}
 
 // face boxes of the ticked parts, for Alternatives (whether or not Push is on), and the hose radius + gap
-window.bendCadBoxes=function(){const o=opt(),sv=$('cdUse').checked?survey():null;
+window.bendCadBoxes=function(){const o=opt(),sv=survey();
   // each face box carries its part name, so Alternatives can say "over 95651236"
   return{faces:sv?sv.parts.filter(keepClear).flatMap(p=>p.faces.map(f=>({...f,part:p.name}))):[],rad:o.d/2+o.gap,parts:sv?sv.parts.filter(keepClear).length:0};};
 // keep clear on / off from the 3D view (asm-view.js): the solids of the picked instance
@@ -62,7 +62,7 @@ const sameAsm=()=>!!BC.cad&&BC.asm!=null&&typeof ASM!=='undefined'&&!!ASM&&ASM.n
     return`${part?part.name:'This part'}: ${v?'kept clear of (gap checked)':'not checked'}${part?'':'; it is not near the stations now, the choice holds when it is'}.`;};
   return[{row:'Keep clear of it',label:'yes',on,go:()=>set(true)},{row:'Keep clear of it',label:'no',on:!on,go:()=>set(false)}];});
 window.bendCad=function(P){
-  const o=opt(),sv=$('cdUse').checked?survey():null;
+  const o=opt(),sv=survey();
   const faces=sv?sv.parts.filter(keepClear).flatMap(p=>p.faces):[],ix=faces.length?CadSolids.index(faces,50):null,rad=o.d/2+o.gap;
   const fixDirs=[],notes=[],straight=[],push=ix&&$('cdPush').checked;
   // a straight run is the designer's intent (stations in a line, often inside a channel) — kept even when a ticked part
@@ -142,20 +142,20 @@ function fromText(name,t,parsed){const t0=performance.now();let cad;
     // STEP: the parts marked pipe / not a pipe in the part tree for this file name count as such here too
     try{cad=CadSolids.read(t,name,{pipe:window.AsmTree?AsmTree.load(name):{},parsed});}catch(e){return say(`${name}: ${e.message}`,true);}
     if(!cad.solids.length)return say(`${name}: no solids found. Export from Creo with solids (IGES: BREP / "Solid", or STEP AP214).`,true);
-    BC.cad=cad;BC.key='';BC.user=new Map();$('cdClear').hidden=false;survey();
+    BC.cad=cad;BC.key='';BC.user=new Map();survey();
     const ex=cad.faces.filter(x=>x.shape).length,np=cad.solids.filter(x=>x.pipe).length;
     say(`${name}: ${cad.solids.length} solids, ${cad.faces.length} faces (${cad.format}${ex?`; ${ex} flat or cylindrical, gap exact`:''}${np?`; ${np} solid${np>1?'s':''} of existing pipes, not checked`:''}), read in ${((performance.now()-t0)/1000).toFixed(1)} s.${BC.sv?'':' Use the stations to see which parts are near.'}`);
     return true;}
 // the open assembly's parse is reused (no second read of the file, and no text of it is kept). Tagged as the assembly's only
 // when this read replaced BC.cad: a failed read of a file with the same name must not mark the parts left from before as current
 window.bcFromAsm=a=>{if(a&&a.r&&fromText(a.name,'',a.r))BC.asm=a.name;};
-$('cdLoad').onclick=()=>$('cdFile').click();
 window.bcLoad=f=>{$('cdBox').open=true;load(f);};
 window.bcName=()=>BC.cad?BC.cad.name:null;window.bcCad=()=>BC.cad;
 // keep clear on / off for one solid (Alternatives' "Stop keeping clear of …")
 window.bcKeepClear=(sid,on)=>{if(!BC.cad)return;BC.user.set(sid,!!on);render();};
-$('cdFile').onchange=e=>{if(e.target.files[0])load(e.target.files[0]);e.target.value='';};
-$('cdClear').onclick=()=>{BC.cad=null;BC.asm=null;BC.sv=null;BC.key='';BC.focus=0;$('cdClear').hidden=true;render();say('');};
+const clearParts=()=>{BC.cad=null;BC.asm=null;BC.sv=null;BC.key='';BC.focus=0;render();say('');};
+// the open assembly removed (shell.js Remove): its parts go too
+document.addEventListener('asm:removed',e=>{if(BC.asm&&e.detail&&BC.asm===e.detail.name)clearParts();});
 ['cdD','cdGap','cdReach'].forEach(k=>$(k).addEventListener('change',()=>{survey();}));
 $('pts').addEventListener('change',()=>{survey();});
 }
