@@ -89,7 +89,9 @@ function render(){const n=MK.list.length;
     row.querySelector('[data-del]').onclick=()=>{MK.list.splice(i,1);done(`${c.name} deleted.`);};});}
 const say=(m,bad)=>{const e=$('mkStatus');e.textContent=m;e.style.color=bad?'var(--bad)':'';};
 function done(msg){save();render();if(typeof asmPanel==='function'){const p=asmPick&&asmPick();if(p&&p.c&&p.c.made)asmSetPick(null);}rebuild(false);if(msg)say(msg);}
-function make(o,z,x,base){const c={name:CsysMake.freeName(base||'RS_CS',MK.list.map(c=>c.name).concat(typeof ASM!=='undefined'&&ASM&&ASM.r?ASM.r.csys.map(c=>c.name):[])),...CsysMake.frame(o,z,x)};
+// names in use: the made ones and the open assembly's own CSYS (a made one must not repeat either in Creo)
+const usedNames=()=>MK.list.map(c=>c.name).concat(typeof ASM!=='undefined'&&ASM&&ASM.r?ASM.r.csys.map(c=>c.name):[]);
+function make(o,z,x,base){const c={name:CsysMake.freeName(base||'RS_CS',usedNames()),...CsysMake.frame(o,z,x)};
   MK.list.push(c);done(`${c.name} made at ${xyz(c.o)}, Z ${axisOf(c.z)||xyz(c.z)}.`);return c;}
 root.csysMake=make;
 
@@ -119,7 +121,7 @@ $('mkCopy').onclick=()=>{const a=v=>v.map(q=>(Math.abs(q)<5e-4?0:q).toFixed(3)).
 // (on asm:loaded, before this) with the list it had: redraw, and drop a pick of a made CSYS from that list
 document.addEventListener('asm:loaded',()=>{load();
   let pre=[];try{pre=ASM.name?JSON.parse(store.get('rs.csysMade.')||'[]'):[];}catch(e){}
-  if(pre.length){pre.forEach(c=>{c.name=MK.list.some(m=>m.name===c.name)?CsysMake.freeName(c.name+'_',MK.list.map(m=>m.name)):c.name;MK.list.push(c);});
+  if(pre.length){pre.forEach(c=>{const u=usedNames();if(u.includes(c.name))c.name=CsysMake.freeName(c.name+'_',u);MK.list.push(c);});
     save();store.set('rs.csysMade.','[]');say(`${pre.length} CSYS made before a file was open now listed for ${ASM.name}.`);}
   render();$('dCsys').hidden=false;
   const p=typeof asmPick==='function'&&asmPick();if(p&&p.c&&p.c.made)asmSetPick(null);rebuild(false);});
