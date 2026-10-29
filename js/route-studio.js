@@ -450,7 +450,7 @@ function rebuild(refit){
       (r.stations||[]).forEach(st=>{const s=new THREE.Mesh(sg,sm);s.scale.setScalar(tr*1.7);s.position.set(...st.p);content.add(s);});}
     if(r.parts&&r.id===(sel&&sel.id)){const bc=new THREE.Color(css('--muted'));
       r.parts.forEach(b=>content.add(new THREE.Box3Helper(new THREE.Box3(new THREE.Vector3(...b.min),new THREE.Vector3(...b.max)),bc)));}
-    if(r.marks&&isSel){const mk={};r.marks.forEach(m=>{const col=css(m.bad?'--bad':m.warn?'--warn':'--ok'),s=new THREE.Mesh(sg,mk[col]||(mk[col]=new THREE.MeshLambertMaterial({color:new THREE.Color(col)})));
+    if(r.marks&&isSel){const mk={};r.marks.forEach(m=>{const col=css(m.bad?'--bad':m.warn?'--warn':m.muted?'--muted':'--ok'),s=new THREE.Mesh(sg,mk[col]||(mk[col]=new THREE.MeshLambertMaterial({color:new THREE.Color(col)})));
       s.scale.setScalar(tr*2.6);s.position.set(...m.p);content.add(s);addTag(m.p,m.text,m.bad?'bad':m.warn?'warn':'');});}
     if(r.holes&&r.id===(sel&&sel.id))r.holes.forEach(h=>{const g=new THREE.BufferGeometry().setFromPoints(h.pts.map(q=>new THREE.Vector3(...q)));content.add(new THREE.LineLoop(g,new THREE.LineBasicMaterial({color:new THREE.Color(css(h.bad?'--bad':'--ok'))})));});
     if(r.clamps&&r.id===(sel&&sel.id))r.clamps.forEach(k=>{const a=k.d,u=V.norm(Math.abs(a[0])<0.9?V.cross(a,[1,0,0]):V.cross(a,[0,1,0])),w=V.cross(a,u);
@@ -737,7 +737,7 @@ $('runBend').onclick=()=>{
       {label:'Check anyway',go:()=>{checkAnyway=true;try{$('runBend').click();}finally{checkAnyway=false;}}}]);
     return;}
   const P=parsePts($('pts').value);
-  if(P.length<3)return $('statusBend').textContent='Paste at least three points.';
+  if(P.length<2)return $('statusBend').textContent='Paste at least two points.';
   const X=typeof bendCad==='function'?bendCad(P):null;
   const R=+$('r').value||65,SF=+$('sf').value||1.5,SP=+$('sp').value||85;
   const asEntered=analyse(P),frameNote=(typeof CAD!=='undefined'&&CAD.frame&&$('cadpick_pts')&&!$('cadpick_pts').hidden)?`, in ${CAD.frame.name} frame`:'';

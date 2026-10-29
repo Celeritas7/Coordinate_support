@@ -150,3 +150,13 @@ Every result line is followed by the buttons for what comes next; the next actio
 4. Check on pipe corner points (`piping2_practice_1.pts`): **Route it as a pipe instead** → Pipe · Route through points.
 5. Pipe · Through clamps → Route: **Download .pts** · **Copy .pts** · **Compare with your .pts** (→ Check .pts against pipe, file picker).
 Wording is provisional until the design pass; the buttons live in `js/next.js` (`nextSteps(statusId, items)`).
+
+## 13. Phase 5 on the real assemblies (`frame_asm.stp`, `piping3_practice_asm.stp`)
+
+1. `node tests/ui-walk.js --main` (add `--size 1366x768`, `--dark`, `--shots dir`): A 5 steps, F 7 steps, no fold opened.
+   F: Open `frame_asm.stp`, click CS29 then CS41 in 3D → "2 of 41 holes ticked" (the tank ports 22 mm / 33 mm from the ends stay
+   unticked), Check, Alternatives → one clean route about 2013 mm, Use this → Clearance tab with no red or amber row.
+2. `node tests/frame-alt.js`: route_343434's stations typed on the frame, Alternatives clean at about 679 / 931 / 1145 mm
+   (P1–P6, P5–P10, P11–P16); Check reads Clear on P1–P6 and P5–P10; unticked parts within the gap are listed muted,
+   "not counted"; fitting 991980 at P1 is not listed.
+3. At 1366 × 768 the Load card folds once an assembly is open but keeps Hose Ø.

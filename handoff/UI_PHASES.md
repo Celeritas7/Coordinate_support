@@ -252,6 +252,32 @@ button and its paragraph go; Inspector and Paste table move into More ▾; the l
   clearance rows → Clearance (2) table, Table / Chart switch both ways, other tabs hide both panes, no page errors. The rows from a
   real parts file are **not** checked here (no samples).
 
+### Phase 5-E — first run on the real assemblies (2026-10-29)
+piping3_practice_asm.stp, frame_asm.stp and u107338_fy26_test_frame_asm_111.igs in `samples/`: unit tests green (the sample
+tests no longer skip); `node tests/ui-walk.js` A **5 steps**, F **7 steps**, no fold opened on either, at 1600 × 1000 and
+1366 × 768, light and dark (`--size`, `--dark`, `--main`); shots `handoff/shots/P5-{A,F}*-{1600,1366}-{light,dark}.png`.
+F is now the main path on the frame (Open, click CS29 = P1 in the bore of 991980, click CS41, Check, Alternatives, Use this);
+the old F (pick panel, CSYS made here, Suggest, dark, solid 30 / 43) is G, not counted against the target.
+`node tests/frame-alt.js` (new): route_343434 typed on frame_asm.stp, Alternatives clean at 679 / 931 / 1141 mm (P1–P6,
+P5–P10, P11–P16); fitting 991980 is not listed at P1 (the end faces of its bore are not clashes).
+What the run turned up, fixed:
+- **Check and Alternatives counted different parts.** Alternatives steers round the kept-clear (ticked) parts and called
+  P1–P6 clean; Check said "Clash: 4.0 mm into 992026" and **Use this** put 5 red / amber rows in the Clearance tab, all
+  unticked parts ("clip, or screw?"). Now only kept-clear parts count, in the verdict, the 3D readout, the Clearance count
+  and the chart bands; an unticked part within the gap stays listed, muted, "not counted: tick it in Keep clear if it is a
+  screw, bolt or bracket", grey in 3D, and the verdict's detail names it. P1–P6 and P5–P10 now read Clear on Check.
+- **Use this** clears Check's old verdict (it was for the generated run, now not the selected one).
+- **Start / End selects** read `S1 · CS0` (piping3 has three CS0 rows; the select showed "CS0" for each).
+- **Start and End set → the holes between:** a hole closer than 2 × R to the start or end that Check's pre-check would flag
+  with it is left unticked (on the frame, tank port 991084 is 22 mm from CS29 and P3_CS1 33 mm from CS41; Check stopped on
+  "S1 and S2 are 22 mm apart" and no alternative was clean). Hand ticks and 3D picks still win.
+- **Check with 2 stations** said "Paste at least three points." although the list and its tooltip ask for 2; the solver
+  takes 2 (Alternatives' direct route does): Check now needs 2.
+- **Below 900 px of height** the folded Load card hid Hose Ø, so flow A needed a fold click to set Ø12; a folded Load card
+  keeps Hose Ø.
+Seen, not changed: the 3D readout says "Passes, but inside the ×1.5 safety margin" (amber) while Check's line says
+"Clear: R 87" (blue) for the same piping3 run: the Phase 5-A table has Clear there; say if the margin should make it Close.
+
 ## Phase 6 — Pipe module parity (Claude Code, later)
 - Clearance to parts for pipe runs and obstacle-aware Through clamps (ROADMAP Phase 12d steps 2–3) so Pipe gets the same
   "clash → fix" loop as Hose. Not a UI phase as such; listed so Design knows Pipe will need the Phase 3 next-step lines too.

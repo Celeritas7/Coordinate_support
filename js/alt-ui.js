@@ -135,6 +135,8 @@ function use(i){
   A.tidx=s.tidx;
   const X=typeof bendCad==='function'?bendCad(P):null,cx=X?X.report(A):null;
   ALT.cands=[];ALT.ctx.typed=[];render();
+  // Check's verdict was for the run it made; the selected run is this one now (its line is under Alternatives)
+  $('statusBend').textContent='';if(typeof nextClear==='function')nextClear('statusBend');
   addRun(Object.assign(A,{name:`Alternative A${i+1} R${R} ×${SF}`,kind:'bend',kindLabel:'bend radius, alternative',
     parts:cx?cx.parts:undefined,holes:cx?cx.holes:undefined,marks:cx?cx.marks:undefined,clearDense:cx?cx.clearDense:undefined,gapLimit:cx?cx.gapLimit:undefined,spots:cx?cx.spots:undefined,clearRows:cx?cx.rows:undefined,clearHead:cx?cx.head:undefined,
     params:{R,SF,spacing:SP},settings:`passes ${a.label} (${nBoxes} obstacle box${nBoxes>1?'es':''}, cable radius + gap ${fmt(rad)} mm), gap ${sp.toFixed(0)} mm between points${adapt?', closer in bends':''}, ×${SF} margin${cx?cx.note:''}`,
