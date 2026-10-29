@@ -97,16 +97,19 @@ function openAssembly(f,rest){const n=rest?rest.length:0,also=n?` ${n} other fil
   asmPend=done;
   const ok=e=>{const a=e.detail;if(!a||a.name!==f.name)return;done();
     if(hose&&typeof bcFromAsm==='function')bcFromAsm(a);
-    say(`Opened in ${(a.secs||0).toFixed(1)} s. ${where}${also}`);
-    $('shAsm').hidden=false;$('shAsmTxt').textContent=asmLine(a);};
+    say(`Opened in ${(a.secs||0).toFixed(1)} s.${also}`);$('shStatus').title=where;
+    $('shAsm').hidden=false;$('shAsmTxt').innerHTML=asmLine(a);};
   const bad=e=>{const x=e.detail;if(!x||x.name!==f.name)return;done();say(`${x.name} could not be read: ${x.message}`);};
   document.addEventListener('asm:loaded',ok);document.addEventListener('asm:failed',bad);
   // while reading, the header shows asm-ui's progress line ("Reading <file>, 20.3 MB: parts 59 %"); the others in its tooltip
   $('shStatus').title=n?`Not opened: ${rest.join(', ')} (one assembly at a time; open ${n>1?'them':'it'} once this one has loaded)`:'';asmLoad(f);}
 window.openAssembly=openAssembly;window.goTask=go;
-function asmLine(a){const r=a.r;if(!r)return a.name;const parts=r.instances.filter(i=>i.solids).length;
-  return`${a.name} · ${parts} parts · ${r.csys.length} CSYS`;}
-$('shAsmGo').onclick=()=>go('pipe',st.task.pipe==='clamps'||st.task.pipe==='offset'?st.task.pipe:'asm');
+// name · parts · pipes · holes with a CSYS; once Hose / Cable has its clamp list, the clamps that fit its Ø instead
+function asmLine(a){const r=a.r;if(!r)return esc(a.name);const parts=r.instances.filter(i=>i.solids).length,np=r.pipes.length,
+    holes=r.holes.filter(h=>h.csys).length,cs=typeof csCount==='function'?csCount():null;
+  return`<span class="mono">${esc(a.name)}</span> · ${parts} part${parts===1?'':'s'}${np?` · ${np} pipe${np===1?'':'s'}`:''} · `+
+    (cs&&cs.n?`${cs.n} clamp${cs.n===1?'':'s'} for Ø${+cs.D}`:`${holes} hole${holes===1?'':'s'} with a CSYS`);}
+document.addEventListener('cs:changed',()=>{if(typeof ASM!=='undefined'&&ASM&&ASM.r&&!$('shAsm').hidden)$('shAsmTxt').innerHTML=asmLine(ASM);});
 $('shOpen').onclick=()=>$('shFile').click();
 $('shFile').onchange=e=>{open(e.target.files);e.target.value='';};
 $('shTable').onclick=()=>{go('pipe','table');$('tin').focus();};

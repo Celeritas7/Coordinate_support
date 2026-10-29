@@ -496,14 +496,16 @@ function rebuild(refit){
 function readout(){
   const r=selected();
   if(!r){$('readout').innerHTML='<div class="verdict">Run a check to see it here.</div>';return;}
-  const R=r.params.R,SF=r.params.SF||1.5,ok=r.minR>=R,safe=r.minR>=R*SF*0.98;
-  const v=ok?(safe?`Passes. Tightest bend is ${(r.minR/R).toFixed(2)}x the minimum radius.`:`Passes, but inside the x${SF} safety margin.`)
-            :`Too tight: ${fmt(R-r.minR)} mm below the ${R} mm minimum.`;
+  const R=r.params.R,SF=r.params.SF||1.5,into=(r.spots||[]).filter(x=>x.gap<0).sort((a,b)=>a.gap-b.gap)[0],ok=r.minR>=R&&!into,safe=r.minR>=R*SF*0.98;
+  // the worst problem first, as under Check route: into a part, then the radius
+  const v=into?`Clash: ${fmt(-into.gap,1)} mm into ${esc(String(into.name).split(' / ').pop())} ${into.span.replace(/^(P\d+)–(P\d+)$/,'between $1 and $2')}.`
+    :ok?(safe?`Passes. Tightest bend is ${(r.minR/R).toFixed(2)}× the minimum radius.`:`Passes, but inside the ×${SF} safety margin.`)
+            :`Too tight: ${fmt(R-r.minR,0)} mm below the ${R} mm minimum.`;
   let extra=`${r.Q.length} points. Length ${Math.round(r.len)} mm.`;
   if(r.clear)extra+=` Clearance ${fmt(Math.min(...r.clear.after))}-${fmt(Math.max(...r.clear.after))} mm.`;
   if(r.clr&&isFinite(r.clr.min))extra+=` Nearest cable ${fmt(r.clr.min)} mm surface gap, needs ${fmt(r.clr.need,0)}.`;
   $('readout').innerHTML=`<div class="big">R ${fmt(r.minR)} <small>mm tightest bend &middot; ${r.name}</small></div>
-    <div class="verdict" style="color:var(${ok?(safe?'--ok':'--warn'):'--bad'})">${v}</div><div class="facts">${extra}</div>`;
+    <div class="verdict" style="color:var(${ok?(safe?'--ok':'--warn-ink'):'--bad'})">${v}</div><div class="facts">${extra}</div>`;
 }
 function legend(){
   const L=$('legend');
@@ -585,8 +587,8 @@ function drawChart(){
   ctx.textAlign='left';ctx.fillText('mm along route',L.l,H-9);
   const lim=(v,cv2,t)=>{ctx.lineWidth=1.5;ctx.strokeStyle=css(cv2);ctx.setLineDash([6,4]);ctx.beginPath();
     ctx.moveTo(L.l,Y(v));ctx.lineTo(L.l+pw,Y(v));ctx.stroke();ctx.setLineDash([]);
-    ctx.fillStyle=css(cv2);ctx.textAlign='right';ctx.fillText(t,L.l+pw-4,Y(v)-4);};
-  if(isRad){lim(sel.params.R,'--bad',`min ${sel.params.R}`);lim(sel.params.R*(sel.params.SF||1.5),'--warn',`x${sel.params.SF||1.5} margin`);}
+    ctx.fillStyle=css(cv2==='--warn'?'--warn-ink':cv2);ctx.textAlign='right';ctx.fillText(t,L.l+pw-4,Y(v)-4);};
+  if(isRad){lim(sel.params.R,'--bad',`min ${sel.params.R}`);lim(sel.params.R*(sel.params.SF||1.5),'--warn',`×${sel.params.SF||1.5} margin`);}
   else if(sel.clear)lim(sel.clear.gap,'--bad',`gap ${sel.clear.gap}`);
   else if(sel.gapLimit){lim(sel.gapLimit,'--bad',`gap ${sel.gapLimit}`);if(lo<0)lim(0,'--muted','0 = touching');}
   // gap to parts: each too-close stretch shaded (red = into the part, amber = too close) and labelled at its worst point
@@ -630,6 +632,7 @@ $('ch').addEventListener('pointerleave',()=>{hover=null;if(marker)marker.visible
 function renderRuns(){
   const box=$('runlist');
   $('clearAll').hidden=!runs.length;
+  $('runsN').textContent=runs.length?`(${runs.length})`:'';
   if(!runs.length){box.innerHTML='<p class="empty">No runs yet. Run a check to add one.</p>';$('runhint').hidden=true;}
   else{$('runhint').hidden=false;
     box.innerHTML=runs.map(r=>`<div class="run" data-id="${r.id}" data-sel="${r.id===selId?1:0}">
@@ -682,7 +685,7 @@ function renderPts(){
   const R=r.params.R,SF=r.params.SF||1.5;
   const Rat=q=>{let bi=0,bd=Infinity;r.d.pts.forEach((p,i)=>{const d=V.len(V.sub(p,q));if(d<bd){bd=d;bi=i;}});return 1/r.d.k[bi];};
   box.innerHTML=`<table><thead><tr><th>#</th><th>X</th><th>Y</th><th>Z</th><th>Bend R, mm</th><th></th></tr></thead><tbody>${r.Q.map((q,i)=>{
-    const isT=!r.tidx||r.tidx.includes(i),rr=Rat(q),col=rr<R?'--bad':rr<R*SF?'--warn':'--ok';
+    const isT=!r.tidx||r.tidx.includes(i),rr=Rat(q),col=rr<R?'--bad':rr<R*SF?'--warn-ink':'--ok';
     return `<tr data-i="${i}"><td class="metric">${i+1}</td><td>${q[0].toFixed(2)}</td><td>${q[1].toFixed(2)}</td><td>${q[2].toFixed(2)}</td><td style="color:var(${col})">${rr>1e4?'straight':fmt(rr)}</td><td class="metric">${r.qLabel?r.qLabel[i]:isT&&r.tidx?'P'+(r.tidx.indexOf(i)+1):''}</td></tr>`;}).join('')}</tbody></table>`;
   box.querySelectorAll('tr[data-i]').forEach(tr=>{const q=r.Q[+tr.dataset.i];
     tr.onpointerenter=()=>{if(marker){marker.position.set(...q);marker.visible=true;draw();}};
@@ -741,19 +744,34 @@ $('runBend').onclick=()=>{
     let sp=SP,res;for(let a=0;a<4;a++){const s=samplePoints(route,r.x,sp,$('adapt').checked,R*SF);const A=analyse(s.Q);res={A,s};if(A.minR>=R*1.15)break;sp*=0.7;}
     const finish=(A,tidx,thinNote)=>{A.tidx=tidx;if(bendJob!==job&&bendJob!==-job)return;bendJob=0;$('runBend').textContent=BEND_LABEL;
       const cx=X?X.report(A):null;
-      addRun(Object.assign(A,{name:`Generated R${R} x${SF}`,kind:'bend',kindLabel:'bend radius, generated',parts:cx?cx.parts:undefined,holes:cx?cx.holes:undefined,marks:cx?cx.marks:undefined,clearDense:cx?cx.clearDense:undefined,gapLimit:cx?cx.gapLimit:undefined,spots:cx?cx.spots:undefined,
-        params:{R,SF,spacing:SP},settings:`gap ${sp.toFixed(0)} mm between points${$('adapt').checked?', closer in bends':''}, x${SF} margin${nloc?`, ${nloc} local radius override${nloc>1?'s':''}`:''}${thinNote}${cx?cx.note:''}${SD?SD.note:''}${frameNote}`,
+      addRun(Object.assign(A,{name:`Generated R${R} ×${SF}`,kind:'bend',kindLabel:'bend radius, generated',parts:cx?cx.parts:undefined,holes:cx?cx.holes:undefined,marks:cx?cx.marks:undefined,clearDense:cx?cx.clearDense:undefined,gapLimit:cx?cx.gapLimit:undefined,spots:cx?cx.spots:undefined,
+        params:{R,SF,spacing:SP},settings:`gap ${sp.toFixed(0)} mm between points${$('adapt').checked?', closer in bends':''}, ×${SF} margin${nloc?`, ${nloc} local radius override${nloc>1?'s':''}`:''}${thinNote}${cx?cx.note:''}${SD?SD.note:''}${frameNote}`,
         text:toPts(A.Q,{R,designR:+(R*SF).toFixed(1),minR:A.minR,len:A.len,tidx})}));
       const corners=typeof ClampStations!=='undefined'&&A.minR<R?ClampStations.cornerLike(P,R):[];
-      const cornerMsg=corners.length?`\nThese look like pipe corner points, not points on a hose: ${corners.map(c=>`point ${c.i+1} turns ${fmt(c.deg,0)}°`).join(', ')} between long straights. A hose through a corner cannot keep R ${fmt(R)}. For a pipe built with Single radius, use Pipe · Route through points.`:'';
-      $('statusBend').style.whiteSpace='pre-line';$('statusBend').textContent=`Added. Generated route holds R ${fmt(A.minR)} mm over ${A.Q.length} points${thinNote?` (${res.s.Q.length} before removing unneeded points)`:''}.${cornerMsg}${cx&&cx.msg?'\n'+cx.msg:''}${SD&&SD.msg?'\n'+SD.msg:''}`;
-      // what to do with this result: fix a clash, pick another way round, or take the points to Creo
-      if(typeof nextSteps==='function'){const N=[];
-        if(corners.length)N.push({label:'Route it as a pipe instead',title:'Pipe · Route through points: lines + arcs at one radius through these corners',go:()=>{if(typeof goTask==='function')goTask('pipe','route');else{$('shape').value='arc';$('shape').dispatchEvent(new Event('change'));}}});
-        if(cx&&cx.tooClose&&cx.canPush)N.push({label:'Push the route away and check again',title:'Ticks “Push the route away” under Keep clear of CAD parts and runs Check',go:()=>{$('cdBox').open=true;$('cdPush').checked=true;$('cdPush').dispatchEvent(new Event('change'));$('runBend').click();}});
-        if(cx&&cx.tooClose)N.push({label:'Alternatives',title:'Other ways round the parts',go:()=>$('runAlt').click()});
-        if(!(cx&&cx.tooClose)&&!corners.length){N.push({label:'Download .pts',go:()=>{dock='pts';showPane();$('dl').click();}},{label:'Copy .pts',title:'Copies the points to the clipboard, to paste into Creo',go:()=>{dock='pts';showPane();$('copy').click();}});if(cx)N.push({label:'Alternatives',go:()=>$('runAlt').click()});}
-        if(A.minR<R&&!corners.length)N.unshift({label:'Refine the tightest bend',go:()=>{const b=$('dRef');if(b)b.click();}});
+      // one verdict line (the worst problem first: into a part, below min R, inside the gap; else clear), the details under it
+      const sp0=cx&&cx.spots?cx.spots:[],into=sp0.filter(x=>x.gap<0).sort((a,b)=>a.gap-b.gap)[0],near0=sp0.slice().sort((a,b)=>a.gap-b.gap)[0];
+      const atP=q=>{let bi=0,bd=Infinity;P.forEach((p,i)=>{const d=V.len(V.sub(p,q));if(d<bd){bd=d;bi=i;}});return`P${bi+1}`;},last=n=>String(n).split(' / ').pop();
+      const span=x=>x.span.replace(/^(P\d+)–(P\d+)$/,'between $1 and $2');
+      const V0=into?['bad','Clash:',`${fmt(-into.gap,1)} mm into ${last(into.name)} ${span(into)}, over ${fmt(into.len,0)} mm.`]
+        :A.minR<R?['bad','Too tight:',`R ${fmt(A.minR,0)} at ${atP(A.d.pts[A.wi])}, below the ${+R} mm minimum.`]
+        :near0?['warn','Close:',`${fmt(near0.gap,1)} mm from ${last(near0.name)} near ${atP(A.d.pts[near0.i])}; the gap is ${+cx.gapLimit} mm.`]
+        :['ok','Clear:',`R ${fmt(A.minR,0)} over ${A.Q.length} points${cx&&cx.min?`; smallest gap ${fmt(cx.min.gap,1)} mm${cx.min.name?`, to ${last(cx.min.name)}`:''} near P${cx.min.at}`:''}.`];
+      const det=[`Generated R${R} ×${SF}: R ${fmt(A.minR)} mm over ${A.Q.length} points${thinNote?` (${res.s.Q.length} before removing unneeded points)`:''}, ${fmt(A.len,0)} mm.`,
+        corners.length?`Corner points? These ${P.length} points have long straights and sharp turns (${corners.map(c=>`P${c.i+1} turns ${fmt(c.deg,0)}°`).join(', ')}), like pipe corners. A hose through them cuts every corner.`:'',
+        cx&&cx.msg||'',SD&&SD.msg||''].filter(Boolean).join('\n');
+      const st=$('statusBend');st.style.whiteSpace='';st.style.color='';
+      st.innerHTML=`<div class="verdict-line"><b class="vk vk-${V0[0]}">${V0[1]}</b> ${esc(V0[2])}</div><div class="vdet">${esc(det)}</div>`;
+      // what to do with this result: fix the worst problem → other options → deliver (at most 3, the first is primary)
+      if(typeof nextSteps==='function'){
+        const push={label:'Push away and check again',title:'Ticks “Push the route away” under Keep clear of CAD parts and runs Check',go:()=>{$('cdBox').open=true;$('cdPush').checked=true;$('cdPush').dispatchEvent(new Event('change'));$('runBend').click();}},
+          alt={label:'Alternatives',title:'Other ways round the kept-clear parts',go:()=>$('runAlt').click()},
+          dl={label:'Download .pts',go:()=>{dock='pts';showPane();$('dl').click();}},
+          refine={label:'Refine tightest bend',go:()=>{const b=$('dRef');if(b)b.click();}},
+          sg={label:'Suggest extra clamps',go:()=>{$('sgBox').open=true;$('sgRun').click();}},
+          pipe={label:'Route as a pipe (arcs)',title:'Pipe · Route through points: lines + arcs at one radius through these corners',go:()=>{if(typeof goTask==='function')goTask('pipe','route');else{$('shape').value='arc';$('shape').dispatchEvent(new Event('change'));}}},
+          anyway={label:'Use them anyway',title:'Keep this route as it is',go:()=>nextClear('statusBend')};
+        const canPush=cx&&cx.canPush;
+        const N=corners.length?[pipe,anyway]:into?[canPush&&push,cx&&alt].filter(Boolean):A.minR<R?[refine,alt]:near0?[canPush&&push,alt,dl].filter(Boolean):[dl,sg,cx&&alt].filter(Boolean);
         nextSteps('statusBend',N);}};
     if(!$('thin').checked)return finish(res.A,res.s.tidx,'');
     const tol=Math.max(0.05,+$('thinTol').value||1),needR=Math.max(R,Math.min(R*SF,res.A.minR*0.97)),T=thinner(res.s.Q,res.s.tidx,needR,tol,X&&X.thin),n0=res.s.Q.length;

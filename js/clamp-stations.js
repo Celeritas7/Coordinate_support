@@ -18,7 +18,7 @@ len=a=>Math.hypot(a[0],a[1],a[2]),norm=a=>{const l=len(a)||1e-12;return[a[0]/l,a
 const FX=root.Fixings||(typeof require!=="undefined"?require("./fixings.js"):null);
 function candidates(r,opt){const D=+opt.D,tol=opt.tol==null?1.5:+opt.tol;
   return FX.find(r,{D,fit:tol,lib:opt.lib||null}).map(c=>({id:c.id,name:c.name,part:c.part,label:c.label,c:c.c,d:c.d,D:c.D,length:c.length,
-    role:c.role,use:c.use,reason:c.reason}));}
+    role:c.role,use:c.use,reason:c.reason,inst:c.inst,lib:c.lib}));}
 
 function pathLength(P,ord){let s=0;for(let i=1;i<ord.length;i++)s+=dist(P[ord[i-1]],P[ord[i]]);return s;}
 
@@ -144,7 +144,10 @@ function autoOrder(){const T=ticked();if(T.length<2){render();return;}
   const ord=order(T.map(s=>s.c),{start:si<0?null:si,end:ei<0?null:ei}).map(i=>T[i]);
   const rest=CS.list.filter(s=>!CS.use.has(s.id));CS.list=ord.concat(rest);render();}
 
-function render(){const box=$('csList'),T=ticked();
+// clamps the hose's ticked stations use (end fittings and points picked in 3D not counted), for the assembly line
+const CLAMP=new Set(['fixing','clip','clamp','grommet']);
+root.csCount=()=>CS.list.length&&openAsm()&&!CS.own?{n:ticked().filter(s=>CLAMP.has(s.role)||s.lib).length,D:+$('csD').value||8}:null;
+function render(){document.dispatchEvent(new Event('cs:changed'));const box=$('csList'),T=ticked();
   // the name only (the select is narrow); the part in the tooltip
   const opts=sel=>`<option value="">auto</option>`+T.map(s=>`<option value="${s.id}" title="${esc(tag(s))}" ${sel===s.id?'selected':''}>${esc(s.name)}</option>`).join('');
   $('csStart').innerHTML=opts(CS.start);$('csEnd').innerHTML=opts(CS.end);
@@ -153,17 +156,30 @@ function render(){const box=$('csList'),T=ticked();
   staleDirs();
   if(!CS.list.length){box.innerHTML='';$('csLen').textContent='';return;}
   let k=0;
+  // two lines: S2 · name · part … bore | reason (marker + words) … position. The reason is its own element.
+  const T1=ticked(),first=T1[0],last=T1[T1.length-1],pos=c=>c.map(v=>Math.round(v)).join(' ').replace(/-/g,'−');
+  const lib=typeof FixLib!=='undefined'&&openAsm();
   const row=(s,i)=>{const on=CS.use.has(s.id),no=on?++k:0;
-    const nr=on&&CS.near.get(s.id);
+    const nr=on&&CS.near.get(s.id),picked=s.role==='picked',end=s.role==='end'&&on?(s===first?' · start':s===last?' · end':''):'';
+    const bore=s.D?`Ø${fmt(s.D,1)} × ${+fmt(s.length,1)}`:s.d?'CSYS direction':'direction free';
+    const add=s.role==='fixing'&&lib&&s.inst!=null?` · <button type="button" class="linkish" data-addlib="${s.inst}" title="Add ${esc(s.part)} to the Library">Add…</button>`:'';
+    const rm=picked&&CS.extra.some(x=>x.id===s.id)?` · <button type="button" class="linkish" data-drop="${s.id}">remove</button>`:'';
+    const kind=s.role==='end'?'end':s.role==='fixing'?'fixing':s.lib||s.role==='clip'||s.role==='clamp'||s.role==='grommet'?'lib':'other';
     return`<div class="csrow${on?'':' off'}${nr?' near':''}" draggable="true" data-i="${i}"><button type="button" class="csgrip" data-grip="${i}" aria-label="Move ${esc(s.name)}: drag, or Up / Down arrow keys" title="Drag to reorder (or focus and press ↑ / ↓)">⠿</button>`+
-      `<label class="chk cdp"><input type="checkbox" data-id="${s.id}" ${on?'checked':''}><span><b>${no?'S'+no+' ':''}${esc(s.name)}</b> <span class="unit">${esc(s.part)} · ${s.D?`bore Ø${fmt(s.D,2)} × ${fmt(s.length,1)} mm`:s.d?'direction from its CSYS':'point, direction free'} · ${s.c.map(v=>Math.round(v)).join(', ')}</span>`+(s.role==='picked'?` <button type="button" class="linkish" data-drop="${s.id}">remove</button>`:'')+
-      (s.reason?`<span class="csrole csrole-${esc(s.role||'')}">${esc(s.reason)}</span>`:'')+
+      `<label class="chk cdp"><input type="checkbox" data-id="${s.id}" ${on?'checked':''}><span class="cstxt"><span class="cs1"><b>${no?'S'+no+' · ':''}${esc(s.name)}</b>${picked?'<span class="cs3d" title="Picked in 3D">3D</span>':''}`+
+      `<span class="cspart" title="${esc(s.label||s.part||'')}">${esc(s.part||'')}</span><span class="csbore">${bore}</span></span>`+
+      `<span class="cs2"><span class="csrole csrole-${kind}"${s.lib?` title="${esc(s.lib.pattern)}"`:''}><i class="csmk" aria-hidden="true"></i>${esc(s.reason||'')}${end}${add}${rm}</span><span class="cspos">${pos(s.c)}</span></span>`+
       (nr?`<span class="csnear">${nr.map(x=>`too close to ${x.to}: ${fmt(x.L,0)} mm, needs ${fmt(x.need,0)}`).join('; ')}</span>`:'')+`</span></label></div>`;};
   // short holes nobody ticked go under one fold, so the list shows what the route uses
   const hide=s=>s.role==='hole'&&!CS.use.has(s.id),main=CS.list.map((s,i)=>[s,i]).filter(([s])=>!hide(s)),rest=CS.list.map((s,i)=>[s,i]).filter(([s])=>hide(s));
-  box.innerHTML=main.map(([s,i])=>row(s,i)).join('')+(rest.length?`<details class="csmore"${CS.moreOpen?' open':''}><summary>Other holes (${rest.length}): bolt and plate holes, unticked</summary>${rest.map(([s,i])=>row(s,i)).join('')}</details>`:'');
+  box.innerHTML=main.map(([s,i])=>row(s,i)).join('')+(rest.length?`<details class="csmore"${CS.moreOpen?' open':''}><summary>Other holes that fit Ø${+$('csD').value||8} (${rest.length})</summary>${rest.map(([s,i])=>row(s,i)).join('')}</details>`:'');
   const more=box.querySelector('.csmore');if(more)more.ontoggle=()=>{CS.moreOpen=more.open;};
   $('csLen').textContent=T.length>1?`${T.length} stations, ${fmt(pathLength(T.map(s=>s.c),T.map((_,i)=>i)),0)} mm straight-line path`:'Tick at least 2 stations to order them.';
+  box.querySelectorAll('[data-addlib]').forEach(b=>b.onclick=e=>{e.preventDefault();const a=openAsm();if(!a)return;const x=FixLib.addFromPart(a.r,+b.dataset.addlib);
+    if(!x)return say('Not added.',true);
+    // the rows of that part become Library rows; ticks and order stay as they are
+    const fresh=candidates(a.r,opt(a.r));CS.list.forEach(s=>{const f=fresh.find(q=>len(sub(q.c,s.c))<0.5&&q.inst===s.inst);if(f&&s.role!=='picked')Object.assign(s,{role:f.role,reason:f.reason,lib:f.lib});});
+    render();say(`${x.pattern} added to the Library as a ${x.type} (bore Ø${fmt(x.boreMin,1)}–${fmt(x.boreMax,1)}). Edit it under Library.`);});
   box.querySelectorAll('[data-drop]').forEach(b=>b.onclick=e=>{e.preventDefault();const id=+b.dataset.drop;CS.extra=CS.extra.filter(s=>s.id!==id);
     CS.list=CS.list.filter(s=>s.id!==id);CS.use.delete(id);if(CS.start===id)CS.start=null;if(CS.end===id)CS.end=null;autoOrder();});
   box.querySelectorAll('input[data-id]').forEach(el=>el.onchange=()=>{const id=+el.dataset.id;CS.near.clear();if(el.checked)CS.use.add(id);else{CS.use.delete(id);if(CS.start===id)CS.start=null;if(CS.end===id)CS.end=null;}render();});
@@ -192,10 +208,18 @@ function useAsStations(){const T=ticked();if(T.length<2)return;
     // each pair in amber in the list, with its gap; one red line here
     CS.near=new Map();near.forEach(p=>[[p.i,p.j],[p.j,p.i]].forEach(([a,b])=>{const id=T[a].id;if(!CS.near.has(id))CS.near.set(id,[]);CS.near.get(id).push({to:`S${b+1}`,L:p.L,need:2*R});}));render();
     say(`${T.length} stations written to Target points${f?` (in the ${f.name} frame)`:''}${$('csHold').checked?', bore directions below':''}.`);
-    if(near.length){const e=document.createElement('div');e.style.color='var(--bad)';
-      e.textContent=`${near.length} station pair${near.length>1?'s are':' is'} too close for R ${+fmt(R,1)}.`;
-      e.title='Neighbouring stations with both bores held need 2 × R between them unless the bores line up. Untick one of each pair, or untick “Hold the bore direction”.';$('statusCs').appendChild(e);}
-    if(typeof nextSteps==='function')nextSteps('statusCs',[{label:'Check now',go:()=>$('runBend').click()}].concat(near.length?[{label:'Untick “Hold the bore direction”',go:()=>{$('csHold').checked=false;$('csHold').dispatchEvent(new Event('change'));say('Bore directions off: Check uses the start / end directions only.');}}]:[]));};
+    // a pair too close for both bores held: a warning (amber), never a block. Next frees those two stations' directions only
+    if(near.length){const p0=near[0],a=`S${p0.i+1}`,b=`S${p0.j+1}`,e=document.createElement('div');e.className='verdict-line';
+      e.innerHTML=`<b class="vk vk-warn">${a} and ${b}</b> are ${fmt(p0.L,0)} mm apart. Holding both bore directions needs at least ${fmt(2*R,0)} mm (2 × R ${+R}).`+
+        (near.length>1?` <span class="unit">${near.length-1} more pair${near.length>2?'s':''} marked in the list.</span>`:'');
+      e.title='Neighbouring stations with both bores held need 2 × R between them unless the bores line up.';$('statusCs').appendChild(e);}
+    const free=near.length?{label:`Free ${near.length>1?'those':`S${near[0].i+1} and S${near[0].j+1}`} directions`,title:'Writes “-” (free) for the bore direction of both stations of each pair that is too close',
+      go:()=>{const L=$('csDirs').value.split(/\r?\n/),idx=[];L.forEach((l,k)=>{if(l.trim())idx.push(k);});
+        near.forEach(p=>[p.i,p.j].forEach(i=>{const k=idx[i];if(k!=null)L[k]='-   ! '+nameOf(L[k]);}));
+        $('csDirs').value=L.join('\n');store.set('rs.csDirs',$('csDirs').value);CS.near.clear();render();
+        say(`Bore directions freed at ${[...new Set(near.flatMap(p=>[p.i,p.j]))].sort((x,y)=>x-y).map(i=>'S'+(i+1)).join(', ')}.`);
+        if(typeof nextSteps==='function')nextSteps('statusCs',[{label:'Check now',go:()=>$('runBend').click()}]);}}:null;
+    if(typeof nextSteps==='function')nextSteps('statusCs',free?[free,{label:'Check anyway',go:()=>$('runBend').click()}]:[{label:'Check now',go:()=>$('runBend').click()}]);};
   if(!$('pts').value.trim())return write();
   $('csAskTxt').textContent=`Target points already hold ${parsePts($('pts').value).length} point(s). Replace them with the ${T.length} clamp stations?`;
   $('csAsk').hidden=false;$('csYes').onclick=write;$('csNo').onclick=()=>{$('csAsk').hidden=true;say('Target points kept.');};$('csYes').focus();}
@@ -235,7 +259,7 @@ function fromPick(p,r){
 function usePick(p,r,as){
   if(!CS.list.length&&src())refresh();
   const st=fromPick(p,r);let s=CS.list.find(x=>len(sub(x.c,st.c))<0.5);
-  if(!s){s={id:CS.next++,...st,role:'picked',use:true,reason:'picked in 3D'};addExtra(s);}
+  if(!s){s={id:CS.next++,...st,role:'picked',use:true,reason:'Picked in 3D'};addExtra(s);}
   CS.use.add(s.id);CS.picked.add(s.id);if(as==='start'){CS.start=s.id;if(CS.end===s.id)CS.end=null;}if(as==='end'){CS.end=s.id;if(CS.start===s.id)CS.start=null;}
   $('csBox').open=true;const bt=as!=='station'&&CS.start!=null&&CS.end!=null?between():'';if(!bt)autoOrder();
   const verb=as==='station'?'Station added':as==='start'?'Start set':'End set',on=st.part?` on ${st.part}`:'';
@@ -246,7 +270,7 @@ function usePick(p,r,as){
 // for Suggest extra clamps (clamp-suggest.js): what is ticked, and adding its suggestions as stations
 root.clampStationsTicked=()=>ticked();
 root.csAddStations=L=>{if(!CS.list.length&&src())refresh();
-  L.forEach(st=>{if(CS.list.some(x=>len(sub(x.c,st.c))<0.5))return;const s={id:CS.next++,label:'',D:null,length:0,...st,role:'picked',use:true,reason:'suggested clamp'};
+  L.forEach(st=>{if(CS.list.some(x=>len(sub(x.c,st.c))<0.5))return;const s={id:CS.next++,label:'',D:null,length:0,...st,role:'picked',use:true,reason:'Suggested clamp'};
     addExtra(s);CS.use.add(s.id);});
   $('csBox').open=true;autoOrder();say(`${L.length} suggested clamps added; ${ticked().length} stations ticked. Use as stations, then Check.`);};
 (root.AV_ACTIONS=root.AV_ACTIONS||[]).push((p,r)=>$('csBox').hidden||(p.kind!=='csys'&&p.kind!=='part')?[]:[

@@ -70,7 +70,7 @@ function waCheck(W,cfg){
     const sv=[],bd=[];for(let i=0;i<n;i++){const r=bR[rd[i]];sv.push(r<pr.R?3:r<pr.R*SF?2:0);bd.push(pr.R/r);}
     waGroup(sv,bd).forEach(g=>{const r=bR[rd[g.w]];add(g,'Bend radius',{found:r,foundTxt:`R ${fmt(r)}`,limit:g.sev===3?pr.R:pr.R*SF,
       limitTxt:g.sev===3?`min ${pr.R}`:`margin ${fmt(pr.R*SF,0)}`,unit:'mm',bad:bd[g.w],
-      note:g.sev===3?'The spline through these points bends tighter than the cable allows.':`Passes the minimum but is inside the x${SF} margin.`});});
+      note:g.sev===3?'The spline through these points bends tighter than the cable allows.':`Passes the minimum but is inside the ×${SF} margin.`});});
     // duplicates
     for(let i=1;i<n;i++){const d=V.len(V.sub(P[i],P[i-1]));if(d<dup)add({a:i,b:i,w:i,sev:3},'Duplicate point',{found:d,foundTxt:`${fmt(d,2)} from #${i}`,limit:dup,limitTxt:`≥ ${dup}`,unit:'mm',bad:10,note:`Same position as point #${i}. Delete one of them.`});}
     // kinks, loop-backs, uneven spacing (on distinct points)
@@ -167,14 +167,14 @@ function renderIssues(){
   const cabs=[...new Set(all.map(x=>x.cable))],checks=[...new Set(all.map(x=>x.check))],L=waShown();
   if(waFilter.cable&&!cabs.includes(waFilter.cable))waFilter.cable='';
   const cnt=s=>all.filter(x=>x.sev===s).length,opt=(v,t,cur)=>`<option value="${v}"${v===cur?' selected':''}>${t}</option>`;
-  box.innerHTML=`<div class="isshead"><span class="sum"><b style="color:var(--bad)">${cnt(3)} fail</b> &middot; <b style="color:var(--warn)">${cnt(2)} warn</b> &middot; ${cnt(1)} changed</span>
+  box.innerHTML=`<div class="isshead"><span class="sum"><b style="color:var(--bad)">${cnt(3)} fail</b> &middot; <b style="color:var(--warn-ink)">${cnt(2)} warn</b> &middot; ${cnt(1)} changed</span>
     <select id="fCab" aria-label="cable">${opt('','All cables',waFilter.cable)}${cabs.map(c=>opt(c,c,waFilter.cable)).join('')}</select>
     <select id="fChk" aria-label="check">${opt('','All checks',waFilter.check)}${checks.map(c=>opt(c,c,waFilter.check)).join('')}</select>
     <select id="fShow" aria-label="show">${opt('fw','Fail + warn',waFilter.show)}${opt('f','Fail only',waFilter.show)}${opt('all','Everything',waFilter.show)}</select>
     <span class="right"><button type="button" id="issFixAll" title="Fix every failure and kink warning">Fix all</button><button type="button" id="issStep" title="Fix one at a time; accept or skip each">Step through</button><button type="button" id="issCsv">Download .csv</button></span></div>
     ${L.length?`<table><thead><tr><th></th><th>Cable</th><th>Point</th><th>Line</th><th>Check</th><th>Found</th><th>Limit</th><th>Note</th><th></th></tr></thead><tbody>${L.map(x=>`<tr data-u="${x.uid}" data-on="${x.uid===waSel?1:0}">
       <td><span class="sev"><i style="background:var(${WA_SEV[x.sev].c})"></i>${WA_SEV[x.sev].t}</span></td><td>${x.cable}</td><td>${waPts(x)}</td><td class="metric">${x.line||'--'}</td>
-      <td>${x.check}</td><td style="color:var(${WA_SEV[x.sev].c})">${x.foundTxt}</td><td class="metric">${x.limitTxt}</td><td class="note">${x.note}</td><td><span class="fixc">${waFixable(x)?`<button type="button" class="fixbtn" data-fix="${x.uid}">Fix</button>`:''}${x.a!=null?`<button type="button" class="fixbtn" data-del="${x.uid}" title="Delete point #${x.w+1}">Delete #${x.w+1}</button>`:''}</span></td></tr>`).join('')}</tbody></table>`
+      <td>${x.check}</td><td style="color:var(${WA_SEV[x.sev].c==='--warn'?'--warn-ink':WA_SEV[x.sev].c})">${x.foundTxt}</td><td class="metric">${x.limitTxt}</td><td class="note">${x.note}</td><td><span class="fixc">${waFixable(x)?`<button type="button" class="fixbtn" data-fix="${x.uid}">Fix</button>`:''}${x.a!=null?`<button type="button" class="fixbtn" data-del="${x.uid}" title="Delete point #${x.w+1}">Delete #${x.w+1}</button>`:''}</span></td></tr>`).join('')}</tbody></table>`
       :'<p class="empty" style="padding:14px">No issues match these filters.</p>'}`;
   $('fCab').onchange=e=>{waFilter.cable=e.target.value;renderIssues();rebuild(false);};
   $('fChk').onchange=e=>{waFilter.check=e.target.value;renderIssues();rebuild(false);};

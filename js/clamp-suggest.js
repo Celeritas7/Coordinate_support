@@ -79,9 +79,9 @@ function run(){
   // a route that fails the radius will change: say so first
   const lead=R&&r.minR<R?`${r.name} fails the radius (R ${fmt(r.minR)}, needs ${R}). Suggestions may move once it passes. `:'';
   const many=n>12?` That is one every ${f0(SG.res.L/n)} mm; check Max spacing and the route before making CSYS.`:'';
-  say(lead+(n?`${n} clamp${n>1?'s':''} to add on ${r.name}${brk?`, ${brk} need${brk>1?'':'s'} a bracket`:''}.${many}${cad?'':' Load the parts (Keep clear of CAD parts) to see what each one mounts on.'}`
+  say(lead+(n?`${n} clamp${n>1?'s':''} to add on ${r.name}${brk?`; ${brk} need${brk>1?'':'s'} a bracket`:''}.${many}${cad?'':' Load the parts (Keep clear of CAD parts) to see what each one mounts on.'}`
     :`No clamp to add: ${r.name} is held within ${f0(o.maxSpan)} mm everywhere${o.bends?' and next to every bend':''}.`));
-  if(n&&typeof nextSteps==='function')nextSteps('sgStatus',[{label:'Make a CSYS for each',go:makeAll},{label:'Add them as stations',go:addAll}]);}
+  if(n&&typeof nextSteps==='function')nextSteps('sgStatus',[{label:'Make CSYS for all',go:makeAll},{label:'Add all as stations',go:addAll}]);}
 // support names as the station list shows them: S1, S2 … (route start / end at the ends)
 const supName=x=>x.i!=null?`S${x.i+1}`:x.name==='route start'?'start':x.name==='route end'?'end':x.name;
 // "on <part>, 3.2 mm" / "on the surface of <part>" / bracket

@@ -34,7 +34,7 @@ if (has("piping3_practice_asm.stp")) {
   check(T.length === 5 && H.length === 5, `Hose Ø12: 5 stations, nothing else listed (${H.map(c => c.name + "/" + c.role).join(", ")})`);
   check(T.filter(c => c.role === "end").length === 2 && T[0].role === "end" && T[1].role === "end", "the two end fittings of pipe 111 come first (start / end)");
   check(["CS16", "CS17"].every(n => T.some(c => c.name === n && c.role === "clip")), "CS16 and CS17 are the Library twin clip");
-  check(T.some(c => c.part === "25375330" && c.role === "fixing" && /not in the Library/.test(c.reason)), "25375330 is a clamp, flagged not in the Library");
+  check(T.some(c => c.part === "25375330" && c.role === "fixing" && /Not in the Library/.test(c.reason)), "25375330 is a clamp, flagged not in the Library");
   const H8 = F.find(r, { D: 8, lib });
   check(ticked(H8).length === 1 && ticked(H8)[0].length > 70, `Hose Ø8: 1 ticked (the 78.5 mm sleeve), ${H8.length - 1} short holes unticked (was 26 ticked)`);
   check(H8.filter(c => c.role === "hole").every(c => c.length < 10), "every unticked hole is under 10 mm long");

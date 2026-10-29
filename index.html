@@ -23,7 +23,7 @@
         <a class="shbtn" href="inspector.html" target="_blank" title="Check what a Creo export contains">Inspector</a><button type="button" id="shTheme" class="shbtn" title="Switch light / dark">Dark</button></div></div>
     <div class="modsw" role="tablist" aria-label="Module"><button type="button" role="tab" data-mod="hose">Hose / Cable</button><button type="button" role="tab" data-mod="pipe">Pipe</button><button type="button" role="tab" data-mod="bundle">Bundle</button><button type="button" role="tab" data-mod="library">Library</button></div>
     <div class="shstatus" id="shStatus">Drop .stp, .igs or .pts files anywhere on the page.</div>
-    <div class="shasm" id="shAsm" hidden><span class="unit">Assembly:</span> <span id="shAsmTxt"></span> · <button type="button" class="linkish" id="shAsmGo">pipes</button><span id="shMk" hidden> · <button type="button" class="linkish" id="shMkGo"></button></span></div>
+    <div class="shasm" id="shAsm" hidden><span id="shAsmTxt"></span><span id="shMk" hidden> · <button type="button" class="linkish" id="shMkGo"></button></span></div>
     <input type="file" id="shFile" multiple accept=".pts,.txt,.csv,.ibl,.igs,.iges,.stp,.step" hidden>
   </header>
 
@@ -48,18 +48,18 @@
       <input type="file" id="csFile" accept=".stp,.step" hidden>
       <div class="fields c2">
         <div><label for="csD">Hose Ø <span class="unit">mm</span></label><input id="csD" type="number" value="8" min="0.1" step="0.5" inputmode="decimal"></div>
-        <div><label for="csTol">Bore up to + <span class="unit">mm</span></label><input id="csTol" type="number" value="1.5" min="0" step="0.5" inputmode="decimal" title="A bore from Hose Ø − 0.2 to Hose Ø + this counts as fitting the hose (it cannot pass a smaller bore)."></div>
+        <div><label for="csTol">Bore fit + <span class="unit">mm</span></label><input id="csTol" type="number" value="1.5" min="0" step="0.5" inputmode="decimal" title="A bore from Hose Ø − 0.2 to Hose Ø + this counts as fitting the hose (it cannot pass a smaller bore)."></div>
       </div>
       <div class="status" id="statusCs"></div>
       <div class="fields c2">
-        <div><label for="csStart">Start at</label><select id="csStart"></select></div>
-        <div><label for="csEnd">End at</label><select id="csEnd"></select></div>
+        <div><label for="csStart">Start</label><select id="csStart"></select></div>
+        <div><label for="csEnd">End</label><select id="csEnd"></select></div>
       </div>
       <div class="presets"><button type="button" id="csAuto" disabled>Auto order</button><button type="button" id="csNone" disabled>Untick all</button><button type="button" id="csPicked" disabled title="Keep only the stations picked in the 3D view">Only picked</button></div>
       <div id="csList" class="cdparts cslist"></div>
       <div class="presets"><button type="button" id="csUse" disabled>Use as stations</button><span class="unit" id="csLen"></span></div>
       <div class="csask" id="csAsk" hidden role="alertdialog" aria-labelledby="csAskTxt"><span id="csAskTxt"></span> <span class="presets"><button type="button" id="csYes">Replace</button><button type="button" id="csNo">Keep</button></span></div>
-      <label class="chk" style="margin-top:10px"><input type="checkbox" id="csHold" checked>Hold the bore direction at each station when checking</label>
+      <label class="chk" style="margin-top:10px"><input type="checkbox" id="csHold" checked>Hold the bore direction at each station</label>
       <label for="csDirs">Bore directions <span class="unit">(dX dY dZ per target point, - = free; optional)</span></label>
       <span class="unit csstale" id="csDirsNote" hidden>For the stations now in Target points; updated when you press Use as stations.</span>
       <textarea id="csDirs" rows="3" spellcheck="false" wrap="off"></textarea>
@@ -89,8 +89,8 @@
         <div><label for="cdReach">Look within <span class="unit">mm</span></label><input id="cdReach" type="number" value="60" min="10" step="10" inputmode="decimal"></div>
       </div>
       <label class="chk"><input type="checkbox" id="cdUse" checked>Check the gap to the ticked parts</label>
-      <label class="chk"><input type="checkbox" id="cdPush">Push the route away from them</label>
-      <p class="hint pushnote">Trial: pushes off face boxes; curved faces other than cylinders still get generous boxes and can force tight bends.</p>
+      <label class="chk"><input type="checkbox" id="cdPush">Push the route away from kept-clear parts</label>
+      <p class="hint pushnote">Trial: works on face boxes; can force tighter bends.</p>
       <div class="status" id="statusCad"></div>
       <div id="cdParts" class="cdparts"></div>
       <details class="adv howread"><summary>How parts are read</summary><p class="hint">Flat and cylindrical faces are read with their real outline and holes, so the gap to them is exact (a hose through a hole or past a plate edge sees that edge); other faces count as a box. Small parts (80 mm or less in every direction) at a station or on the station line are taken as clips and clamps and left unticked: the hose may touch them. A bracket up to 300 mm that the clip at a station is fixed to is that clip's mount and left unticked too (a hose in the clip always reaches it). Larger parts are frame, even at a station. In a STEP assembly, parts read as pipes (or marked pipe in the part tree) are listed as existing pipes, unticked. Tick or untick any part. A 23 MB IGES takes about 10 s to read.</p></details>
@@ -105,7 +105,7 @@
       </div>
       <p class="hint">Direction of travel along the hose, as X,Y,Z.</p>
     </details>
-    <button class="go" id="runBend" type="button">Check, then add to comparison</button>
+    <button class="go" id="runBend" type="button">Check route</button>
     <p class="hint" id="bendHint">Adds two runs: the spline through your points as entered, and a generated route that holds the radius. A 4th value on a point line raises the min radius near that point for a smoother loop there.</p>
     <div class="status" id="statusBend"></div>
     <div id="altBox">
@@ -115,7 +115,7 @@
         <label for="altObs" style="margin-top:8px">Obstacles <span class="unit">(id  Xmin Ymin Zmin  Xmax Ymax Zmax)</span></label>
         <textarea id="altObs" rows="2" spellcheck="false" wrap="off"></textarea>
       </details>
-      <label class="altup">Up is <select id="altUp"><option>+Z</option><option>-Z</option><option>+Y</option><option>-Y</option><option>+X</option><option>-X</option></select>
+      <label class="altup">Up (for over / under) <select id="altUp"><option>+Z</option><option>-Z</option><option>+Y</option><option>-Y</option><option>+X</option><option>-X</option></select>
         <span class="unit" id="altSides"></span></label>
       <div class="status" id="statusAlt"></div>
       <div id="altList" class="altlist"></div>
@@ -338,9 +338,9 @@
   </div>
 
   <div class="runs">
-    <div class="rh"><h2>Comparison runs</h2><button type="button" class="clr" id="clearAll" hidden>Clear all</button></div>
+    <div class="rh"><h2>Runs in 3D <span class="unit" id="runsN"></span></h2><button type="button" class="clr" id="clearAll" hidden>Clear all</button></div>
     <div id="runlist"><p class="empty">No runs yet. Run a check to add one.</p></div>
-    <p class="hint" id="runhint" hidden>Tick to show in the 3D view. Click a run to select it and load its settings.</p>
+    <p class="hint" id="runhint" hidden>Tick to show; click to select.</p>
   </div>
 </aside>
 
