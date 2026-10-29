@@ -23,7 +23,14 @@ $('altUp').onchange=()=>store.set('rs.altUp.'+fileKey(),$('altUp').value);
 document.addEventListener('asm:loaded',()=>{$('altUp').value=store.get('rs.altUp.'+fileKey())||'+Z';sidesLine();});
 (window.AV_ACTIONS=window.AV_ACTIONS||[]).push((p,r)=>{if(p.kind!=='part'||$('altBox').hidden)return[];
   const I=r.instances[p.inst],name=I.label||I.name,cur=ALT.prefer()[name]||'any';
-  return['any','above','below','left','right'].map(s=>({row:`Route passes it (up ${$('altUp').value}, looking from start to end)`,label:s==='above'?'over':s==='below'?'under':s,on:cur===s,
+  // the leg that passes the part (nearest to its box centre), looking from its earlier point to the next; on a leg along the
+  // up axis over / under / left / right do not apply, so the choice is by axis
+  const P=parsePts($('pts').value),c=I.bbox?[0,1,2].map(k=>(I.bbox.min[k]+I.bbox.max[k])/2):p.p,up=MultiRoute.parseAxis($('altUp').value)||{ax:2,sg:1};
+  let leg=-1,bd=Infinity;for(let i=0;c&&i<P.length-1;i++){const a=P[i],d=V.sub(P[i+1],a),L2=V.dot(d,d)||1e-12,t=Math.max(0,Math.min(1,V.dot(V.sub(c,a),d)/L2)),e=V.len(V.sub(c,V.add(a,V.mul(d,t))));if(e<bd){bd=e;leg=i;}}
+  const dl=leg>=0?V.norm(V.sub(P[leg+1],P[leg])):null,along=dl&&Math.abs(dl[up.ax])>0.9;
+  const looking=leg>=0?` · looking P${leg+1} → P${leg+2}`:'';
+  const opts=along?['any',...[0,1,2].filter(k=>k!==up.ax).flatMap(k=>['+'+'XYZ'[k],'-'+'XYZ'[k]])]:['any','above','below','left','right'];
+  return opts.map(s=>({row:`Route passes it${looking} · up ${$('altUp').value}`,label:s==='above'?'over':s==='below'?'under':s.replace('-','−'),on:cur===s,
     title:s==='any'?'Alternatives may pass it on any side':`Alternatives keep only routes that pass ${s==='above'?'over':s==='below'?'under':'to the '+s+' of'} it (up = ${$('altUp').value})`,
     go:()=>{const o=ALT.prefer();if(s==='any')delete o[name];else o[name]=s;savePrefer(o);sidesLine();
       return s==='any'?`${I.name}: any side.`:`${I.name}: Alternatives pass it ${s==='above'?'over':s==='below'?'under':'on the '+s} (looking along the route, up ${$('altUp').value}). Run Alternatives.`;}}));});
@@ -33,23 +40,42 @@ function typedBoxes(){
   return $('altObs').value.split(/\r?\n/).map(l=>l.split('!')[0].trim()).filter(Boolean).map(l=>l.replace(/,/g,' ').split(/\s+/))
     .filter(r=>r.length>=7&&r.slice(1,7).every(v=>Number.isFinite(+v))).map(r=>{const v=r.slice(1,7).map(Number);
       return{id:r[0],part:r[0],min:[0,1,2].map(k=>Math.min(v[k],v[k+3])),max:[0,1,2].map(k=>Math.max(v[k],v[k+3]))};});}
-// a side preference that cost the clean route is amber, with why and where the route went; red is for radius / gap only
-const WANT={above:'above',below:'below',left:'left of',right:'right of'};
-function forcedLine(a){if(!a.forced||!ALT.forced)return'';
-  return(a.prefs||[]).map(p=>`Could not pass ${WANT[p.want]||esc(p.want)} ${esc(String(p.part).split(' / ').pop())}: ${esc(ALT.forced.why)}.${p.kept?'':` Went ${esc(p.went.replace(/ of$/,''))} instead.`}`).join(' ');}
-function failLine(a){if(a.ok||a.forced||!ALT.ctx)return'';const R=ALT.ctx.R,w=[];
-  if(a.minR<R-1e-6)w.push(`needs R ${fmt(a.minR,0)}, limit R ${R}`);if(a.clearance<-1e-6)w.push(`${fmt(-a.clearance,1)} mm into the keep-clear gap`);
-  return w.length?w.join('; '):'runs into a part';}
-// the number that fails a rule, in red
-const red=(on,t)=>on?`<span style="color:var(--bad)">${t}</span>`:t;
+// a card: swatch · plain-word label · facts in a fixed order (length · min R · gap). A failing fact is red and shows its
+// limit (min R 49 < 65, gap 0.8 < 4). gap = from the hose surface, so the keep-clear gap is the limit. A side preference
+// that cost the clean route is an amber "forced side" tag, never red for the choice itself.
+const keepGap=()=>Math.max(0,+$('cdGap').value||0);
+function facts(a){const R=ALT.ctx.R,g=ALT.ctx.gap,gap=a.clearance+g,badR=a.minR<R-1e-6,badG=a.clearance<-1e-6;
+  const f=(bad,t)=>bad?`<span class="bad">${t}</span>`:t;
+  return[`${Math.round(a.len)} mm`,f(badR,`min R ${fmt(a.minR,0)}${badR?` &lt; ${+R}`:''}`),
+    isFinite(a.clearance)?f(badG,`gap ${fmt(gap,1)}${badG?` &lt; ${+g}`:''} mm`):'gap —'].join(' · ');}
 function render(){
   const box=$('altList');
-  box.innerHTML=ALT.cands.map((a,i)=>{const fl=forcedLine(a),bad=failLine(a);return`<div class="altrow${ALT.sel===i?' on':''}" data-i="${i}"><i style="background:var(--alt${i+1})"></i>
-    <span class="altt"><b>A${i+1}</b> · passes ${esc(a.label)}${bad?` · <span style="color:var(--bad)">${bad}</span>`:''}
-    ${fl?`<span class="unit" style="color:var(--warn)">${fl}</span>`:''}<span class="unit">length ${Math.round(a.len)} mm · ${red(a.minR<ALT.ctx.R-1e-6,`min R ${fmt(a.minR)} mm`)} · ${red(a.clearance<-1e-6,`clearance ${isFinite(a.clearance)?fmt(a.clearance,1)+' mm':'—'}`)}</span></span>
-    <button type="button" data-use="${i}"${a.ok?'':' title="This route breaks the radius or the gap; it is added as a run all the same"'}>${a.ok?'Use this':'Use anyway'}</button></div>`;}).join('');
+  box.innerHTML=ALT.cands.map((a,i)=>`<div class="altrow${ALT.sel===i?' on':''}" data-i="${i}" title="Alternative A${i+1}"><i style="background:var(--alt${i+1})"></i>
+    <span class="altt"><b>${esc(a.label)}</b>${a.forced&&ALT.forced?' <span class="sgtag">forced side</span>':''}<span class="unit altf">${facts(a)}</span></span>
+    <button type="button" class="${a.ok?'pri':''}" data-use="${i}"${a.ok?'':' title="This route breaks the radius or the gap; it is added as a run all the same"'}>${a.ok?'Use this':'Use anyway'}</button></div>`).join('');
   box.querySelectorAll('.altrow').forEach(el=>el.onclick=()=>{ALT.sel=+el.dataset.i;render();rebuild(false);});
   box.querySelectorAll('button[data-use]').forEach(el=>el.onclick=e=>{e.stopPropagation();use(+el.dataset.use);});}
+// the status line: one keyword (No clean route: red; a forced side: amber), facts after it; innerHTML from escaped parts
+function sayLine(kind,key,text){const e=$('statusAlt');e.style.color='';if(typeof nextClear==='function')nextClear('statusAlt');
+  e.innerHTML=`<div class="verdict-line"><b class="vk vk-${kind}">${esc(key)}</b> ${esc(text)}</div>`;}
+const shortName=n=>String(n).split(' / ').pop();
+const OPP={'left of':'right','right of':'left',over:'below',under:'above'},UIW={'left of':'on the left','right of':'on the right',over:'over',under:'under'};
+// "every route tried passes X on the left, at best 8.5 mm into it" from MultiRoute's none (gap counted from the hose surface)
+function noneText(none,n){if(none.rule==='radius')return`every way round needs a bend tighter than R ${+ALT.ctx.R}${isFinite(none.bestR)?` (best R ${fmt(none.bestR,0)})`:''}.`;
+  const g=ALT.ctx.gap,at=s=>{const v=s.gap+g;return v<0?`${fmt(-v,1)} mm into it`:`${fmt(v,1)} mm from it, inside the ${+g} mm gap`;},p=shortName(none.part),S=none.sides||[];
+  const also=none.rule==='both'?' Some routes also bend tighter than R '+(+ALT.ctx.R)+'.':'';
+  const pass=w=>/^(over|under)$/.test(w)?`${w} ${p}`:`${p} ${UIW[w]||w.replace(/ of$/,'')}`;
+  if(none.every&&S.length===1)return`every route tried passes ${pass(S[0].side)}, at best ${at(S[0])}.${also}`;
+  if(none.every)return`${p} is in the way on every side tried: ${S.map(s=>`${(UIW[s.side]||s.side).replace(/^on the /,'')} ${at(s)}`).join(', ')}.${also}`;
+  return`${p} is in the way on some routes tried: ${S.map(s=>`${(UIW[s.side]||s.side).replace(/^on the /,'').replace(/ of$/,'')} ${at(s)}`).join(', ')} (${n} tried).${also}`;}
+// a side choice that cost the clean route: which, and the best that side gives
+function forcedText(f,C){const b=C[0],R=ALT.ctx.R,w=[];
+  if(b&&b.minR<R-1e-6)w.push(`cannot hold R ${+R}; best that side is R ${fmt(b.minR,0)}`);
+  if(b&&b.clearance<-1e-6)w.push(`${w.length?'and ':''}is ${fmt(-b.clearance,b.clearance>-0.1?2:1)} mm inside the gap`);
+  if(b&&!b.kept)w.push('the route slid off that side');
+  const PW={above:'Over',below:'Under',left:'Left of',right:'Right of'},what=f.what.split(', ').map(x=>{const k=x.indexOf(' '),pr=x.slice(0,k),part=x.slice(k+1);
+    return`${PW[pr]||`On the ${pr} side of`} ${shortName(part)}`;}).join(', ');
+  return`${what} ${w.join(', ')||'is not clean'}.`;}
 function stop(msg){ALT.job=0;$('runAlt').textContent=LABEL;if(msg)say(msg);}
 
 $('runAlt').onclick=()=>{
@@ -66,7 +92,7 @@ $('runAlt').onclick=()=>{
   const dirOf=i=>(i===0&&parseDir($('sd').value))||(i===P.length-1&&parseDir($('ed').value))||(held&&held[i])||null;
   let job;try{job=MultiRoute.start(P.map((p,i)=>({p:[p[0],p[1],p[2]],dir:dirOf(i)})),{R,SF,rad,boxes,keep:3,prefer:ALT.prefer(),up:$('altUp').value,shapeNear:typeof CadSolids!=='undefined'?CadSolids.shapeNear:null});}
   catch(e){return say(e.message,true);}
-  ALT.cands=[];ALT.sel=0;ALT.ctx={P,R,SF,rad,typed,nBoxes:boxes.length,cadParts:cad?cad.parts:0};render();rebuild(false);
+  ALT.cands=[];ALT.sel=0;ALT.ctx={P,R,SF,rad,gap:keepGap(),typed,nBoxes:boxes.length,cadParts:cad?cad.parts:0};render();rebuild(false);
   const id=++seq.n;ALT.job=id;$('runAlt').textContent='Stop';
   const extra=job.skipped?` (${job.skipped} further obstacle${job.skipped>1?'s':''} left to the solver)`:'';
   const tick=()=>{if(ALT.job!==id)return;const r=job.step(30);
@@ -74,18 +100,26 @@ $('runAlt').onclick=()=>{
     const C=r.result.candidates;ALT.cands=C;ALT.forced=r.result.forced;stop();render();rebuild(true);
     if(!C.length)return say('No route came out.',true);
     const clean=C.filter(a=>a.ok).length;
-    const more=[r.result.forced?`Chosen side: ${r.result.forced.text}.`:'',...r.result.notes.map(n=>n+'.')].filter(Boolean).join(' ');
-    const none=!clean&&r.result.none;
-    if(none){say(`No clean route from ${r.result.tried} way${r.result.tried>1?'s':''} round${extra}: ${none.text}. The ${C.length} closest are shown.${more?' '+more:''}`,true);
+    const notes=r.result.notes.map(n=>n+'.').join(' ');
+    const none=!clean&&r.result.none,f=r.result.forced;
+    if(f){sayLine('warn','Forced side:',forcedText(f,C)+(notes?' '+notes:''));
+      if(typeof nextSteps==='function')nextSteps('statusAlt',[{label:'Clear the side choice',title:'Any side for the parts with a chosen side, and run again',
+        go:()=>{const o=ALT.prefer();C.flatMap(a=>a.prefs||[]).forEach(p=>delete o[p.part]);savePrefer(o);sidesLine();$('runAlt').click();}}]);return;}
+    if(none){sayLine('bad','No clean route:',noneText(none,r.result.tried)+(notes?' '+notes:''));
+      // fix the worst problem → another side → stop checking that part
       const N=[];
       // Push only helps when it is off and there are CAD faces to push from (Check never sees typed boxes): as Check's canPush
-      if(none.rule!=='radius'&&!$('cdPush').checked&&cad&&cad.faces.length)N.push({label:'Push the route away and check again',title:'Ticks “Push the route away” under Keep clear of CAD parts and runs Check',
+      if(none.rule!=='radius'&&!$('cdPush').checked&&cad&&cad.faces.length)N.push({label:'Push away and check again',title:'Ticks “Push the route away” under Keep clear of CAD parts and runs Check',
         go:()=>{$('cdBox').open=true;$('cdPush').checked=true;$('cdPush').dispatchEvent(new Event('change'));$('runBend').click();}});
-      if(none.part&&none.sid!=null&&typeof bcKeepClear==='function'){const nm=String(none.part).split(' / ').pop();
-        N.push({label:`Stop keeping clear of ${nm}`,title:`Unticks ${nm} under Keep clear of CAD parts (its gap is no longer checked) and runs Alternatives again`,
+      const S=none.sides||[],opp=none.part&&none.every&&S.length===1&&OPP[S[0].side];
+      if(opp){const nm=shortName(none.part),w={left:'on the left',right:'on the right',above:'over it',below:'under it'}[opp];
+        N.push({label:`Try it ${opp==='above'?'over':opp==='below'?'under':'on the '+opp}`,title:`Alternatives keep only routes that pass ${nm} ${w}, and run again`,
+          go:()=>{const o=ALT.prefer();o[none.part]=opp;savePrefer(o);sidesLine();$('runAlt').click();}});}
+      if(none.part&&none.sid!=null&&typeof bcKeepClear==='function'){const nm=shortName(none.part);
+        N.push({label:`Stop checking ${nm}`,title:`Unticks ${nm} under Keep clear of CAD parts (its gap is no longer checked) and runs Alternatives again`,
           go:()=>{bcKeepClear(none.sid,false);$('runAlt').click();}});}
       if(N.length&&typeof nextSteps==='function')nextSteps('statusAlt',N);return;}
-    say(`${C.length} distinct route${C.length>1?'s':''} from ${r.result.tried} way${r.result.tried>1?'s':''} round ${boxes.length} part face${boxes.length>1?'s':''}${extra}; ${clean===C.length?'all clear the boxes and hold the radius':`${clean} clean`}. Click one to highlight it.${more?' '+more:''}`);};
+    say(`${C.length} distinct route${C.length>1?'s':''} from ${r.result.tried} way${r.result.tried>1?'s':''} round${extra}; ${clean===C.length?'all clean':`${clean} clean`}. Click one to highlight it.${notes?' '+notes:''}`);};
   defer(tick);
 };
 
@@ -96,9 +130,9 @@ function use(i){
   A.tidx=s.tidx;
   const X=typeof bendCad==='function'?bendCad(P):null,cx=X?X.report(A):null;
   ALT.cands=[];ALT.ctx.typed=[];render();
-  addRun(Object.assign(A,{name:`Alternative A${i+1} R${R} x${SF}`,kind:'bend',kindLabel:'bend radius, alternative',
+  addRun(Object.assign(A,{name:`Alternative A${i+1} R${R} ×${SF}`,kind:'bend',kindLabel:'bend radius, alternative',
     parts:cx?cx.parts:undefined,holes:cx?cx.holes:undefined,marks:cx?cx.marks:undefined,clearDense:cx?cx.clearDense:undefined,gapLimit:cx?cx.gapLimit:undefined,spots:cx?cx.spots:undefined,
-    params:{R,SF,spacing:SP},settings:`passes ${a.label} (${nBoxes} obstacle box${nBoxes>1?'es':''}, cable radius + gap ${fmt(rad)} mm), gap ${sp.toFixed(0)} mm between points${adapt?', closer in bends':''}, x${SF} margin${cx?cx.note:''}`,
+    params:{R,SF,spacing:SP},settings:`passes ${a.label} (${nBoxes} obstacle box${nBoxes>1?'es':''}, cable radius + gap ${fmt(rad)} mm), gap ${sp.toFixed(0)} mm between points${adapt?', closer in bends':''}, ×${SF} margin${cx?cx.note:''}`,
     text:toPts(A.Q,{R,designR:+(R*SF).toFixed(1),minR:A.minR,len:A.len,tidx:s.tidx})}));
   say(`A${i+1} added as a run: R ${fmt(A.minR)} mm over ${A.Q.length} points, length ${Math.round(A.len)} mm.${cx&&cx.msg?' '+cx.msg.split('\n')[0]:''}`);
 }

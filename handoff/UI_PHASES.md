@@ -150,6 +150,36 @@ Only after 1–4, because they decide what the strip needs to hold.
   contrast, focus states on the drag handles).
 - **Done when:** walk-through ≤ 7 steps; no collapsed section on the main path; design sign-off.
 
+### Phase 5-A — wording, `--warn-ink`, small Phase 1–4b fixes (BUILT 2026-10-29, branch `claude/p5a-wording`)
+From `handoff/Phase 5 Review.html` (wording table, contrast table, the Phase 1–4b change lists). Only what fits today's layout;
+the strip, cuts, dock tables and armed Start / End are P5-B…D.
+- **Token:** `--warn-ink #8F5A0A` (light; dark = `--warn`). Every amber *text* uses it (tags, "Close:", forced, margin numbers,
+  chart margin label); amber fills, borders and markers keep `--warn`.
+- **Clamp rows (Hose):** two lines: `S2 · name` · part (muted, ellipsis, full path in title) · `Ø12.0 × 25` | marker + reason ·
+  position `−175 1282 −1663`. Reasons: `End fitting of pipe 111 · start / · end`, `Library: clip` (pattern in title),
+  `Not in the Library · Add…` (adds to the Library in place, ticks and order kept), `Bolt hole, 3.0 mm long (under 10)`,
+  `Holds pipe 211`, `Picked in 3D · remove`, a small `3D` tag. Fold: `Other holes that fit Ø12 (n)`. Pipe rows: same words.
+- **Assembly line:** `name · 41 parts · 2 pipes · 40 holes with a CSYS`, `3 clamps for Ø12` once the Hose list is built
+  (updates live); the `pipes` link is gone. Status after Open: `Opened in 0.2 s.` (where it opened is in the tooltip).
+- **Labels:** Bore fit +, Start / End, Hold the bore direction at each station, Push the route away from kept-clear parts,
+  Trial note, Check route, Up (for over / under), Default · Frame only · All · None, Runs in 3D (n), ×1.5 in run names.
+- **Check verdict:** one line, worst first: `Clash:` / `Too tight: R 45 at P2, below the 65 mm minimum.` (red), `Close:` (amber),
+  `Clear: R 87 over 20 points; smallest gap 10.3 mm, to … near P16.` (blue); details muted under it. The 3D readout leads with
+  Clash too. Corner points: `Corner points? …`. Stations too close: `S2 and S3 are 38 mm apart. Holding both bore directions
+  needs at least 130 mm (2 × R 65).` (amber, a warning) → **Free S2 and S3 directions** (writes `-` for those two only) · Check anyway.
+- **Next rows:** at most 3, first is `.btn.pri` (ink fill); labels per the table (Push away and check again, Refine tightest bend,
+  Route as a pipe (arcs), Download .pts · Suggest extra clamps · Alternatives; Copy .pts left to the Points tab).
+- **Alternatives cards:** plain label (600) · `forced side` tag · mono facts `1035 mm · min R 97 · gap 7.9 mm`, failing facts red
+  with the limit (`min R 49 < 65`, `gap 0.8 < 4`, gap from the hose surface); **Use this** primary on clean cards, **Use anyway**.
+  `No clean route: every route tried passes B1 on the left, at best 8.5 mm into it.` → Push away and check again · Try it on
+  the right · Stop checking B1. A forced side is amber (`Forced side: Over B1 cannot hold R 65; best that side is R 58.`) →
+  Clear the side choice, and wins over the red line.
+- **Pick panel:** `Route passes it · looking P3 → P4 · up +Z`; on a leg along up the choice is by axis (any · +X · −X · +Y · −Y).
+- Not done here (later phases or waiting on answers): Change… / Remove + Undo (2b), the cuts (2a), "(guessed)" up axis,
+  "With any side: n clean routes" (needs a second run), S-names in Check (it reads Target points, P1…), Points as text (5).
+- Checked: unit tests green; page smoke in Chromium (Check clear / too tight, Alternatives cards, no-clean, forced, light and
+  dark, no page errors). **Not checked:** the clamp rows and the walk-through on piping3 / the frame (samples not in the cloud).
+
 ## Phase 6 — Pipe module parity (Claude Code, later)
 - Clearance to parts for pipe runs and obstacle-aware Through clamps (ROADMAP Phase 12d steps 2–3) so Pipe gets the same
   "clash → fix" loop as Hose. Not a UI phase as such; listed so Design knows Pipe will need the Phase 3 next-step lines too.

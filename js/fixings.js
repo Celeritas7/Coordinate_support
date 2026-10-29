@@ -18,6 +18,8 @@ const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]], dot = (a, b) => a
 const len = a => Math.hypot(a[0], a[1], a[2]), norm = a => { const l = len(a) || 1e-12; return [a[0] / l, a[1] / l, a[2] / l]; };
 const f1 = v => (Math.round(v * 10) / 10).toFixed(1);
 const short = n => { const s = String(n || ""), m = s.match(/_(\d+)$/); return m ? s.slice(Math.max(0, s.lastIndexOf("_", s.length - m[0].length - 1) + 1)) : s; };
+// "pipe 111" for U104904_PIPING-3_PRACTICE_111 (the number Creo ends the pipe's name with), else the short name
+const pipeWord = n => { const m = String(n || "").match(/_(\d+)$/); return `pipe ${m ? m[1] : short(n)}`; };
 
 // opt: {D, fit=1.5, under=0.2 (Hose) / fit (Pipe), minLen=10, pipe: index into r.pipes (Pipe context) or null (Hose), lib: x => entry|null}
 function find(r, opt) {
@@ -42,15 +44,15 @@ function find(r, opt) {
     let role, use, reason;
     if (endOf && (!mine || endOf.j === o.pipe)) {
       role = "end"; use = !mine;
-      reason = mine ? "end fitting of this pipe" : `end fitting of ${short(endOf.p.name)}: start or end of the route`;
+      reason = mine ? "End fitting of this pipe" : `End fitting of ${pipeWord(endOf.p.name)}`;
     } else if (other && !(endOf && endOf.j === o.pipe)) {
-      role = "other"; use = false; reason = `holds ${short(other.p.name)}`;
+      role = "other"; use = false; reason = `Holds ${pipeWord(other.p.name)}`;
     } else if (lib) {
-      role = lib.type || "clamp"; use = true; reason = `Library ${role} ${lib.pattern}`;
+      role = lib.type || "clamp"; use = true; reason = `Library: ${role}`;
     } else if (x.length >= o.minLen - 1e-9) {
-      role = "fixing"; use = true; reason = hit ? "bore outside its Library range" + libOff : "not in the Library";
+      role = "fixing"; use = true; reason = hit ? "Bore outside its Library range" + libOff : "Not in the Library";
     } else {
-      role = "hole"; use = false; reason = `${f1(x.length)} mm long: a bolt or plate hole? Tick it if the hose runs through${libOff}`;
+      role = "hole"; use = false; reason = `Bolt hole, ${f1(x.length)} mm long (under ${f1(o.minLen).replace(/\.0$/, "")})${libOff}`;
     }
     if (mine && use) reason += dist <= 0.5 ? " · pipe passes through it" : ` · pipe misses it by ${f1(dist)} mm`;
     out.push({ id: out.length, name: x.csys || "(no CSYS)", csys: x.csys || null, part: x.name, label: x.label, inst: x.inst,

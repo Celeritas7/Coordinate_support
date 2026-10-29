@@ -154,7 +154,7 @@ const server = http.createServer((q, s) => {
     await shot("F6-pick-dark");
     await pg.click("#shTheme"); await pg.evaluate(() => asmSetPick(null));
     // start and end picked in 3D: only the holes between them stay ticked
-    const ends = await pg.evaluate(() => { const names = new Set([...document.querySelectorAll("#csList > .csrow b")].map(b => b.textContent.replace(/^S\d+ /, "").trim()));
+    const ends = await pg.evaluate(() => { const names = new Set([...document.querySelectorAll("#csList > .csrow b")].map(b => b.textContent.replace(/^S\d+ · /, "").trim()));
       const H = (AV.shown || []).filter(c => c.hole && !c.made && names.has(c.name)), d = (a, b) => Math.hypot(...[0, 1, 2].map(k => a.o[k] - b.o[k]));
       for (const a of H) { const b = H.find(b => d(a, b) > 500 && d(a, b) < 1500); if (b) return [a.name, b.name, Math.round(d(a, b))]; } return null; });
     if (ends) {

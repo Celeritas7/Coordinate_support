@@ -40,7 +40,7 @@ function hosePoints(d,dev){const P=d.pts,out=[P[0]];let a=0;
 function thClamps(pi){const r=ASM.r,p=r.pipes[pi];if(!p)return[];const useLib=typeof FixLib!=='undefined'&&FixLib.all().length>0;
   const libOf=x=>{const I=r.instances[x.inst];return FixLib.match(x.name,x.label,I&&I.part&&I.part.name);};
   return Fixings.find(r,{D:p.OD,fit:1.5,pipe:pi,lib:useLib?libOf:null}).map(c=>{const x=c.src,fi=r.fixings.indexOf(x);
-    return{i:fi>=0?fi:'h'+r.holes.indexOf(x),fix:x,dist:c.dist,fits:true,passes:c.passes,end:c.role==='end',holds:c.role==='other'?c.reason.replace(/^holds /,''):null,
+    return{i:fi>=0?fi:'h'+r.holes.indexOf(x),fix:x,dist:c.dist,fits:true,passes:c.passes,end:c.role==='end',holds:c.role==='other'?c.reason.replace(/^Holds /,''):null,
       lib:c.lib,boreWarn:'',known:c.role!=='hole',sized:true,unknown:c.role==='hole',use:c.use,role:c.role,reason:c.reason};})
     .sort((a,b)=>(b.known-a.known)||(b.use-a.use)||(a.dist-b.dist));}
 // a hole worth a library entry: its bore suits some pipe, and it is not that pipe's end fitting
@@ -139,9 +139,9 @@ function thRender(){if(!ASM)return;const pi=thPipe(),p=ASM.r.pipes[pi];if(!p)ret
     :`<p class="hint">No clamp bore fits this pipe (Ø${fmt(p.OD,1)} ±1.5 mm). A clamp is a hole with a coordinate system on its axis, inside the hole. The ${libLink} is empty.</p>`;thLibWire(box);return;}
   box.innerHTML=C.map(c=>{const k=pi+':'+c.i,meta=`${c.fix.csys?esc(c.fix.csys):'no CSYS, hole from the library'} · bore Ø${fmt(c.fix.D,2)} × ${fmt(c.fix.length,1)}`;
     if(!c.known)return`<div class="chk thc thunk"><input type="checkbox" disabled><span><b>${esc(c.fix.name)}</b> <span class="unit">${meta} · ${esc(c.reason)}</span>${lib?` <button type="button" class="linkish" data-addinst="${c.fix.inst}">Add to library</button>`:''}</span></div>`;
-    const dis=c.end||c.holds,why=c.end?'end fitting of this pipe':c.holds?`holds ${esc(c.holds)}`:!c.sized?`bore is for another pipe size (this pipe Ø${fmt(p.OD,1)})`:c.passes?'pipe passes through it':`pipe misses it by ${fmt(c.dist,1)} mm`;
-    const add=lib&&c.role==='fixing'?` · not in the Library <button type="button" class="linkish" data-addinst="${c.fix.inst}">Add to library</button>`:'';
-    return`<label class="chk thc"><input type="checkbox" data-k="${k}" ${TH.pick[k]&&!dis?'checked':''} ${dis?'disabled':''}><span><b>${esc(c.fix.name)}</b> <span class="unit">${c.lib?`${c.lib.type} ${esc(c.lib.pattern)} · `:''}${meta} · ${why}${add}</span>${c.boreWarn?`<span class="thwarn">${c.boreWarn}: still used.</span>`:''}</span></label>`;}).join('')+
+    const dis=c.end||c.holds,why=c.end?'End fitting of this pipe':c.holds?`Holds ${esc(c.holds)}`:!c.sized?`bore is for another pipe size (this pipe Ø${fmt(p.OD,1)})`:c.passes?'pipe passes through it':`pipe misses it by ${fmt(c.dist,1)} mm`;
+    const add=lib&&c.role==='fixing'?` · Not in the Library <button type="button" class="linkish" data-addinst="${c.fix.inst}">Add to library</button>`:'';
+    return`<label class="chk thc"><input type="checkbox" data-k="${k}" ${TH.pick[k]&&!dis?'checked':''} ${dis?'disabled':''}><span><b>${esc(c.fix.name)}</b> <span class="unit">${c.lib?`<span title="${esc(c.lib.pattern)}">Library: ${esc(c.lib.type)}</span> · `:''}${meta} · ${why}${add}</span>${c.boreWarn?`<span class="thwarn">${c.boreWarn}: still used.</span>`:''}</span></label>`;}).join('')+
     `<p class="hint">Ticked: the pipe must run straight through. ${lib?`A part counts as a fixing when its name matches the ${libLink}; the bore range there is a check only.`:'Bores of another size, bolt holes and end fittings are left out.'}</p>`;
   thLibWire(box);
   box.querySelectorAll('input[data-k]').forEach(el=>el.onchange=()=>{TH.pick[el.dataset.k]=el.checked;const r=asmBase(pi);if(r){r.clamps=asmClampViz(pi);rebuild(false);}});}
@@ -225,8 +225,8 @@ function thRun(){
       asm:{file:ASM.name,pi},through:true,clamps:asmClampViz(pi,okSet),hdr,hdrExtra:extra,text:''});
     TH.last={run,rep,res,p,C};asmTexts();thReport();
     const warns=C.filter(c=>c.boreWarn).map(c=>`${c.fix.name}: ${c.boreWarn}`);
-    say(`Done in ${ms} ms. ${res.steps.map(s=>s.clamp?`${s.clamp}: ${s.how}`:s.how).join('; ')}.${warns.length?` Check: ${warns.join('; ')}.`:''}`,false);
-    if(typeof nextSteps==='function')nextSteps('statusThrough',[{label:'Download .pts',go:()=>$('thDl').click()},{label:'Copy .pts',go:()=>$('thCopy').click()},
+    say(`Done: ${pipeShort(p.name)} now runs straight through ${C.length} clamp${C.length>1?'s':''} (${ms} ms). ${res.steps.map(s=>s.clamp?`${s.clamp}: ${s.how}`:s.how).join('; ')}.${warns.length?` Check: ${warns.join('; ')}.`:''}`,false);
+    if(typeof nextSteps==='function')nextSteps('statusThrough',[{label:'Download .pts',go:()=>$('thDl').click()},
       {label:'Compare with your .pts',title:'Pipe · Check .pts against pipe',go:()=>{if(typeof goTask==='function')goTask('pipe','asm');$('cmpOpen').click();}}]);
   },20);
 }

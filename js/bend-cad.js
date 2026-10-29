@@ -7,7 +7,7 @@ const BC={cad:null,sv:null,key:'',user:new Map(),focus:0,asm:null};
 const say=(m,bad)=>{const e=$('statusCad');e.textContent=m;e.style.color=bad?'var(--bad)':'';};
 const opt=()=>({d:Math.max(0.1,+$('cdD').value||8),gap:Math.max(0,+$('cdGap').value||0),reach:Math.max(10,+$('cdReach').value||60)});
 const stations=()=>parsePts($('pts').value).map(p=>[p[0],p[1],p[2]]);
-const roleTxt=p=>p.role==='pipe'?`existing ${p.pipe.kind==='hose'?'hose':'pipe'}${p.pipe.name!==p.name?` ${esc(p.pipe.name)}`:''} Ø${fmt(p.pipe.OD,1)}`:p.role==='station'?`clip at ${p.stations.map(i=>'P'+(i+1)).join(', ')}`:p.role==='clip'?'small part on the station line, no station (clip, or screw?)':p.role==='mount'?`bracket the clip at ${p.mountOf.map(i=>'P'+(i+1)).join(', ')} is fixed to: not checked (the hose in the clip always reaches it)`:'frame / part';
+const roleTxt=p=>p.role==='pipe'?`existing ${p.pipe.kind==='hose'?'hose':'pipe'}${p.pipe.name!==p.name?` ${esc(p.pipe.name)}`:''} Ø${fmt(p.pipe.OD,1)}`:p.role==='station'?`clip at ${p.stations.map(i=>'P'+(i+1)).join(', ')}`:p.role==='clip'?'small part on the station line, no station (clip, or screw?)':p.role==='mount'?`Mount of ${p.mountOf.map(i=>'P'+(i+1)).join(', ')} (its clip is bolted to it) · not kept clear`:'frame / part';
 const last=n=>String(n||'').split(' / ').pop();
 const keepClear=p=>BC.user.has(p.sid)?BC.user.get(p.sid):p.role==='obstacle';
 // list groups: ticked, unticked clips and parts, unticked existing pipes
@@ -18,7 +18,7 @@ function survey(){if(!BC.cad)return null;const P=stations();if(P.length<2)return
   if(BC.key!==key){BC.sv=CadSolids.survey(BC.cad,P,o);BC.key=key;render();}return BC.sv;}
 function render(){const sv=BC.sv,box=$('cdParts');if(!sv){box.innerHTML='';return;}
   const n=sv.parts.filter(keepClear).length;
-  box.innerHTML=`<div class="presets" style="margin:6px 0 2px"><button type="button" data-t="def" title="Clips and existing pipes unticked, frame and other parts ticked">Default ticks</button><button type="button" data-t="frame" title="Only the parts that are not clips">Frame only</button><button type="button" data-t="all">Tick all</button><button type="button" data-t="none">Untick all</button></div>
+  box.innerHTML=`<div class="presets" style="margin:6px 0 2px"><button type="button" data-t="def" title="Clips and existing pipes unticked, frame and other parts ticked">Default</button><button type="button" data-t="frame" title="Only the parts that are not clips">Frame only</button><button type="button" data-t="all" title="Tick all">All</button><button type="button" data-t="none" title="Untick all">None</button></div>
     <p class="hint" style="margin:4px 0">${sv.parts.length} part${sv.parts.length===1?'':'s'} within ${fmt(sv.reach)} mm of the station line; gap checked to ${n} (ticked). Gap = hose surface to part. Press Check after changing ticks.</p>`+
     sv.parts.slice().sort((a,b)=>(group(a)-group(b))||(a.dLine-b.dLine)).slice(0,60).map((p,i,arr)=>(i===0||group(arr[i-1])!==group(p)?`<div class="cdhead">${GROUP[group(p)]}</div>`:'')+`<div class="cdrow${BC.focus===p.sid?' on':''}"><label class="chk cdp"><input type="checkbox" data-sid="${p.sid}" ${keepClear(p)?'checked':''}><span><b title="${esc(p.name)}">${esc(last(p.name))}</b> <span class="unit">${p.dims.map(v=>Math.round(v)).join('×')} mm · ${roleTxt(p)} · line ${fmt(p.dLine,1)} mm away · centre ${centre(p).map(v=>Math.round(v)).join(', ')}</span></span></label><button type="button" class="cdshow" data-show="${p.sid}" aria-pressed="${BC.focus===p.sid}" title="Show this part in 3D, zoomed">show</button></div>`).join('');
   box.querySelectorAll('input[data-sid]').forEach(el=>el.onchange=()=>{BC.user.set(+el.dataset.sid,el.checked);render();});
@@ -93,8 +93,9 @@ window.bendCad=function(P){
         const ixAll=CadSolids.index(sv.parts.filter(watched).flatMap(p=>p.faces),50),cap=o.gap*5+o.d;
         out.spots=spots.map(x=>x.spot);out.clearDense=A.d.pts.map(q=>Math.min(cap,ixAll.nearest(q,cap+o.d/2).d-o.d/2));out.gapLimit=o.gap;
         if(spots.some(x=>!x.ticked))msg+=`\nUnticked parts were taken as clips without a CSYS. Press “show” in the list to see one; tick it if it is a screw, bolt or bracket.`;if(open.length)msg+=`\nPlate crossings (marked in 3D):`;open.forEach(x=>{msg+=`\n• ${x.msg}`;if(x.hole)holes.push(x.hole);marks.push(x.mark);});
+        out.min=isFinite(w.gap)?{gap:w.gap,name:p?p.name:null,at:near.i+1}:null;
         msg+=isFinite(w.gap)?`\nSmallest gap to the kept-clear parts: ${fmt(w.gap,1)} mm${p?` (${p.name})`:''} near point ${near.i+1}${w.gap<o.gap-0.05?` — below the ${fmt(o.gap)} mm gap`:''}.`:`\nNo kept-clear part within ${fmt(o.d/2+o.gap+40)} mm of the route.`;}
-      return{parts:parts.length?parts:undefined,holes:holes.length?holes:undefined,marks:marks.length?marks:undefined,clearDense:out.clearDense,gapLimit:out.gapLimit,spots:out.spots,tooClose:out.tooClose,canPush:out.canPush,note:bits.length?', '+bits.join(', '):'',msg:msg.trim(),bad:false};}};
+      return{parts:parts.length?parts:undefined,holes:holes.length?holes:undefined,marks:marks.length?marks:undefined,clearDense:out.clearDense,gapLimit:out.gapLimit,spots:out.spots,min:out.min,tooClose:out.tooClose,canPush:out.canPush,note:bits.length?', '+bits.join(', '):'',msg:msg.trim(),bad:false};}};
 };
 
 // where the route crosses the plane of a flat face off its material — through a hole, or past the face's edge:
@@ -114,7 +115,7 @@ function closeSpots(A,P,o,span){const sv=BC.sv,pts=A.d.pts,s=A.d.s,out=[];
     close();});
   return out.sort((x,y)=>x.i-y.i).map(r=>{const len=s[r.i1]-s[r.i0],ticked=keepClear(r.part),bad=r.gap<0;
     return{msg:`${span(r.i)}: ${r.part.name} (${r.part.dims.map(v=>Math.round(v)).join('×')} mm${ticked?'':', unticked'}) — ${bad?`hose ${fmt(-r.gap,1)} mm into it`:`${fmt(r.gap,1)} mm clear`}${r.exact?'':' (to a face box)'}, over ${fmt(Math.max(len,2),0)} mm of route`,
-      ticked,spot:{i0:r.i0,i1:r.i1,i:r.i,gap:r.gap,name:r.part.name,span:span(r.i)},mark:{p:r.p,text:`${last(r.part.name)} · ${fmt(r.gap,1).replace('-','−')} mm`,bad,warn:!bad}};});}
+      ticked,spot:{i0:r.i0,i1:r.i1,i:r.i,gap:r.gap,name:r.part.name,span:span(r.i),len:Math.max(len,2)},mark:{p:r.p,text:`${last(r.part.name)} · ${fmt(r.gap,1).replace('-','−')} mm`,bad,warn:!bad}};});}
 function throughOpenings(A,P,faces,o){const pts=A.d.pts,s=A.d.s,sv=BC.sv,out=[],span=spanOf(A,P);
   CadSolids.openings(pts,faces,Math.max(o.reach,100)).forEach(c=>{const part=sv.parts.find(x=>x.faces.includes(c.face));if(!part)return;
     const g=out.find(g=>g.part===part&&Math.abs(s[g.i]-s[c.i])<40);
