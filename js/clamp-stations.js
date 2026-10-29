@@ -102,7 +102,7 @@ if(typeof document==='undefined'||!document.getElementById('csBox'))return;
 // extra: stations picked in the 3D view (a connector port, a CSYS with no hole, a point on a part); kept across refreshes
 // picked: ids of the stations picked in the 3D view (a hole already in the list keeps its id)
 // from: name of the assembly the extras were picked in (their points mean nothing in another file)
-const CS={own:null,list:[],use:new Set(),start:null,end:null,extra:[],from:null,next:1e6,near:new Map(),picked:new Set(),free:new Set(),hand:new Map(),srcName:null,armed:null,manual:false};
+const CS={own:null,list:[],use:new Set(),start:null,end:null,extra:[],from:null,next:1e6,near:new Map(),picked:new Set(),free:new Set(),hand:new Map(),srcName:null,armed:null,manual:false,handOrder:false};
 // a start and an end both set: tick only the holes within BETWEEN mm of the straight line from start to end (start, end and
 // stations picked in 3D stay ticked); the rest stay listed, unticked. A tick set by hand stays as the user set it (CS.hand:
 // id → ticked), so picking the end does not wipe the rows ticked or unticked in the list. A hole closer than 2 × R to the
@@ -114,7 +114,7 @@ function between(){const a=CS.list.find(s=>s.id===CS.start),b=CS.list.find(s=>s.
   const R=+$('r').value||65,clash=(s,e)=>s.d&&e.d&&closePairs([e.c,s.c],[e.d,s.d],R).length>0;
   const pool=CS.list.filter(s=>CS.hand.has(s.id)?CS.hand.get(s.id):s.use||CS.picked.has(s.id));CS.near.clear();
   CS.use=new Set(pool.filter(s=>s.id===a.id||s.id===b.id||CS.picked.has(s.id)||CS.hand.get(s.id)||off(s.c)<=BETWEEN&&!clash(s,a)&&!clash(s,b)).map(s=>s.id));
-  autoOrder();return`${CS.use.size} of ${pool.length} holes ticked, the ones between start and end. Tick more in the list.`;}
+  tidy();return`${CS.use.size} of ${pool.length} holes ticked, the ones between start and end. Tick more in the list.`;}
 const say=(m,bad)=>{const e=$('statusCs');e.textContent=m;e.style.color=bad?'var(--bad)':'';if(typeof nextClear==='function')nextClear('statusCs');};
 const openAsm=()=>typeof ASM!=='undefined'&&ASM&&ASM.r?ASM:null;
 const src=()=>CS.own||openAsm();
@@ -134,12 +134,14 @@ function dropExtra(name){if(!CS.extra.length||CS.from===name)return;const gone=n
 // a refresh (Hose Ø or the fit changed, the file re-read) rebuilds the list with new ids: holes of the same file that were
 // picked in 3D stay picked and ticked (found again by position), and Start / End on them stay
 const atKey=c=>c.map(v=>v.toFixed(1)).join(' ');
+const fitKey=()=>`${+$('csD').value}|${+$('csTol').value}`;
 function refresh(note){const a=src();
   const same=a&&CS.srcName===a.name,was=same?CS.list.filter(s=>CS.picked.has(s.id)&&!CS.extra.includes(s)):[],wasKey=new Set(was.map(s=>atKey(s.c))),
     endKey=[CS.start,CS.end].map(id=>{const s=was.find(x=>x.id===id);return s?atKey(s.c):null;}),
     handKey=new Map(same?CS.list.filter(s=>CS.hand.has(s.id)).map(s=>[atKey(s.c),CS.hand.get(s.id)]):[]);
-  CS.near=new Map();CS.free=new Set();CS.hand=new Map();CS.manual=false;CS.picked=new Set(CS.extra.map(s=>s.id));CS.srcName=a?a.name:null;
+  CS.near=new Map();CS.free=new Set();CS.hand=new Map();CS.manual=false;CS.handOrder=false;CS.picked=new Set(CS.extra.map(s=>s.id));CS.srcName=a?a.name:null;
   if(!a){CS.list=[];render();return say('');}
+  CS.fit=fitKey();
   const o=opt(a.r),keep=[CS.start,CS.end].map(id=>CS.extra.some(s=>s.id===id)?id:null);
   CS.list=candidates(a.r,o).concat(CS.extra);CS.use=new Set(CS.list.filter(s=>s.use).map(s=>s.id));
   const ends=CS.list.filter(s=>s.use&&s.role==='end');CS.start=ends.length===2?ends[0].id:null;CS.end=ends.length===2?ends[1].id:null;
@@ -157,6 +159,18 @@ function autoOrder(){const T=ticked();if(T.length<2){render();return;}
   const idx=id=>T.findIndex(s=>s.id===id),si=CS.start==null?null:idx(CS.start),ei=CS.end==null?null:idx(CS.end);
   const ord=order(T.map(s=>s.c),{start:si<0?null:si,end:ei<0?null:ei}).map(i=>T[i]);
   const rest=CS.list.filter(s=>!CS.use.has(s.id));CS.list=ord.concat(rest);render();}
+// an order made by hand (dragged, or ↑ / ↓ on a grip) is kept until Auto order or a rebuilt list: a station added later goes
+// where it lengthens the path least (ids), Start goes before the first ticked row and End after the last, nothing else moves
+function tidy(ids){if(!CS.handOrder)return autoOrder();
+  (ids||[]).forEach(id=>{const i=CS.list.findIndex(s=>s.id===id);if(i<0||!CS.use.has(id))return;const [s]=CS.list.splice(i,1),T=ticked();
+    if(!T.length){CS.list.unshift(s);return;}
+    let best=-1,bc=Infinity;for(let k=0;k<=T.length;k++){if(k===0&&CS.start!=null&&CS.start!==id)continue;if(k===T.length&&CS.end!=null&&CS.end!==id)continue;
+      const a=T[k-1],b=T[k],c=(a?dist(a.c,s.c):0)+(b?dist(s.c,b.c):0)-(a&&b?dist(a.c,b.c):0);if(c<bc){bc=c;best=k;}}
+    if(best<0)best=T.length;
+    CS.list.splice(best<T.length?CS.list.indexOf(T[best]):CS.list.indexOf(T[T.length-1])+1,0,s);});
+  const pin=(id,first)=>{const T=ticked(),s=T.find(x=>x.id===id);if(!s||s===(first?T[0]:T[T.length-1]))return;CS.list.splice(CS.list.indexOf(s),1);
+    const U=ticked();CS.list.splice(first?CS.list.indexOf(U[0]):CS.list.indexOf(U[U.length-1])+1,0,s);};
+  pin(CS.start,true);pin(CS.end,false);render();}
 
 // clamps the hose's ticked stations use (end fittings and points picked in 3D not counted), for the assembly line
 const CLAMP=new Set(['fixing','clip','clamp','grommet']);
@@ -201,7 +215,7 @@ function render(){document.dispatchEvent(new Event('cs:changed'));const box=$('c
     const fresh=candidates(a.r,opt(a.r));CS.list.forEach(s=>{const f=fresh.find(q=>len(sub(q.c,s.c))<0.5&&q.inst===s.inst);if(f&&s.role!=='picked')Object.assign(s,{role:f.role,reason:f.reason,lib:f.lib});});
     render();say(`${x.pattern} added to the Library as a ${x.type} (bore Ø${fmt(x.boreMin,1)}–${fmt(x.boreMax,1)}). Edit it under Library.`);});
   box.querySelectorAll('[data-drop]').forEach(b=>b.onclick=e=>{e.preventDefault();const id=+b.dataset.drop;CS.extra=CS.extra.filter(s=>s.id!==id);
-    CS.list=CS.list.filter(s=>s.id!==id);CS.use.delete(id);if(CS.start===id)CS.start=null;if(CS.end===id)CS.end=null;autoOrder();});
+    CS.list=CS.list.filter(s=>s.id!==id);CS.use.delete(id);if(CS.start===id)CS.start=null;if(CS.end===id)CS.end=null;tidy();});
   box.querySelectorAll('input[data-id]').forEach(el=>el.onchange=()=>{const id=+el.dataset.id;CS.near.clear();CS.hand.set(id,el.checked);if(el.checked)CS.manual=false;if(el.checked)CS.use.add(id);else{CS.use.delete(id);if(CS.start===id)CS.start=null;if(CS.end===id)CS.end=null;}render();});
   let drag=-1;
   box.querySelectorAll('.csrow').forEach(row=>{const i=+row.dataset.i;
@@ -215,8 +229,10 @@ function render(){document.dispatchEvent(new Event('cs:changed'));const box=$('c
       j=e.key==='ArrowUp'?i-1:e.key==='ArrowDown'?i+1:e.key==='Home'?0:e.key==='End'?n-1:-1;
     if(j<0||j>=n||j===i)return;e.preventDefault();const s=CS.list[i];move(i,j);const g=box.querySelector(`[data-grip="${j}"]`);if(g)g.focus();
     const k=ticked().indexOf(s);$('csLive').textContent=`${k>=0?`S${k+1} `:''}${s.name} moved to position ${j+1} of ${n}`;});}
-// a hand-made order: start / end pickers go back to auto so they never contradict the list
-function move(from,to){CS.near.clear();const [s]=CS.list.splice(from,1);CS.list.splice(to,0,s);CS.start=CS.end=null;render();}
+// a hand-made order: it is kept (CS.handOrder, see tidy) and Start / End follow it, the first and last ticked rows, so the
+// pickers never contradict the list and the next click in 3D is not taken as a new start or end
+function move(from,to){CS.near.clear();const [s]=CS.list.splice(from,1);CS.list.splice(to,0,s);CS.handOrder=true;
+  const T=ticked();CS.start=T.length>1?T[0].id:null;CS.end=T.length>1?T[T.length-1].id:null;render();}
 
 // Check route and Alternatives read the ticked rows (no Use as stations step): just before they run, the ticked stations
 // and their held bore axes are written into Target points and Bore directions, so those always show what was routed.
@@ -245,13 +261,15 @@ $('pts').addEventListener('input',()=>{if(!CS.list.length||CS.manual)return;cons
 document.addEventListener('asm:loaded',e=>{dropExtra(e.detail&&e.detail.name);if(!CS.own&&!$('csBox').hidden)refresh();else render();});
 // Remove: the stations of that file go (an Undo sends asm:loaded again with the same file, which rebuilds them)
 document.addEventListener('asm:removed',()=>{if(CS.own)return;dropExtra('');CS.list=[];CS.use.clear();CS.start=CS.end=null;CS.near.clear();CS.armed=null;render();say('');});
-$('csAuto').onclick=autoOrder;
+$('csAuto').onclick=()=>{CS.handOrder=false;autoOrder();};
 $('csNone').onclick=()=>{CS.use.clear();CS.near.clear();CS.hand=new Map(CS.list.map(s=>[s.id,false]));CS.start=CS.end=null;render();say(`All ${CS.list.length} unticked. Tick stations in the list, or pick them in 3D.`);};
 $('csPicked').onclick=()=>{CS.use=new Set(CS.list.filter(s=>CS.picked.has(s.id)).map(s=>s.id));CS.near.clear();CS.hand=new Map();
-  if(!CS.use.has(CS.start))CS.start=null;if(!CS.use.has(CS.end))CS.end=null;autoOrder();say(`${CS.use.size} station${CS.use.size===1?'':'s'} picked in 3D ticked; the rest unticked.`);};
+  if(!CS.use.has(CS.start))CS.start=null;if(!CS.use.has(CS.end))CS.end=null;tidy();say(`${CS.use.size} station${CS.use.size===1?'':'s'} picked in 3D ticked; the rest unticked.`);};
 ['csStart','csEnd'].forEach(id=>$(id).onchange=()=>{const v=$(id).value===''?null:+$(id).value;if(id==='csStart')CS.start=v;else CS.end=v;
-  const bt=CS.start!=null&&CS.end!=null?between():'';if(bt)say(bt);else autoOrder();});
-['csD','csTol'].forEach(id=>$(id).onchange=()=>refresh());
+  const bt=CS.start!=null&&CS.end!=null?between():'';if(bt)say(bt);else tidy();});
+// the same Ø and fit again (the browser's change on blur, after a change already sent): no rebuild, which would replace the
+// rows under the pointer and lose the click that caused the blur
+['csD','csTol'].forEach(id=>$(id).onchange=()=>{if(CS.list.length&&CS.fit===fitKey()&&CS.srcName===(src()?src().name:null))return;refresh();});
 $('csDirs').oninput=()=>store.set('rs.csDirs',$('csDirs').value);
 $('csHold').onchange=()=>store.set('rs.csHold',$('csHold').checked?'1':'0');
 // ---- stations from the 3D view (asm-view.js): a CSYS, or a point on a part (snapped to its nearest hole) ----
@@ -267,7 +285,7 @@ function usePick(p,r,as){
   const st=fromPick(p,r);let s=CS.list.find(x=>len(sub(x.c,st.c))<0.5);
   if(!s){s={id:CS.next++,...st,role:'picked',use:true,reason:'Picked in 3D'};addExtra(s);}
   CS.manual=false;CS.use.add(s.id);CS.picked.add(s.id);if(as==='start'){CS.start=s.id;if(CS.end===s.id)CS.end=null;}if(as==='end'){CS.end=s.id;if(CS.start===s.id)CS.start=null;}
-  $('csBox').open=true;const bt=as!=='station'&&CS.start!=null&&CS.end!=null?between():'';if(!bt)autoOrder();
+  $('csBox').open=true;const bt=as!=='station'&&CS.start!=null&&CS.end!=null?between():'';if(!bt)tidy([s.id]);
   const verb=as==='station'?'Station added':as==='start'?'Start set':'End set',on=st.part?` on ${st.part}`:'';
   const m=st.snapped!=null?`${verb} to the Ø${fmt(st.D,1)} hole${on}, ${fmt(st.snapped,0)} mm from where you clicked.`
     :p.kind==='csys'?(st.D?`${verb} to ${st.name} (Ø${fmt(st.D,1)} hole${on}).`:`${verb} to ${st.name}. No hole there: its Z axis is the hose direction.`)
@@ -276,24 +294,26 @@ function usePick(p,r,as){
 // an empty Start or End is filled by the next click on a part or CSYS in 3D (Hose · Route through stations, an assembly open).
 // The pick panel says so and offers Undo (focused) and Make it the end / start; CS.armed holds what Undo puts back.
 const snap=()=>({list:CS.list.slice(),extra:CS.extra.slice(),from:CS.from,use:new Set(CS.use),picked:new Set(CS.picked),hand:new Map(CS.hand),start:CS.start,end:CS.end,
-  near:new Map(CS.near),next:CS.next});
+  near:new Map(CS.near),next:CS.next,handOrder:CS.handOrder});
 const hoseShown=()=>!$('csBox').hidden&&!$('panBend').hidden&&$('shape').value!=='arc';
 const armed=()=>hoseShown()&&!!openAsm()&&!CS.own&&(CS.start==null||CS.end==null);
 document.addEventListener('asm:pick',e=>{const p=e.detail;CS.armed=null;if(!p||(p.kind!=='csys'&&p.kind!=='part')||(p.kind==='csys'&&p.c.made)||!armed())return;
+  // the list is built first (a first click on a fresh assembly), so Undo goes back to it and not to an empty list
+  if(!CS.list.length&&src())refresh();
   const as=CS.start==null?'start':'end',before=snap(),m=usePick(p,openAsm().r,as);
   CS.armed={p,as,before,id:as==='start'?CS.start:CS.end};
   if(typeof asmSay==='function')asmSay(m,'Undo');});
-function undoArmed(){const a=CS.armed;if(!a)return'';Object.assign(CS,a.before);CS.armed=null;autoOrder();
+function undoArmed(){const a=CS.armed;if(!a)return'';Object.assign(CS,a.before);CS.armed=null;render();
   const t=`${a.as==='start'?'Start':'End'} cleared.`;say(t);return t;}
 function swapArmed(){const a=CS.armed;if(!a)return'';const id=a.id;
   if(a.as==='start'){CS.start=a.before.start;CS.end=id;a.as='end';}else{CS.end=a.before.end;CS.start=id;a.as='start';}
-  const bt=CS.start!=null&&CS.end!=null?between():'';if(!bt)autoOrder();const s=CS.list.find(x=>x.id===id),t=`${a.as==='start'?'Start':'End'} set to ${s?s.name:'it'} instead.${bt?' '+bt:''}`;say(t);return t;}
+  const bt=CS.start!=null&&CS.end!=null?between():'';if(!bt)tidy();const s=CS.list.find(x=>x.id===id),t=`${a.as==='start'?'Start':'End'} set to ${s?s.name:'it'} instead.${bt?' '+bt:''}`;say(t);return t;}
 // for Suggest extra clamps (clamp-suggest.js): what is ticked, and adding its suggestions as stations
 root.clampStationsTicked=()=>ticked();
 root.csAddStations=L=>{if(!CS.list.length&&src())refresh();
   L.forEach(st=>{if(CS.list.some(x=>len(sub(x.c,st.c))<0.5))return;const s={id:CS.next++,label:'',D:null,length:0,...st,role:'picked',use:true,reason:'Suggested clamp'};
     addExtra(s);CS.use.add(s.id);});
-  $('csBox').open=true;autoOrder();say(`${L.length} suggested clamps added; ${ticked().length} stations ticked. Check route again.`);};
+  $('csBox').open=true;tidy(CS.list.filter(s=>L.some(st=>len(sub(s.c,st.c))<0.5)).map(s=>s.id));say(`${L.length} suggested clamps added; ${ticked().length} stations ticked. Check route again.`);};
 // the Route group: start → end → station, the first one still needed is the primary button. Right after an armed click:
 // Undo · Make it the end (or start) instead
 (root.AV_ACTIONS=root.AV_ACTIONS||[]).push((p,r)=>{if(!hoseShown()||(p.kind!=='csys'&&p.kind!=='part'))return[];

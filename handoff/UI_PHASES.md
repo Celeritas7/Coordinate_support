@@ -275,6 +275,18 @@ What the run turned up, fixed:
   takes 2 (Alternatives' direct route does): Check now needs 2.
 - **Below 900 px of height** the folded Load card hid Hose Ø, so flow A needed a fold click to set Ø12; a folded Load card
   keeps Hose Ø.
+Review findings 7–10 (from the review of #11–#15), same PR; `node tests/stations-ui.js` (new) checks 7–9 in Chromium:
+- **7 Hand order kept:** a drag or ↑ / ↓ on a grip sets Start / End to the first and last ticked rows (it used to clear them,
+  so the next 3D click was taken as a new start and re-sorted the list) and marks the order as made by hand: until Auto
+  order or a rebuilt list, a station added later (3D click, Suggest's Add all) goes where it lengthens the path least, Start /
+  End move to the ends, nothing else moves. Undo of an armed click puts the list back exactly (no Auto order after it).
+- **8 Remove during Change…:** while the new file is read (sniffed, then parsed), Remove stops that read and removes the
+  assembly still on the line: "Removed piping3_practice_asm.stp (stopped reading frame_asm.stp). Undo"; Undo puts it back.
+- **9 Armed-click Undo:** the list is built before the snapshot, so Undo goes back to that list, not to an empty one.
+- **10 strip.js:** one `update()` per frame (requestAnimationFrame) for all the events of one render; the points are parsed
+  once per update.
+- Found on the way (also on main): typing Hose Ø and then clicking a station's tick did nothing: the blur sent a second
+  change with the same Ø, the list was rebuilt under the pointer and the click lost. The same Ø and fit no longer rebuild.
 Seen, not changed: the 3D readout says "Passes, but inside the ×1.5 safety margin" (amber) while Check's line says
 "Clear: R 87" (blue) for the same piping3 run: the Phase 5-A table has Clear there; say if the margin should make it Close.
 
