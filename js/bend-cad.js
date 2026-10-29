@@ -85,15 +85,19 @@ window.bendCad=function(P){
         const kept=sv.parts.filter(keepClear);kept.forEach(x=>x.faces.forEach(f=>parts.push({name:x.name,min:f.min,max:f.max})));
         bits.push(`${push?'pushed clear of':'gap checked to'} ${kept.length} CAD part${kept.length===1?'':'s'} (gap ${fmt(o.gap)}, Ø${fmt(o.d)})`);
         const open=throughOpenings(A,P,faces,o),spots=closeSpots(A,P,o,spanOf(A,P));
-        msg+=spots.length?`\nToo close — below the ${fmt(o.gap)} mm gap (${spots.length} place${spots.length>1?'s':''}, marked in 3D: red = into the part, amber = too close; clips at stations not counted):`:`\nNowhere closer than the ${fmt(o.gap)} mm gap to the parts checked (clips at stations not counted).`;
-        spots.forEach(x=>{msg+=`\n• ${x.msg}`;marks.push(x.mark);});
+        const counted=spots.filter(x=>x.ticked),notCounted=spots.filter(x=>!x.ticked);
+        msg+=counted.length?`\nToo close — below the ${fmt(o.gap)} mm gap (${counted.length} place${counted.length>1?'s':''}, marked in 3D: red = into the part, amber = too close; clips at stations not counted):`:`\nNowhere closer than the ${fmt(o.gap)} mm gap to the parts checked (clips at stations not counted).`;
+        counted.forEach(x=>{msg+=`\n• ${x.msg}`;});
+        if(notCounted.length)msg+=`\nNot counted (unticked, grey in 3D):`;notCounted.forEach(x=>{msg+=`\n• ${x.msg}`;});
+        spots.forEach(x=>marks.push(x.mark));
         // the route is generated from the stations only: say how to make it keep clear, only when it does not
-        out.tooClose=spots.length>0;out.canPush=!push&&faces.length>0;
+        out.tooClose=counted.length>0;out.canPush=!push&&faces.length>0;
         // gap along the whole route, for the Clearance chart: to the same parts the spots use; capped where nothing is near
         const ixAll=CadSolids.index(sv.parts.filter(watched).flatMap(p=>p.faces),50),cap=o.gap*5+o.d;
-        out.spots=spots.map(x=>x.spot);out.clearDense=A.d.pts.map(q=>Math.min(cap,ixAll.nearest(q,cap+o.d/2).d-o.d/2));out.gapLimit=o.gap;
+        out.spots=counted.map(x=>x.spot);out.clearDense=A.d.pts.map(q=>Math.min(cap,ixAll.nearest(q,cap+o.d/2).d-o.d/2));out.gapLimit=o.gap;
         // the Clearance tab's table (dock): one row per place below the gap, per plate crossing, and the smallest gap that holds
-        out.lead=msg.replace(/\nToo close[\s\S]*$|\nNowhere closer[\s\S]*$/,'')+(spots.some(x=>!x.ticked)?`\nUnticked parts were taken as clips without a CSYS; tick one in Keep clear if it is a screw, bolt or bracket.`:'');
+        const un=[...new Set(notCounted.map(x=>x.spot.name))];
+        out.lead=msg.replace(/\nToo close[\s\S]*$|\nNowhere closer[\s\S]*$/,'')+(un.length?`\n${un.length===1?`${last(un[0])} is unticked and inside`:`${un.length} unticked parts are inside`} the ${fmt(o.gap)} mm gap, not counted (taken as clips without a CSYS); tick one in Keep clear if it is a screw, bolt or bracket.`:'');
         out.rows=spots.map(x=>x.row).concat(open.map(x=>x.row));
         if(isFinite(w.gap)&&w.gap>=o.gap-0.05)out.rows.push({where:`near P${near.i+1}`,part:p?last(p.name):'',full:p?p.name:'',gap:w.gap,bad:false,warn:false,note:'smallest gap that passes',sub:''});
         out.head=`gap ${fmt(o.gap)} mm to ${kept.length} kept-clear part${kept.length===1?'':'s'} · clips at stations not counted`;
@@ -110,7 +114,8 @@ function spanOf(A,P){const pts=A.d.pts,si=P.map(p=>{let bi=0,bd=Infinity;pts.for
   return i=>{let k=0;while(k<si.length-2&&si[k+1]<=i)k++;return`P${k+1}–P${k+2}`;};}
 // every stretch of the route closer than the gap to a part: ticked parts, and unticked parts away from any station
 // (clips at a station are left out unless ticked — the hose sits in them; so are existing pipes unless ticked). One entry per part per stretch, with the
-// smallest gap, its station span and how long the stretch is. Sorted along the route.
+// smallest gap, its station span and how long the stretch is. Sorted along the route. Only the ticked ones count (the
+// verdict, the 3D readout, Alternatives' "clean"); an unticked one is listed, muted, in case it is a screw or a bracket.
 function closeSpots(A,P,o,span){const sv=BC.sv,pts=A.d.pts,s=A.d.s,out=[];
   sv.parts.filter(watched).forEach(p=>{const ix=CadSolids.index(p.faces,50);let run=null;
     const close=()=>{if(run){out.push(run);run=null;}};
@@ -121,8 +126,9 @@ function closeSpots(A,P,o,span){const sv=BC.sv,pts=A.d.pts,s=A.d.s,out=[];
   return out.sort((x,y)=>x.i-y.i).map(r=>{const len=s[r.i1]-s[r.i0],ticked=keepClear(r.part),bad=r.gap<0;
     return{msg:`${span(r.i)}: ${r.part.name} (${r.part.dims.map(v=>Math.round(v)).join('×')} mm${ticked?'':', unticked'}) — ${bad?`hose ${fmt(-r.gap,1)} mm into it`:`${fmt(r.gap,1)} mm clear`}${r.exact?'':' (to a face box)'}, over ${fmt(Math.max(len,2),0)} mm of route`,
       ticked,spot:{i0:r.i0,i1:r.i1,i:r.i,gap:r.gap,name:r.part.name,span:span(r.i),len:Math.max(len,2)},
-      row:{where:span(r.i),part:last(r.part.name),full:r.part.name,gap:r.gap,bad,warn:!bad,note:bad?`into the part over ${fmt(Math.max(len,2),0)} mm`:`inside the ${fmt(o.gap)} mm gap`,
-        sub:`${r.part.role==='obstacle'?'frame part':roleTxt(r.part)} ${r.part.dims.map(v=>Math.round(v)).join(' × ')} mm · ${ticked?'kept clear':'unticked'}${r.exact?'':' · to a face box'}`},mark:{p:r.p,text:`${last(r.part.name)} · ${fmt(r.gap,1).replace('-','−')} mm`,bad,warn:!bad}};});}
+      row:{where:span(r.i),part:last(r.part.name),full:r.part.name,gap:r.gap,bad:bad&&ticked,warn:!bad&&ticked,
+        note:(bad?`into the part over ${fmt(Math.max(len,2),0)} mm`:`inside the ${fmt(o.gap)} mm gap`)+(ticked?'':'; not counted: tick it in Keep clear if it is a screw, bolt or bracket'),
+        sub:`${r.part.role==='obstacle'?'frame part':roleTxt(r.part)} ${r.part.dims.map(v=>Math.round(v)).join(' × ')} mm · ${ticked?'kept clear':'unticked'}${r.exact?'':' · to a face box'}`},mark:{p:r.p,text:`${last(r.part.name)} · ${fmt(r.gap,1).replace('-','−')} mm${ticked?'':' · unticked'}`,bad:bad&&ticked,warn:!bad&&ticked,muted:!ticked}};});}
 function throughOpenings(A,P,faces,o){const pts=A.d.pts,s=A.d.s,sv=BC.sv,out=[],span=spanOf(A,P);
   CadSolids.openings(pts,faces,Math.max(o.reach,100)).forEach(c=>{const part=sv.parts.find(x=>x.faces.includes(c.face));if(!part)return;
     const g=out.find(g=>g.part===part&&Math.abs(s[g.i]-s[c.i])<40);

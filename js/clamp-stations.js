@@ -105,12 +105,15 @@ if(typeof document==='undefined'||!document.getElementById('csBox'))return;
 const CS={own:null,list:[],use:new Set(),start:null,end:null,extra:[],from:null,next:1e6,near:new Map(),picked:new Set(),free:new Set(),hand:new Map(),srcName:null,armed:null,manual:false};
 // a start and an end both set: tick only the holes within BETWEEN mm of the straight line from start to end (start, end and
 // stations picked in 3D stay ticked); the rest stay listed, unticked. A tick set by hand stays as the user set it (CS.hand:
-// id → ticked), so picking the end does not wipe the rows ticked or unticked in the list
+// id → ticked), so picking the end does not wipe the rows ticked or unticked in the list. A hole closer than 2 × R to the
+// start or end whose bore and the end's cannot both be held (closePairs, Check's pre-check) is left unticked too: on the
+// frame that is the next port of the same tank, 22 mm from CS29
 const BETWEEN=150;
 function between(){const a=CS.list.find(s=>s.id===CS.start),b=CS.list.find(s=>s.id===CS.end);if(!a||!b)return'';
   const ab=sub(b.c,a.c),L2=dot(ab,ab)||1e-12,off=c=>{const t=Math.max(0,Math.min(1,dot(sub(c,a.c),ab)/L2));return dist(c,[0,1,2].map(k=>a.c[k]+ab[k]*t));};
+  const R=+$('r').value||65,clash=(s,e)=>s.d&&e.d&&closePairs([e.c,s.c],[e.d,s.d],R).length>0;
   const pool=CS.list.filter(s=>CS.hand.has(s.id)?CS.hand.get(s.id):s.use||CS.picked.has(s.id));CS.near.clear();
-  CS.use=new Set(pool.filter(s=>s.id===a.id||s.id===b.id||CS.picked.has(s.id)||CS.hand.get(s.id)||off(s.c)<=BETWEEN).map(s=>s.id));
+  CS.use=new Set(pool.filter(s=>s.id===a.id||s.id===b.id||CS.picked.has(s.id)||CS.hand.get(s.id)||off(s.c)<=BETWEEN&&!clash(s,a)&&!clash(s,b)).map(s=>s.id));
   autoOrder();return`${CS.use.size} of ${pool.length} holes ticked, the ones between start and end. Tick more in the list.`;}
 const say=(m,bad)=>{const e=$('statusCs');e.textContent=m;e.style.color=bad?'var(--bad)':'';if(typeof nextClear==='function')nextClear('statusCs');};
 const openAsm=()=>typeof ASM!=='undefined'&&ASM&&ASM.r?ASM:null;
@@ -164,8 +167,8 @@ function checkState(){const few=CS.list.length&&!$('csBox').hidden&&!CS.manual&&
   if(!running){$('runBend').title=few?'Tick at least 2 stations.':'';$('runBend').disabled=!!few;}}
 root.csCheckState=checkState;
 function render(){document.dispatchEvent(new Event('cs:changed'));const box=$('csList'),T=ticked();
-  // the name only (the select is narrow); the part in the tooltip
-  const opts=sel=>`<option value="">auto</option>`+T.map(s=>`<option value="${s.id}" title="${esc(tag(s))}" ${sel===s.id?'selected':''}>${esc(s.name)}</option>`).join('');
+  // S-number and name, as in the rows (names repeat: three CS0 on piping3); the part in the tooltip
+  const opts=sel=>`<option value="">auto</option>`+T.map((s,i)=>`<option value="${s.id}" title="${esc(tag(s))}" ${sel===s.id?'selected':''}>S${i+1} · ${esc(s.name)}</option>`).join('');
   $('csStart').innerHTML=opts(CS.start);$('csEnd').innerHTML=opts(CS.end);
   $('csAuto').disabled=T.length<2;$('csNone').disabled=!T.length;$('csPicked').disabled=!CS.list.some(s=>CS.picked.has(s.id));
   const why=T.length<2?(CS.list.length?'Tick at least 2 stations.':''):'';$('csAuto').title=why;

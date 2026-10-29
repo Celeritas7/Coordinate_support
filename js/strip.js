@@ -1,7 +1,8 @@
 // ---------------- Hose / Cable · Route through stations as 1 Load · 2 Stations · 3 Route (Phase 5) ----------------
 // Loaded after the panels it reads (clamp-stations.js, bend-cad.js, alt-ui.js) and before shell.js. It owns no route logic:
 // it shows which card is current, the one-line summary of each, the Advanced toggle and its values line, and below 900 px
-// of height folds the cards before the current one to their summary (the heading is a button with aria-expanded).
+// of height folds the cards before the current one to their summary (the heading is a button with aria-expanded). A folded
+// Load card keeps Hose Ø (.foldkeep): the station list follows it, so it is changed right after Open.
 {
 const pan=$('panBend'),cards=[1,2,3].map(i=>$('card'+i)),opened=new Set(),shut=new Set();
 const num=id=>{const v=+$(id).value;return isFinite(v)?v:0;};

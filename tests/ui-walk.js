@@ -1,4 +1,4 @@
-// node tests/ui-walk.js [--shots dir] — click through the main jobs with the real buttons and count the steps.
+// node tests/ui-walk.js [--shots dir] [--size 1366x768] [--dark] [--main] — click through the main jobs with the real buttons and count the steps.
 // Needs Playwright + Chromium (PLAYWRIGHT_CHROMIUM or a normal Playwright install). Flows A / B need samples/piping3_practice_asm.stp,
 // flow F samples/frame_asm.stp; each flow is skipped when its file is missing.
 // Prints one line per step, the status text the app showed, and a summary to compare phases against.
@@ -10,6 +10,9 @@ let pw; for (const p of ["playwright", "/opt/node22/lib/node_modules/playwright"
 if (!pw) { console.log("skip: playwright not installed"); process.exit(0); }
 const exe = process.env.PLAYWRIGHT_CHROMIUM || (fs.existsSync("/opt/pw-browsers/chromium") ? "/opt/pw-browsers/chromium" : undefined);
 const shotsArg = process.argv.indexOf("--shots"), SHOTS = shotsArg > 0 ? process.argv[shotsArg + 1] : null;
+// --size 1366x768 (default 1600x1000), --dark (the page follows prefers-color-scheme), --main (flows A and F only)
+const sizeArg = process.argv.indexOf("--size"), [W, H] = sizeArg > 0 ? process.argv[sizeArg + 1].split("x").map(Number) : [1600, 1000];
+const DARK = process.argv.includes("--dark"), MAIN = process.argv.includes("--main");
 if (SHOTS) fs.mkdirSync(SHOTS, { recursive: true });
 
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".woff2": "font/woff2" };
@@ -23,7 +26,7 @@ const server = http.createServer((q, s) => {
   await new Promise(r => server.listen(0, r));
   const url = `http://127.0.0.1:${server.address().port}/index.html`;
   const b = await pw.chromium.launch(exe ? { executablePath: exe } : {});
-  const pg = await b.newPage({ viewport: { width: 1600, height: 1000 } }), errs = [];
+  const pg = await b.newPage({ viewport: { width: W, height: H }, colorScheme: DARK ? "dark" : "light" }), errs = [];
   pg.on("pageerror", e => errs.push(e.message));
   const flows = {}; let cur = null;
   const step = (s, note) => { flows[cur].steps++; console.log(`  ${flows[cur].steps}. ${s}${note ? "  → " + note : ""}`); };
@@ -63,6 +66,7 @@ const server = http.createServer((q, s) => {
   console.log("     " + alt.slice(0, 160)); await shot("A3-alternatives");
 
   // ---- B: Pipe · Through clamps on pipe 111
+  if (!MAIN) {
   flow("B  Pipe · route pipe 111 through its clamps");
   await go("pipe", "clamps"); step("Pipe · Through clamps");
   const open = await pg.evaluate(() => typeof ASM !== "undefined" && ASM && ASM.name);
@@ -72,19 +76,54 @@ const server = http.createServer((q, s) => {
   flows[cur].rows = th.length; flows[cur].ticked = th.filter(Boolean).length; console.log(`     clamp rows: ${th.length}, ticked: ${flows[cur].ticked}`);
   await pg.click("#thRun"); await pg.waitForTimeout(2500); step("Route through ticked clamps");
   await shot("B1-through");
-  }
+  } }
 
-  // ---- F: Frame · pick in 3D, CSYS made here, Suggest extra clamps (samples/frame_asm.stp)
+  // ---- F: Frame main path · Open, click start and end in 3D (route_343434: CS29 in the bore of fitting 991980, CS41 on
+  // 994000), Check, Alternatives, Use this (samples/frame_asm.stp)
   const FRAME = S("frame_asm.stp");
-  if (!fs.existsSync(FRAME)) console.log("\nF  skip: samples/frame_asm.stp not found");
+  if (!fs.existsSync(FRAME)) console.log("\nF, G  skip: samples/frame_asm.stp not found");
   else {
-    flow("F  Frame · pick, CSYS, suggestions");
+    flow("F  Frame · route from a click on each end, round the frame");
+    await pg.evaluate(() => localStorage.clear()); await pg.reload(); await pg.waitForTimeout(800);
+    await go("hose", "route"); step("Hose / Cable · Route through stations");
+    await pg.setInputFiles("#shFile", FRAME); flows[cur].loads++;
+    await until("shStatus", /^Opened in/, 60); await pg.waitForTimeout(3000); step("Open… frame_asm.stp", (await text("shStatus")).slice(0, 120));
+    console.log("     " + (await text("statusCs")).slice(0, 160));
+    const pickEnd = n => pg.evaluate(n => { const c = (AV.shown || []).find(c => c.name === n && c.hole); if (!c) return false;
+      asmSetPick({ kind: "csys", c, inst: c.inst }); orbit.target.set(...c.o); orbit.dist = 600; draw(); return true; }, n);
+    for (const [n, as] of [["CS29", "start"], ["CS41", "end"]]) {
+      if (!(await pickEnd(n))) { console.log(`     !! ${n} not in the file`); continue; }
+      await pg.waitForTimeout(300);
+      // armed: an empty Start / End is filled by the click itself; otherwise the pick panel's button
+      if (!(await pg.evaluate(() => [...document.querySelectorAll("#avPick button")].some(b => b.textContent === "Undo")))) await pg.click(`#avPick button:text-is("Use as ${as}")`);
+      step(`click ${n} in 3D: ${as}`, await text("statusCs")); }
+    await pg.evaluate(() => asmSetPick(null));
+    flows[cur].rows = await pg.evaluate(() => document.querySelectorAll("#csList > .csrow").length);
+    flows[cur].ticked = await pg.evaluate(() => document.querySelectorAll("#csList input[type=checkbox]:checked").length);
+    await shot("F1-stations");
+    await pg.click("#runBend"); const fc = await until("statusBend", /^(Clash|Too tight|Close|Clear):|apart\. Holding|Tick at least|Paste|cannot|can't/i, 120); step("Check route");
+    console.log("     " + fc.slice(0, 260)); flows[cur].clash = /^Clash/.test(fc);
+    if (/apart\. Holding/.test(fc)) { await pg.click("#statusBend + .next button.pri"); const f2 = await until("statusBend", /^(Clash|Too tight|Close|Clear):/i, 120); step("Free the pair's directions", f2.slice(0, 200)); }
+    await shot("F2-check");
+    await pg.click("#runAlt"); const fa = await until("statusAlt", /distinct|No clean|Forced|No obstacles|Tick at least|No route/i, 300); step("Tools · Alternatives");
+    [flows[cur].alts, flows[cur].cleanAlts] = await pg.evaluate(() => { const C = [...document.querySelectorAll("#altList .altrow")]; return [C.length, C.filter(c => c.querySelector("button.pri")).length]; });
+    console.log("     " + fa.slice(0, 200));
+    console.log("     " + (await pg.evaluate(() => [...document.querySelectorAll("#altList .altrow")].map(c => c.innerText.replace(/\s+/g, " ")).join(" | "))));
+    if (flows[cur].cleanAlts) { await pg.click("#altList .altrow button.pri"); await pg.waitForTimeout(1500); step("Use this");
+      await pg.click("#dClr"); await pg.waitForTimeout(300);
+      console.log(`     ${await text("dClr")}: ${(await pg.evaluate(() => [...document.querySelectorAll("#clrList tr")].slice(1).map(r => r.innerText.replace(/\s+/g, " ")).join(" / "))).slice(0, 400)}`); }
+    await shot("F3-alternatives");
+
+  }
+  // ---- G: Frame · pick in 3D, CSYS made here, Suggest extra clamps (not the main path)
+  if (fs.existsSync(FRAME) && !MAIN) {
+    flow("G  Frame · pick, CSYS, suggestions");
     await pg.evaluate(() => localStorage.clear()); await pg.reload(); await pg.waitForTimeout(800);
     await go("hose", "route"); step("Hose / Cable · Route through stations");
     await pg.setInputFiles("#shFile", FRAME); flows[cur].loads++;
     await until("shStatus", /^Opened in/, 60); await pg.waitForTimeout(3000); step("Open… frame_asm.stp", (await text("shStatus")).slice(0, 120));
     await pg.evaluate(() => { document.querySelectorAll(".taskpane, #panBend").forEach(e => e.scrollTop = 0); window.scrollTo(0, 0); });
-    await shot("F1-header");
+    await shot("G1-header");
     // pick: what the 3D click would set, centred like the “show” button of CSYS made here
     const look = o => pg.evaluate(o => { orbit.target.set(...o); orbit.dist = Math.max(diag * 0.08, 150); draw(); }, o);
     const pickMsg = () => pg.evaluate(() => { const e = document.querySelector("#avPick"); return e && !e.hidden ? e.innerText.replace(/\s+/g, " ").trim() : "(no pick panel)"; });
@@ -96,7 +135,7 @@ const server = http.createServer((q, s) => {
       if (c) await look(c); await pg.waitForTimeout(300); return c; };
     const picked = await pickCsys();
     step("asmSetPick() on a CSYS on a hole", picked ? (await pickMsg()).slice(0, 160) : "no CSYS on a hole");
-    await shot("F2-pick-csys");
+    await shot("G2-pick-csys");
     console.log(`     parts from the open assembly: ${await pg.evaluate(() => typeof bcName === "function" && !!bcName())}`);
     const part = await pg.evaluate(() => { const cad = bcCad(), r = ASM.r;
       const ii = r.instances.findIndex((I, i) => I.bbox && cad && cad.solids.some(s => s.inst === i));
@@ -106,12 +145,12 @@ const server = http.createServer((q, s) => {
     const pm = await pickMsg();
     step("asmSetPick() on a frame part", part ? pm.slice(0, 200) : "no part with solids");
     console.log(`     Keep clear row: ${/Keep clear/.test(pm) ? "yes" : "no"}, Route passes it row: ${/Route passes it/.test(pm) ? "yes" : "no"}`);
-    await shot("F3-pick-part");
+    await shot("G3-pick-part");
     if (part) { await act("New CSYS here"); step("New CSYS here (part)", await pickMsg().then(t => (t.match(/\S+ made \(listed[^)]*\)\.?/) || [t.slice(-120)])[0])); }
     if (await pickCsys()) { await act("New CSYS here"); step("New CSYS here (CSYS on a hole)", await pickMsg().then(t => (t.match(/\S+ made \(listed[^)]*\)\.?/) || [t.slice(-120)])[0])); }
     await pg.click("#dCsys"); await pg.waitForTimeout(200); step("CSYS tab");
     console.log("     " + (await text("mkStatus")) + `  (CSYS made here: ${await text("mkN")}; header: ${await text("shAsm")})`);
-    await shot("F4-csys-made");
+    await shot("G4-csys-made");
     await pg.click("#dRad");
     await pg.evaluate(() => asmSetPick(null));
     // stations: tick the first 5 listed
@@ -128,16 +167,16 @@ const server = http.createServer((q, s) => {
     await pg.click("#sgRun"); await pg.waitForTimeout(500); step("Suggest for the selected route", (await text("sgStatus")).slice(0, 200));
     console.log(`     suggestions: ${await pg.evaluate(() => document.querySelectorAll("#sgList tr[data-i]").length)}`);
     await pg.evaluate(() => { rebuild(true); document.getElementById("sgBox").scrollIntoView({ block: "start" }); }); await pg.waitForTimeout(500);
-    await shot("F5-suggest");
+    await shot("G5-suggest");
     // a +n dot picked: its own panel
     if (await pg.evaluate(() => document.querySelectorAll("#sgList tr[data-i]").length)) {
       await pg.evaluate(() => asmSetPick({ kind: "suggest", i: 0 })); await pg.waitForTimeout(300); step("asmSetPick() on +1", (await pickMsg()).slice(0, 200));
-      await shot("F5b-pick-suggest"); await pg.evaluate(() => asmSetPick(null)); }
+      await shot("G5b-pick-suggest"); await pg.evaluate(() => asmSetPick(null)); }
     // F2 again, dark
     await pg.click("#shTheme"); await pg.waitForTimeout(300); step("Dark theme", await pg.evaluate(() => document.documentElement.dataset.theme));
     await pg.evaluate(() => { document.querySelectorAll(".taskpane, #panBend").forEach(e => e.scrollTop = 0); window.scrollTo(0, 0); });
     if (await pickCsys()) step("asmSetPick() on a CSYS on a hole", (await pickMsg()).slice(0, 160));
-    await shot("F6-pick-dark");
+    await shot("G6-pick-dark");
     // with Start or End empty that click filled it (armed): put it back
     if (await pg.evaluate(() => [...document.querySelectorAll("#avPick button")].some(b => b.textContent === "Undo"))) { await act("Undo"); step("Undo the armed Start / End"); }
     await pg.click("#shTheme"); await pg.evaluate(() => asmSetPick(null));
@@ -154,13 +193,13 @@ const server = http.createServer((q, s) => {
       const tk2 = await pg.evaluate(() => document.querySelectorAll("#csList .csrow input[type=checkbox]:checked").length);
       console.log(`     ticked now: ${tk2}`);
       await pg.evaluate(() => { asmSetPick(null); document.getElementById("csBox").scrollIntoView({ block: "start" }); });
-      await shot("F7-start-end");
+      await shot("G7-start-end");
       await pg.click("#csPicked"); step("Only picked", await text("statusCs"));
       await pg.click("#csNone"); step("Untick all", await text("statusCs"));
     }
     // F8: the open solid 30 / solid 43 question (handoff/UI_PHASES.md). Solid 30 of the frame IGES is part 22648999 under
     // 23297378_ASM (box within 5 mm), solid 43 is 980464_AF54 (within 0.1 mm): pick each at its box centre and zoom to it
-    for (const [name, under, shotName] of [["22648999", "23297378_ASM", "F8-solid30"], ["980464_AF54", "", "F8b-solid43"]]) {
+    for (const [name, under, shotName] of [["22648999", "23297378_ASM", "G8-solid30"], ["980464_AF54", "", "G8b-solid43"]]) {
       const got = await pg.evaluate(([name, under]) => { const r = ASM.r, ii = r.instances.findIndex(I => I.name === name && I.solids && (!under || I.label.includes(under)));
         if (ii < 0) return null;
         // box from the drawn outline of this instance (world coordinates, as on screen)
