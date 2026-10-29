@@ -110,7 +110,7 @@ function addAll(){if(typeof csAddStations!=='function')return;csAddStations(SG.r
   say(`${SG.res.list.length} new clamps added to Stations from clamps. Check route again.`);}
 const shown=()=>SG.res&&runs.some(r=>r.id===SG.run&&r.visible);
 // 3D: amber dots with +n on the route (route-studio rebuild → asm-view overlay hook); the picked one gets the ink ring
-(root.VIEW_OVERLAYS=root.VIEW_OVERLAYS||[]).push((content,g)=>{$('sgRun').textContent=`Suggest clamps for ${runName()}`;if(!shown())return;
+(root.VIEW_OVERLAYS=root.VIEW_OVERLAYS||[]).push((content,g)=>{$('sgRun').title=`Suggest extra clamps for ${runName()}`;if(!shown())return;
   const m=new THREE.MeshBasicMaterial({color:new THREE.Color(css('--warn'))}),p=typeof asmPick==='function'?asmPick():null;
   SG.res.list.forEach((q,i)=>{const s=new THREE.Mesh(g.sg,m);s.position.set(...q.p);s.scale.setScalar(g.tubeR*3);content.add(s);
     const on=p&&p.kind==='suggest'&&p.i===i;if(on)g.addTag(q.p,'','ring pick');g.addTag(q.p,`+${i+1}`,'warn'+(on?' pick':''));});});

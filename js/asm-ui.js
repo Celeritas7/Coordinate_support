@@ -107,6 +107,11 @@ function asmApplied(r,note,t0){
   r.pipes.forEach((p,pi)=>addRun(asmRun(p,pi)));asmTexts();thRender();
   cadSay('statusPipe',`${note?note+' ':''}${ASM.name}: ${tree}; ${found}: ${r.pipes.map(p=>`${p.name} ${AsmTree.pipeText(p)}`).join('; ')}. Read in ${ms} ms.`);
 }
+// Remove (shell.js): unload the open assembly, keeping its parse for Undo; asmRestore puts the same one back (no re-read).
+// Runs made from it stay. Panels drop what came from it on asm:removed and rebuild on the asm:loaded Undo sends.
+function asmRemove(){if(!ASM)return null;const a=ASM;ASM=null;asmSeq++;asmProgress('',null);thSetup();cadSay('statusPipe','');
+  document.dispatchEvent(new CustomEvent('asm:removed',{detail:a}));return a.r?a:null;}
+function asmRestore(a){if(!a||!a.r)return;ASM=a;thSetup();setTimeout(()=>document.dispatchEvent(new CustomEvent('asm:loaded',{detail:ASM})),0);}
 function asmLoad(file){
   asmProgress(`Reading ${file.name}, ${(file.size/1e6).toFixed(1)} MB: reading the file`,0);
   ASM={name:file.name,file,ov:AsmTree.load(file.name),r:null};$('asmParts').open=false;asmApply();
@@ -241,7 +246,7 @@ function thReport(){const L=TH.last;if(!L)return;const{rep,res,p,C}=L,F=asmFrame
     <li>Coordinates (${esc(F.name)} frame) are in the .pts below and in the Points pane; hover a row to see them. Clearance to other parts is not checked yet.</li></ul>`;
   $('thPts').value=L.run.text;['thCopy','thDl'].forEach(k=>$(k).disabled=false);}
 
-{const inp=$('asmfile');if(inp){$('aAsm').onclick=()=>inp.click();inp.onchange=e=>{if(e.target.files[0])asmLoad(e.target.files[0]);e.target.value='';};}
+{const inp=$('asmfile');if(inp){inp.onchange=e=>{if(e.target.files[0])asmLoad(e.target.files[0]);e.target.value='';};}
   const ci=$('cmpfile');$('cmpOpen').onclick=()=>ci.click();ci.onchange=e=>{if(e.target.files[0]&&ASM)cmpLoad(e.target.files[0]);e.target.value='';};
   $('thPipe').onchange=()=>{thRender();$('cmpOut').innerHTML='';$('cmpBtns').hidden=true;$('statusCmp').textContent='';TH.cmp=null;};
   $('thRun').onclick=thRun;$('thFrame').onchange=()=>{asmTexts();thReport();cmpReport();};

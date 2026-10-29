@@ -58,7 +58,8 @@ function arcRun(){
     const errs=P.map((p,k)=>{const w=[0,W.length-1];return ArcRoute.nearest(G,p,w[0],w[1]).d;}),err=Math.max(...errs);
     let wi=0;d.k.forEach((k,i)=>{if(k>d.k[wi])wi=i;});
     const len=d.s[d.s.length-1],Rtxt=+res.R.toFixed(2);
-    addRun({Q:W,d,wi,minR:res.R,len,tidx:[],qLabel:arcLabels(res,names),stations:P.map((p,i)=>({p,name:names[i]})),
+    dropCheckRuns();
+    addRun({fromCheck:true,Q:W,d,wi,minR:res.R,len,tidx:[],qLabel:arcLabels(res,names),stations:P.map((p,i)=>({p,name:names[i]})),
       name:`Lines + arcs R${Rtxt}`,kind:'arc',kindLabel:'bend radius, lines + arcs',params:{R,SF},
       settings:`${W.length} corner points, single radius ${Rtxt} mm, stations within ${err.toFixed(3)} mm${frameNote}`,
       text:arcPts({W,owner:res.owner},names,{R:Rtxt,Rlim:R,len,err})});
@@ -68,7 +69,7 @@ function arcRun(){
 
 {const spline=$('runBend').onclick,LABEL={spline:$('runBend').textContent,arc:'Solve lines + arcs, then add to comparison'};
   const sync=()=>{const arc=$('shape').value==='arc';
-    $('splineOpts').hidden=arc;$('spBox').hidden=arc;$('arcTolBox').hidden=!arc;$('arcHint').hidden=!arc;$('bendHint').hidden=arc;$('altBox').hidden=arc;
+    $('panBend').classList.toggle('arc',arc);$('splineOpts').hidden=arc;$('spBox').hidden=arc;$('arcTolBox').hidden=!arc;$('arcHint').hidden=!arc;$('bendHint').hidden=arc;$('altBox').hidden=arc;
     if(!bendJob)$('runBend').textContent=LABEL[arc?'arc':'spline'];store.set('rs.shape',$('shape').value);};
   $('shape').onchange=sync;
   if(store.get('rs.shape')==='arc')$('shape').value='arc';sync();

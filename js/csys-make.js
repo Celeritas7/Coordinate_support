@@ -125,5 +125,6 @@ document.addEventListener('asm:loaded',()=>{load();
     save();store.set('rs.csysMade.','[]');say(`${pre.length} CSYS made before a file was open now listed for ${ASM.name}.`);}
   render();$('dCsys').hidden=false;
   const p=typeof asmPick==='function'&&asmPick();if(p&&p.c&&p.c.made)asmSetPick(null);rebuild(false);});
+document.addEventListener('asm:removed',()=>{load();render();rebuild(false);});
 load();render();
 })(typeof globalThis!=="undefined"?globalThis:this);

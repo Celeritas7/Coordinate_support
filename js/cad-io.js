@@ -42,7 +42,7 @@ function cadSay(id,msg,bad){const e=$(id);if(!e)return;e.textContent=msg;e.style
 const CAD_STATUS={pts:'statusBend',mpts:'statusClear',spts:'statusClear'},CAD_LABEL={pts:'',mpts:'Master · ',spts:'Slave · '};
 function cadLoadInto(target,file){
   file.text().then(text=>{
-    if(!CAD_EXT.test(file.name)){$(target).value=text;cadSay(CAD_STATUS[target],`${file.name} loaded.`);return;}
+    if(!CAD_EXT.test(file.name)){$(target).value=text;$(target).dispatchEvent(new Event('input'));cadSay(CAD_STATUS[target],`${file.name} loaded.`);return;}
     let r;try{r=cadRead(file.name,text);}catch(e){return cadSay(CAD_STATUS[target],`${file.name}: ${e.message}`,true);}
     if(!r.rows.length){cadSay(CAD_STATUS[target],CAD_HELP,true);return;}
     cadRemember(file.name,r);

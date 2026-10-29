@@ -19,15 +19,34 @@ let syncing=false;
 
 function nav(){
   document.querySelectorAll('.modsw button').forEach(b=>b.setAttribute('aria-selected',b.dataset.mod===st.mod));
-  $('tasks').innerHTML=TASKS[st.mod].map(t=>`<button type="button" data-task="${t.id}"${t.soon?' disabled':''} aria-current="${!t.soon&&t.id===st.task[st.mod]}">${t.label}${t.soon?`<small>${t.soon}</small>`:''}</button>`).join('');
+  $('tasks').innerHTML=TASKS[st.mod].map(t=>{const on=!t.soon&&t.id===st.task[st.mod];
+    return`<button type="button" role="tab" data-task="${t.id}"${t.soon?' disabled':''} aria-selected="${on}" tabindex="${on?0:-1}">${t.label}${t.soon?`<small>${t.soon}</small>`:''}</button>`;}).join('');
   $('tasks').querySelectorAll('button[data-task]').forEach(b=>b.onclick=()=>go(st.mod,b.dataset.task));
+  document.querySelectorAll('.modsw button').forEach(b=>b.tabIndex=b.dataset.mod===st.mod?0:-1);
 }
+// module switch and task tabs: one tab stop each, ← / → move between them (and open the one reached)
+const arrows=(box,sel,pick)=>box.addEventListener('keydown',e=>{const d=e.key==='ArrowRight'?1:e.key==='ArrowLeft'?-1:0;if(!d)return;
+  const B=[...box.querySelectorAll(sel)].filter(b=>!b.disabled),i=B.indexOf(document.activeElement);if(i<0)return;e.preventDefault();
+  const n=B[(i+d+B.length)%B.length];pick(n);const f=box.querySelector(`${sel}[tabindex="0"]`)||n;f.focus();});
+arrows($('tasks'),'button[data-task]',b=>go(st.mod,b.dataset.task));
+arrows(document.querySelector('.modsw'),'button[data-mod]',b=>go(b.dataset.mod,st.task[b.dataset.mod]));
 const panels=which=>{Object.entries(PANELS).forEach(([k,id])=>{$(id).hidden=k!==which;});if(which==='lib'&&typeof libRender==='function')libRender();};
-const sub=which=>{$('pipeCmp').hidden=which!=='cmp';$('pipeThrough').hidden=which!=='through';$('pipeOffset').hidden=which!=='offset';};
+// each Pipe task says what it does in one line until it has input; Open assembly… beside it while none is open
+const EMPTY={cmp:'Check .pts against pipe: compare your .pts with a pipe in the open assembly, point by point.',
+  through:'Through clamps: re-route the open pipe so it runs straight through its clamps.',
+  offset:'Offset from another pipe: route a new pipe alongside one in the assembly, at the distance you set.'};
+let pipeSub='cmp';
+const emptyLines=()=>{const open=typeof ASM!=='undefined'&&!!ASM&&!!ASM.r;$('pipeEmptyTxt').textContent=EMPTY[pipeSub]||'';$('pipeEmptyBtn').hidden=open;
+  $('tableEmpty').hidden=!!$('tin').value.trim();
+  $('arcEmpty').hidden=!($('shape').value==='arc'&&!$('pts').value.trim());};
+const sub=which=>{pipeSub=which;$('pipeCmp').hidden=which!=='cmp';$('pipeThrough').hidden=which!=='through';$('pipeOffset').hidden=which!=='offset';emptyLines();};
+$('pipeEmptyBtn').onclick=()=>$('shFile').click();
+['asm:loaded','asm:removed'].forEach(t=>document.addEventListener(t,()=>setTimeout(emptyLines,0)));
+['tin','pts'].forEach(id=>$(id).addEventListener('input',emptyLines));$('shape').addEventListener('change',emptyLines);
 function go(mod,task){
   const t=T(mod,task);st.mod=mod;st.task[mod]=t.id;save();
   if(t.shape&&$('shape').value!==t.shape){$('shape').value=t.shape;syncing=true;$('shape').dispatchEvent(new Event('change'));syncing=false;}
-  if(t.sub)sub(t.sub);panels(t.panel);nav();
+  if(t.sub)sub(t.sub);panels(t.panel);nav();emptyLines();
 }
 // everything else (run list, Table → route, Analyse) calls showPanel: follow it with the module and task
 showPanel=function(which){
@@ -42,9 +61,12 @@ document.querySelectorAll('.modsw button').forEach(b=>b.onclick=()=>go(b.dataset
 $('tToBend').addEventListener('click',()=>go('pipe','route'));
 
 // ---- examples menu, theme ----
-const ex=$('shEx');
-document.querySelectorAll('[data-goto]').forEach(b=>b.addEventListener('click',()=>{const [m,t]=b.dataset.goto.split(':');go(m,t);ex.open=false;}));
-document.addEventListener('click',e=>{if(ex.open&&!ex.contains(e.target))ex.open=false;});
+// Examples ▾ and More ▾: a choice closes the menu, so does a click elsewhere or Esc
+const menus=[$('shEx'),$('shMore')];
+document.querySelectorAll('[data-goto]').forEach(b=>b.addEventListener('click',()=>{const [m,t]=b.dataset.goto.split(':');go(m,t);}));
+menus.forEach(m=>m.querySelector('.menu').addEventListener('click',e=>{if(e.target.closest('button,a'))m.open=false;}));
+document.addEventListener('click',e=>menus.forEach(m=>{if(m.open&&!m.contains(e.target))m.open=false;}));
+document.addEventListener('keydown',e=>{if(e.key==='Escape')menus.forEach(m=>{if(m.open){m.open=false;m.querySelector('summary').focus();}});});
 const dark=()=>(document.documentElement.dataset.theme||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'))==='dark';
 const themeBtn=()=>{$('shTheme').textContent=dark()?'Light':'Dark';};
 {const t=store.get('rs.theme');if(t==='dark'||t==='light')document.documentElement.dataset.theme=t;themeBtn();}
@@ -88,7 +110,6 @@ let asmPend=null;
 function openAssembly(f,rest){const n=rest?rest.length:0,also=n?` ${n} other file${n>1?'s were':' was'} not opened (${rest.join(', ')}); open ${n>1?'them':'it'} now the assembly has loaded.`:'';
   const hose=st.mod==='hose'&&st.task.hose==='route'&&$('shape').value!=='arc';
   if(!hose)go('pipe',st.task.pipe==='clamps'||st.task.pipe==='offset'?st.task.pipe:'asm');
-  else{$('csBox').open=true;$('cdBox').open=true;}
   const where=hose?`Stations and parts to keep clear of are in ${label('hose','route')}; also open in Pipe.`:`Open in ${label('pipe',st.task.pipe)}.`;
   // one of the two answers this open: the other listener goes with it (a failed read must not leave one armed for a later
   // open), and so do both when another assembly is opened before this one has loaded
@@ -98,7 +119,7 @@ function openAssembly(f,rest){const n=rest?rest.length:0,also=n?` ${n} other fil
   const ok=e=>{const a=e.detail;if(!a||a.name!==f.name)return;done();
     if(hose&&typeof bcFromAsm==='function')bcFromAsm(a);
     say(`Opened in ${(a.secs||0).toFixed(1)} s.${also}`);$('shStatus').title=where;
-    $('shAsm').hidden=false;$('shAsmTxt').innerHTML=asmLine(a);};
+    showAsm(a);};
   const bad=e=>{const x=e.detail;if(!x||x.name!==f.name)return;done();say(`${x.name} could not be read: ${x.message}`);};
   document.addEventListener('asm:loaded',ok);document.addEventListener('asm:failed',bad);
   // while reading, the header shows asm-ui's progress line ("Reading <file>, 20.3 MB: parts 59 %"); the others in its tooltip
@@ -109,10 +130,24 @@ function asmLine(a){const r=a.r;if(!r)return esc(a.name);const parts=r.instances
     holes=r.holes.filter(h=>h.csys).length,cs=typeof csCount==='function'?csCount():null;
   return`<span class="mono">${esc(a.name)}</span> · ${parts} part${parts===1?'':'s'}${np?` · ${np} pipe${np===1?'':'s'}`:''} · `+
     (cs&&cs.n?`${cs.n} clamp${cs.n===1?'':'s'} for Ø${+cs.D}`:`${holes} hole${holes===1?'':'s'} with a CSYS`);}
-document.addEventListener('cs:changed',()=>{if(typeof ASM!=='undefined'&&ASM&&ASM.r&&!$('shAsm').hidden)$('shAsmTxt').innerHTML=asmLine(ASM);});
+document.addEventListener('cs:changed',()=>{if(typeof ASM!=='undefined'&&ASM&&ASM.r)$('shAsmTxt').innerHTML=asmLine(ASM);});
+// the assembly line: one file per session, in every module. Change… opens another in its place (Hose Ø, the Library and the
+// per-file choices stay; stations and parts of the old file go; runs stay). Remove unloads it at once with Undo for 10 s,
+// which puts back the same parse (no second read)
+function showAsm(a){const on=!!(a&&a.r);$('shAsmTxt').classList.toggle('unit',!on);$('shAsmTxt').innerHTML=on?asmLine(a):'No assembly open.';$('shAsmAct').hidden=!on;}
+let undoT=0;
+$('shChange').onclick=()=>$('shFile').click();
+$('shRemove').onclick=()=>{const a=typeof asmRemove==='function'?asmRemove():null;if(!a)return;showAsm(null);clearTimeout(undoT);
+  const el=$('shStatus');el.classList.add('on');el.innerHTML=`Removed ${esc(a.name)}. <button type="button" class="linkish" id="shUndo">Undo</button>`;$('shUndo').focus();
+  $('shUndo').onclick=()=>{clearTimeout(undoT);if(typeof ASM!=='undefined'&&ASM)return say('Another assembly is open; nothing to undo.');
+    document.addEventListener('asm:loaded',e=>{if(e.detail&&e.detail.name===a.name&&typeof bcFromAsm==='function'&&st.mod==='hose')bcFromAsm(e.detail);showAsm(e.detail);},{once:true});
+    asmRestore(a);say(`${a.name} is back.`);$('shChange').focus();};
+  undoT=setTimeout(()=>{const u=$('shUndo');if(u)u.replaceWith(document.createTextNode(''));},10000);};
+document.addEventListener('asm:removed',()=>showAsm(null));
 $('shOpen').onclick=()=>$('shFile').click();
 $('shFile').onchange=e=>{open(e.target.files);e.target.value='';};
 $('shTable').onclick=()=>{go('pipe','table');$('tin').focus();};
+$('arcEmptyBtn').onclick=()=>$('shTable').click();
 let depth=0;const hasFiles=e=>e.dataTransfer&&[...e.dataTransfer.types].includes('Files');
 addEventListener('dragenter',e=>{if(hasFiles(e)){depth++;document.body.classList.add('dropping');}});
 addEventListener('dragleave',()=>{if(--depth<=0){depth=0;document.body.classList.remove('dropping');}});
