@@ -180,6 +180,23 @@ the strip, cuts, dock tables and armed Start / End are P5-B…D.
 - Checked: unit tests green; page smoke in Chromium (Check clear / too tight, Alternatives cards, no-clean, forced, light and
   dark, no page errors). **Not checked:** the clamp rows and the walk-through on piping3 / the frame (samples not in the cloud).
 
+### Phase 5-B — Check reads the ticked rows, armed Start / End (BUILT 2026-10-29)
+- **Use as stations is gone.** Check route and Alternatives write the ticked rows (points, held bore axes) into Target points
+  and Bore directions just before they run (`csSync`), so those always show what was routed. The Replace / Keep question and
+  the stale-directions greying go with it (old finding 14). With the list in use and fewer than 2 ticked, Check says
+  "Tick at least 2 stations." (also its tooltip); with the list empty, Check uses Target points as typed.
+- **Stations too close** is a pre-check on Check: amber line in the result, the pair marked in the list → **Free S1 and S2
+  directions** (those stations' bores free until the list is rebuilt, then checks) · **Check anyway**.
+- **Armed Start / End:** with an assembly open and Start or End empty, the next click on a part or CSYS in 3D fills it. The pick
+  panel says "Start set to A_T_F_PORT2. No hole there: its Z axis is the hose direction." with **Undo** (primary, focused) ·
+  **Make it the end**. Undo puts the list back as it was.
+- **Pick panel Route group:** Use as start → Use as end → Add as station; the primary is the first one still needed.
+- **Old finding 10:** setting Start and End no longer wipes ticks set by hand (kept per row). **Old finding 15:** a Hose Ø or fit
+  change keeps holes picked in 3D (3D tag, ticked) and Start / End on them, found again by position; hand ticks too.
+- Checked in Chromium on a synthetic assembly (armed start, Undo, end with a hand untick kept, both set → Add as station
+  primary, Ø change, Check → pre-check → Free → verdict, none ticked). Walk-through updated (no Use as stations step; armed
+  clicks), **not run** here (samples).
+
 ## Phase 6 — Pipe module parity (Claude Code, later)
 - Clearance to parts for pipe runs and obstacle-aware Through clamps (ROADMAP Phase 12d steps 2–3) so Pipe gets the same
   "clash → fix" loop as Hose. Not a UI phase as such; listed so Design knows Pipe will need the Phase 3 next-step lines too.

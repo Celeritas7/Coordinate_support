@@ -718,9 +718,20 @@ document.querySelectorAll('[data-preset]').forEach(b=>b.onclick=()=>{
   else if(b.dataset.preset==='bundle'){$('bcab').value=PRESETS.bcab;$('brt').value=PRESETS.brt;$('bcl').value=PRESETS.bcl;$('bob').value=PRESETS.bob;}
   else{$('mpts').value=PRESETS.master;$('spts').value=PRESETS.slave;}});
 
-let bendJob=0,bendSeq=0;const BEND_LABEL=$('runBend').textContent;
+let bendJob=0,bendSeq=0,checkAnyway=false;const BEND_LABEL=$('runBend').textContent;
 $('runBend').onclick=()=>{
   if(bendJob){bendJob=0;$('runBend').textContent=BEND_LABEL;$('statusBend').textContent='Stopped. The "as entered" run was kept; press Check to shape again.';return;}
+  // the ticked stations (clamp-stations.js) go into Target points first; with the list in use, fewer than 2 ticked is the reason
+  const cs=typeof csSync==='function'?csSync():null;if(typeof nextClear==='function')nextClear('statusBend');
+  if(cs&&cs.short){$('statusBend').style.color='';return $('statusBend').textContent='Tick at least 2 stations.';}
+  // pre-check: neighbouring stations too close to hold both bores. A warning, never a block: Check anyway runs as it is
+  if(cs&&cs.near.length&&!checkAnyway){const p0=cs.near[0],st=$('statusBend'),ids=[...new Set(cs.near.flatMap(p=>[p.a.id,p.b.id]))];st.style.color='';
+    st.innerHTML=`<div class="verdict-line"><b class="vk vk-warn">S${p0.i+1} and S${p0.j+1}</b> are ${fmt(p0.L,0)} mm apart. Holding both bore directions needs at least ${fmt(2*cs.R,0)} mm (2 × R ${+cs.R}).`+
+      (cs.near.length>1?` <span class="unit">${cs.near.length-1} more pair${cs.near.length>2?'s':''} marked in the station list.</span>`:'')+'</div>';
+    if(typeof nextSteps==='function')nextSteps('statusBend',[
+      {label:`Free ${cs.near.length>1?'those':`S${p0.i+1} and S${p0.j+1}`} directions`,title:'Leaves the bore direction free at both stations of each pair that is too close, and checks',go:()=>{csFree(ids);$('runBend').click();}},
+      {label:'Check anyway',go:()=>{checkAnyway=true;try{$('runBend').click();}finally{checkAnyway=false;}}}]);
+    return;}
   const P=parsePts($('pts').value);
   if(P.length<3)return $('statusBend').textContent='Paste at least three points.';
   const X=typeof bendCad==='function'?bendCad(P):null;

@@ -57,14 +57,12 @@
       </div>
       <div class="presets"><button type="button" id="csAuto" disabled>Auto order</button><button type="button" id="csNone" disabled>Untick all</button><button type="button" id="csPicked" disabled title="Keep only the stations picked in the 3D view">Only picked</button></div>
       <div id="csList" class="cdparts cslist"></div>
-      <div class="presets"><button type="button" id="csUse" disabled>Use as stations</button><span class="unit" id="csLen"></span></div>
-      <div class="csask" id="csAsk" hidden role="alertdialog" aria-labelledby="csAskTxt"><span id="csAskTxt"></span> <span class="presets"><button type="button" id="csYes">Replace</button><button type="button" id="csNo">Keep</button></span></div>
+      <div class="presets"><span class="unit" id="csLen"></span></div>
       <label class="chk" style="margin-top:10px"><input type="checkbox" id="csHold" checked>Hold the bore direction at each station</label>
       <label for="csDirs">Bore directions <span class="unit">(dX dY dZ per target point, - = free; optional)</span></label>
-      <span class="unit csstale" id="csDirsNote" hidden>For the stations now in Target points; updated when you press Use as stations.</span>
       <textarea id="csDirs" rows="3" spellcheck="false" wrap="off"></textarea>
       <div class="presets"><button type="button" id="csClearDirs">clear directions</button></div>
-      <p class="hint">A fixing is a hole with a coordinate system on its axis, inside the hole; listed when its bore is within Hose Ø ± fit. Auto order finds the shortest path (nearest neighbour, then 2-opt) from Start to End; drag rows to change it. Use as stations writes the ticked ones into Target points and their bore axes here. Check then runs the hose along each bore. With this list empty, Check uses the start / end directions only.</p>
+      <p class="hint">A fixing is a hole with a coordinate system on its axis, inside the hole; listed when its bore is within Hose Ø ± fit. Auto order finds the shortest path (nearest neighbour, then 2-opt) from Start to End; drag rows to change it. Check route writes the ticked ones into Target points and their bore axes here, then runs the hose along each bore. With this list empty, Check uses the start / end directions only.</p>
     </details>
     <div class="fields c2">
       <div hidden><label for="shape">Route shape</label><select id="shape"><option value="spline">Spline, many points</option><option value="arc">Lines + arcs, corner points only</option></select></div>

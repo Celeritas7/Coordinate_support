@@ -80,6 +80,8 @@ function stop(msg){ALT.job=0;$('runAlt').textContent=LABEL;if(msg)say(msg);}
 
 $('runAlt').onclick=()=>{
   if(ALT.job)return stop('Stopped.');
+  // the same stations Check routes: the ticked rows of Stations from clamps, written into Target points
+  const cs=typeof csSync==='function'?csSync():null;if(cs&&cs.short)return say('Tick at least 2 stations.',true);
   const P=parsePts($('pts').value);
   if(P.length<2)return say('Paste at least two points.',true);
   const R=+$('r').value||65,SF=+$('sf').value||1.5,cad=typeof bendCadBoxes==='function'?bendCadBoxes():null;
