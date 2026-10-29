@@ -21,6 +21,7 @@ Hose and cable routing checks for Creo: bend radius on one route, clearance betw
 - js/pts-compare.js - compare a .pts with a pipe / hose from the assembly
 - js/shell.js - header (Open, Examples, More: Paste table / Inspector / How it works, theme), the assembly line (Change… / Remove with Undo), module switch Hose / Cable · Pipe · Bundle · Library, task tabs, drop-anywhere routing
 - js/strip.js - Hose / Cable · Route through stations as 1 Load · 2 Stations · 3 Route: current card, summary lines, Advanced toggle
+- js/dock-tables.js - dock tabs Clearance (table / chart) and Clamps to add, counts on the tab labels
 - UI_AUDIT.md - every control, which module it belongs to, and why
 - tests/ - `node tests/arcroute.test.js`, `node tests/step-asm.test.js`, `node tests/through.test.js`, `node tests/asm-extras.test.js`, `node tests/cad-pipes.test.js`; `tests/make-hose-sample.js` builds the spline hose sample
 - samples/ - test files (see TESTING.md); DESIGN_BRIEF.md - what the app is for

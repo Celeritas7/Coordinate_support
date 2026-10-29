@@ -75,6 +75,8 @@ function run(){
   const o={maxSpan:+$('sgSpan').value||300,nearBend:+$('sgNear').value||60,bends:$('sgBends').checked,R:r.params&&r.params.R||+$('r').value||65,reach:+$('sgReach').value||60,solids};
   store.set('rs.sg',JSON.stringify({span:o.maxSpan,near:o.nearBend,bends:o.bends,reach:o.reach}));
   SG.res=suggest({pts:r.d.pts,s:r.d.s,k:r.d.k},stations,o);SG.res.reach=o.reach;SG.run=r.id;SG.on=-1;render();rebuild(false);
+  // the rows go to the dock (Clamps to add); the sidebar keeps this one line and Next
+  dock='sg';showPane();
   const n=SG.res.list.length,brk=SG.res.list.filter(q=>!q.mount).length,R=r.params&&r.params.R;
   // a route that fails the radius will change: say so first
   const lead=R&&r.minR<R?`${r.name} fails the radius (R ${fmt(r.minR)}, needs ${R}). Suggestions may move once it passes. `:'';
@@ -90,14 +92,22 @@ const likeTxt=q=>q.like?`like ${q.like.name}${q.like.part?` (${last(q.like.part)
 function groups(R){const S=R.supports.slice().sort((a,b)=>a.s-b.s),G=[];
   R.list.forEach((q,i)=>{let k=0;while(k<S.length-2&&S[k+1].s<=q.s)k++;const a=S[k],b=S[Math.min(k+1,S.length-1)];
     let g=G.find(g=>g.a===a);if(!g)G.push(g={a,b,rows:[]});g.rows.push(i);});return G;}
-function render(){const box=$('sgList'),R=SG.res;if(!R){box.innerHTML='';return;}
-  const G=groups(R),fold=R.list.length>12;
-  const row=i=>{const q=R.list[i],m=mountTxt(q),lk=likeTxt(q);
-    return`<tr data-i="${i}"${SG.on===i?' class="on"':''}><td class="n"><span class="sgchip">+${i+1}</span></td><td class="n">${f0(q.s)}</td>
-      <td>${esc(q.why)}<div class="unit">${m?esc(m):`<span class="sgtag">needs a bracket</span>no part within ${f0(R.reach)} mm`}${lk?' · '+esc(lk):''}</div></td></tr>`;};
-  box.innerHTML=G.map(g=>`<details class="sggrp"${fold?'':' open'}><summary>${esc(supName(g.a))} → ${esc(supName(g.b))} · ${f0(g.b.s-g.a.s)} mm · ${g.rows.length} clamp${g.rows.length>1?'s':''}</summary>
-    <table><thead><tr><th></th><th>along, mm</th><th>why <span class="unit">· click a row for Make CSYS</span></th></tr></thead><tbody>${g.rows.map(row).join('')}</tbody></table></details>`).join('')+
-    (R.spans.length?`<details class="sgspans"><summary>Spans before (${R.spans.length})</summary>${R.spans.map(s=>`<div class="unit">${esc(s.from)} → ${esc(s.to)}: ${f0(s.len)} mm</div>`).join('')}</details>`:'');
+// the dock tab Clamps to add: where (+n, along) · why · mounts on · like (Make CSYS), one group per span between supports;
+// the header names the route and the settings, with Make CSYS for all · Add all as stations
+function render(){const box=$('sgList'),R=SG.res;if(typeof sgTab==='function')sgTab();
+  if(!R){box.innerHTML='<p class="hint" style="margin:0">Tools · Suggest extra clamps lists them here for the selected route.</p>';$('sgHead').innerHTML='';return;}
+  const r=runs.find(x=>x.id===SG.run),G=groups(R);
+  $('sgHead').innerHTML=`<span class="lbl">On ${esc(r?r.name:'the route')}</span><span class="unit">max spacing ${f0(+$('sgSpan').value||300)} · near a bend ${f0(+$('sgNear').value||60)} · mount reach ${f0(R.reach)}</span>`+
+    (R.list.length?`<span class="right"><button type="button" id="sgMakeAll">Make CSYS for all</button><button type="button" id="sgAddAll">Add all as stations</button></span>`:'');
+  if(R.list.length){$('sgMakeAll').onclick=makeAll;$('sgAddAll').onclick=addAll;}
+  const row=i=>{const q=R.list[i],m=mountTxt(q);
+    return`<tr data-i="${i}"${SG.on===i?' class="on"':''}><td class="n"><span class="sgchip">+${i+1}</span> ${f0(q.s)} mm</td><td>${esc(q.why)}</td>
+      <td>${m?esc(m):`<span class="sgtag">needs a bracket</span><div class="unit">no part within ${f0(R.reach)} mm</div>`}</td>
+      <td>${q.like?esc(q.like.name):'—'} <button type="button" class="linkish" data-mk="${i}">Make CSYS</button></td></tr>`;};
+  box.innerHTML=R.list.length?`<table class="dtab"><thead><tr><th>Where</th><th>Why</th><th>Mounts on</th><th>Like</th></tr></thead>`+
+    G.map(g=>`<tbody><tr class="grp"><th colspan="4">${esc(supName(g.a))} → ${esc(supName(g.b))} · ${f0(g.b.s-g.a.s)} mm · ${g.rows.length} clamp${g.rows.length>1?'s':''}</th></tr>${g.rows.map(row).join('')}</tbody>`).join('')+'</table>'
+    :`<p class="hint" style="margin:0">No clamp to add on ${esc(r?r.name:'this route')}.</p>`;
+  box.querySelectorAll('[data-mk]').forEach(b=>b.onclick=e=>{e.stopPropagation();const q=R.list[+b.dataset.mk],c=make(q);if(c)say(`${c.name} made (listed in the CSYS tab).`);});
   // row hover ↔ the dot in 3D (as the Points table); click picks it
   box.querySelectorAll('tr[data-i]').forEach(tr=>{const i=+tr.dataset.i,q=R.list[i];
     tr.onpointerenter=()=>{if(marker){marker.position.set(...q.p);marker.visible=true;draw();}};
@@ -109,6 +119,8 @@ const asStation=(q,i)=>({name:`NEW_CLAMP_${i+1}`,c:q.p,d:q.t,part:q.like?q.like.
 function addAll(){if(typeof csAddStations!=='function')return;csAddStations(SG.res.list.map(asStation));
   say(`${SG.res.list.length} new clamps added to Stations from clamps. Check route again.`);}
 const shown=()=>SG.res&&runs.some(r=>r.id===SG.run&&r.visible);
+// for the dock tab label: Clamps to add (3 · 1 needs a bracket)
+root.sgCount=()=>SG.res?{n:SG.res.list.length,brk:SG.res.list.filter(q=>!q.mount).length}:null;
 // 3D: amber dots with +n on the route (route-studio rebuild → asm-view overlay hook); the picked one gets the ink ring
 (root.VIEW_OVERLAYS=root.VIEW_OVERLAYS||[]).push((content,g)=>{$('sgRun').title=`Suggest extra clamps for ${runName()}`;if(!shown())return;
   const m=new THREE.MeshBasicMaterial({color:new THREE.Color(css('--warn'))}),p=typeof asmPick==='function'?asmPick():null;
@@ -122,7 +134,7 @@ const shown=()=>SG.res&&runs.some(r=>r.id===SG.run&&r.visible);
     facts:[`${f0(q.s)} mm along the route`,q.why.charAt(0).toUpperCase()+q.why.slice(1),mountTxt(q)?mountTxt(q).charAt(0).toUpperCase()+mountTxt(q).slice(1):`Needs a bracket: no part within ${f0(SG.res.reach)} mm`,likeTxt(q)?'L'+likeTxt(q).slice(1):'']
       .filter(Boolean),lines:true};};
 (root.AV_ACTIONS=root.AV_ACTIONS||[]).push(p=>{if(p.kind!=='suggest'||!SG.res||!SG.res.list[p.i])return[];const q=SG.res.list[p.i];
-  return[{group:'Route',order:1,primary:true,label:'Add as station',go:()=>{if(typeof csAddStations==='function')csAddStations([asStation(q,p.i)]);return`+${p.i+1} added to Stations from clamps. Use as stations, then Check again.`;}},
+  return[{group:'Route',order:1,primary:true,label:'Add as station',go:()=>{if(typeof csAddStations==='function')csAddStations([asStation(q,p.i)]);return`+${p.i+1} added to Stations from clamps. Check route again.`;}},
     {group:'Route',order:2,label:'Drop this one',go:()=>{SG.res.list.splice(p.i,1);render();asmSetPick(null);say(`+${p.i+1} dropped; ${SG.res.list.length} left.`);return'';}},
     {group:'Creo · Library',order:3,label:'Make CSYS',go:()=>{const c=make(q);return c?`${c.name} made (listed in the CSYS tab).`:'';}}];});
 document.addEventListener('asm:pick',e=>{const p=e.detail,i=p&&p.kind==='suggest'?p.i:-1;if(i===SG.on)return;SG.on=i;
