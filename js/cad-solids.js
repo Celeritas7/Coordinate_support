@@ -226,10 +226,11 @@ function along(P,step){const out=[];for(let i=0;i+1<P.length;i++){const a=P[i],b
 // touching a station (its clip / clamp); 'clip' = small part the station line runs through or touches; 'obstacle' = anything
 // else within `reach` of the line — a part over clipSize in any direction is frame even where it touches a station
 // roles: pipe (existing pipe), station (a clip at a station), clip (a small part on the station line), mount (the bracket a
-// station's clip is fixed to), obstacle (everything else). o: {d, gap, reach, touch=5, clipSize=80, mountSize=300}
+// station's clip is fixed to), obstacle (everything else). o: {d, gap, reach, touch=5, clipSize=80, mountSize=300, line}
+// line: the polyline parts are looked for along (default the stations; Pipe · Through clamps: the pipe's corners)
 function survey(cad,stations,o){
   const rad=o.d/2+o.gap,touch=rad+(o.touch??5),reach=Math.max(o.reach,touch),clipSize=o.clipSize??80;
-  const S=along(stations,2),by=new Map();
+  const S=along(o.line||stations,2),by=new Map();
   for(const f of cad.faces){
     let dl=Infinity;
     for(const p of S){if(p[0]<f.min[0]-reach||p[0]>f.max[0]+reach||p[1]<f.min[1]-reach||p[1]>f.max[1]+reach||p[2]<f.min[2]-reach||p[2]>f.max[2]+reach)continue;const d=boxDist(p,f);if(d<dl)dl=d;}

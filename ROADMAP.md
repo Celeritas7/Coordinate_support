@@ -156,7 +156,14 @@ Today (`js/through.js`): every ticked clamp is routed in one run, but clamps are
    - Order from the existing pipe (where each clamp projects along it), or set by the user (drag / number). Each clamp gets its own straight in that order
    - Report clamps out of order, two clamps fighting for one straight, and coaxial clamps that can share one straight
    - Backtrack: when clamp k has no valid placement, retry the earlier clamps with their next-best variant before failing
-2. **Clearance check on pipe runs**: load the frame / parts file (same loader and `cad-solids.js` gap code as Hose), smallest surface gap per straight and per bend (OD counted), part named, listed in Issues
+2. **Clearance check on pipe runs** (done, Phase 6): Pipe · Route through points and Pipe · Through clamps check the new route
+   against the kept-clear parts with Hose's code (`bend-cad.js` survey, exact gaps, plate crossings): one Keep clear list for
+   the three tasks (it moves into the task on show, ticks shared), Pipe OD and Gap (Route through points: Advanced; Through
+   clamps: "Gap to parts", default 4 mm), a Clash / Close / Clear line under the solver's own, the places in the Clearance
+   tab, marks and the gap chart as on Hose. Through clamps surveys along the pipe's corners (the routed ones after a run); its
+   stations are the ends and the ticked clamps, so those clamps are not kept clear, nor the pipe being re-routed (existing
+   pipe). Spans are named by the stations (Route through points) or the corner points (Through clamps). Checked, not
+   avoided: step 3 below. Test: `tests/pipe-clear.js` on a generated sample
 3. **Avoidance**: parts as a constraint in the Through clamps fit (corners move to clear them, clamps held on their axes); "Drop detour corners" keeps a corner that bends round a part
 - Tests with the user's multi-clamp examples; piping3 pipe 111 (3 clamps) must still pass unchanged
 

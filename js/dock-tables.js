@@ -8,7 +8,7 @@ let clrView='table';
 const fmtGap=g=>isFinite(g)?`${g<0?'−':''}${Math.abs(g).toFixed(1)} mm`:'—';
 function renderClr(){const r=selected(),R=r&&r.clearRows,head=$('clrHead'),box=$('clrList');
   head.innerHTML=`<span class="lbl">${r?esc(r.name):'Clearance'}</span><span class="unit">${r&&r.clearHead?esc(r.clearHead):''}</span>`;
-  if(!R||!R.length){box.innerHTML=`<p class="hint" style="margin:0">${r?'No gap to the parts on this run: keep clear of the parts near the route, then Check route.':'Check a route to list its gaps to the parts here.'}</p>`;return;}
+  if(!R||!R.length){box.innerHTML=`<p class="hint" style="margin:0">${r?`No gap to the parts on this run: keep clear of the parts near the route, then ${r.kind==='pipe'||r.kind==='arc'?'route it again':'Check route'}.`:'Check a route to list its gaps to the parts here.'}</p>`;return;}
   box.innerHTML=`<table class="dtab"><thead><tr><th>Where</th><th>Part</th><th>Gap</th><th>Note</th></tr></thead><tbody>`+
     R.map(x=>`<tr${x.bad?' class="bad"':x.warn?' class="warn"':''}><td class="n">${esc(x.where)}</td><td title="${esc(x.full||x.part)}">${esc(x.part)}</td>`+
       `<td class="n g">${fmtGap(x.gap)}</td><td>${esc(x.note)}${x.sub?`<div class="unit">${esc(x.sub)}</div>`:''}</td></tr>`).join('')+'</tbody></table>';}

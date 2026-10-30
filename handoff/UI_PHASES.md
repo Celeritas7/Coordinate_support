@@ -293,6 +293,12 @@ Seen, not changed: the 3D readout says "Passes, but inside the ×1.5 safety marg
 ## Phase 6 — Pipe module parity (Claude Code, later)
 - Clearance to parts for pipe runs and obstacle-aware Through clamps (ROADMAP Phase 12d steps 2–3) so Pipe gets the same
   "clash → fix" loop as Hose. Not a UI phase as such; listed so Design knows Pipe will need the Phase 3 next-step lines too.
+- **Step 2 done (2026-10-30):** Pipe · Route through points and Pipe · Through clamps check the route against the kept-clear
+  parts. For Design: the Keep clear list is one element that moves into the task on show (Hose: Load card; Route through
+  points: above Solve, with Pipe OD; Through clamps: under the clamp settings, with "Gap to parts"). The result is the Hose
+  verdict line (Clash / Close / Clear) over the solver's own line, and a link to the Clearance tab, whose rows, muted
+  "not counted" rows and tab count are the Hose ones. Not yet: Next-step buttons for a pipe clash (nothing to offer until
+  step 3, avoidance), and Alternatives / Push for pipes.
 
 ---
 

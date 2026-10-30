@@ -2,23 +2,32 @@
 // Loaded after route-studio.js. runBend asks bendCad(P) for fixed directions (straight runs), obstacle boxes
 // (faces of the parts the user keeps clear of) and a report on the finished route.
 // asm: name of the open assembly BC.cad was taken from (bcFromAsm); null for a file loaded here (its solids' inst are its own)
-const BC={cad:null,sv:null,key:'',user:new Map(),focus:0,asm:null};
+// mode: the task the list serves — 'hose' (Hose · Route through stations), 'arc' (Pipe · Route through points), 'through'
+// (Pipe · Through clamps). One list and one set of ticks for all three; #cdBox moves into the panel on show (place()).
+const BC={cad:null,sv:null,key:'',user:new Map(),focus:0,asm:null,mode:'hose'};
 {
 const say=(m,bad)=>{const e=$('statusCad');e.textContent=m;e.style.color=bad?'var(--bad)':'';};
 const opt=()=>({d:Math.max(0.1,+$('cdD').value||8),gap:Math.max(0,+$('cdGap').value||0),reach:Math.max(10,+$('cdReach').value||60)});
 const stations=()=>parsePts($('pts').value).map(p=>[p[0],p[1],p[2]]);
-const roleTxt=p=>p.role==='pipe'?`existing ${p.pipe.kind==='hose'?'hose':'pipe'}${p.pipe.name!==p.name?` ${esc(p.pipe.name)}`:''} Ø${fmt(p.pipe.OD,1)}`:p.role==='station'?`clip at ${p.stations.map(i=>'P'+(i+1)).join(', ')}`:p.role==='clip'?'small part on the station line, no station (clip, or screw?)':p.role==='mount'?`Mount of ${p.mountOf.map(i=>'P'+(i+1)).join(', ')} (its clip is bolted to it) · not kept clear`:'frame / part';
+// what the survey looks along, per mode: stations (their clips are not kept clear), the line parts are listed near, names of
+// the stations, and o (d = hose Ø or pipe OD, gap, reach, word for the messages). Through clamps: asm-ui.js thSurvey()
+function surveyCtx(){if(BC.mode==='through'){const t=typeof thSurvey==='function'?thSurvey():null;if(!t)return null;
+    return{P:t.stations,line:t.line,names:t.names,o:{d:Math.max(0.1,t.d),gap:Math.max(0,+$('thGap').value||0),reach:opt().reach,word:'pipe',clips:'clamps it runs through'}};}
+  const P=stations();return{P,line:P,names:null,o:BC.mode==='arc'?{...opt(),word:'pipe'}:opt()};}
+const W=o=>o.word||'hose';
+const stName=i=>BC.sv&&BC.sv.names&&BC.sv.names[i]||'P'+(i+1);
+const roleTxt=p=>p.role==='pipe'?`existing ${p.pipe.kind==='hose'?'hose':'pipe'}${p.pipe.name!==p.name?` ${esc(p.pipe.name)}`:''} Ø${fmt(p.pipe.OD,1)}`:p.role==='station'?`clip at ${p.stations.map(stName).join(', ')}`:p.role==='clip'?'small part on the station line, no station (clip, or screw?)':p.role==='mount'?`Mount of ${p.mountOf.map(stName).join(', ')} (its clip is bolted to it) · not kept clear`:'frame / part';
 const last=n=>String(n||'').split(' / ').pop();
 const keepClear=p=>BC.user.has(p.sid)?BC.user.get(p.sid):p.role==='obstacle';
 // list groups: ticked, unticked clips and parts, unticked existing pipes
 const group=p=>keepClear(p)?0:p.role==='pipe'?2:1,GROUP=['Gap checked (ticked)','Not checked (clips, or unticked)','Existing pipes (not checked)'];
 // parts the too-close list and the gap chart look at: ticked ones, and unticked ones away from any station except existing pipes
 const watched=p=>keepClear(p)||(p.role!=='station'&&p.role!=='pipe'&&p.role!=='mount');
-function survey(){if(!BC.cad)return null;const P=stations();if(P.length<2)return null;const o=opt(),key=JSON.stringify([P,o]);
+function survey(){if(!BC.cad)return null;const c=surveyCtx();if(!c||c.P.length<2||c.line.length<2)return null;const{P,line,o}=c,key=JSON.stringify([BC.mode,P,line,o]);
   // a big assembly read near the route: first the parts within the survey's reach of the station line (its own test, on
   // the parts' boxes), so the survey is the one the whole assembly would give
-  if(BC.key!==key){if(BC.cad.lazy)ensure(near(CadSolids.along(P,2),Math.max(o.reach,o.d/2+o.gap+5)+1));
-    BC.sv=CadSolids.survey(BC.cad,P,o);BC.key=key;render();}return BC.sv;}
+  if(BC.key!==key){if(BC.cad.lazy)ensure(near(CadSolids.along(line,2),Math.max(o.reach,o.d/2+o.gap+5)+1));
+    BC.sv=CadSolids.survey(BC.cad,P,{...o,line});BC.sv.names=c.names;BC.sv.o=o;BC.key=key;render();}return BC.sv;}
 // Big assembly (more than LAZY_FACES faces placed): its parts are not all read at Open (on a 663 MB file that was 720 000
 // faces and most of the freeze after Open). They are read a part at a time when something needs them: the survey (parts
 // near the station line), a part picked in 3D, Suggest (parts near the selected run). Built parts are kept per instance;
@@ -48,7 +57,7 @@ window.bcEnsureNear=(pts,d)=>{if(!BC.cad||!BC.cad.lazy)return;let h=0;for(let i=
 function render(){const sv=BC.sv,box=$('cdParts');if(!sv){box.innerHTML='';return;}
   const n=sv.parts.filter(keepClear).length;
   box.innerHTML=`<div class="presets" style="margin:6px 0 2px"><button type="button" data-t="def" title="Clips and existing pipes unticked, frame and other parts ticked">Default</button><button type="button" data-t="frame" title="Only the parts that are not clips">Frame only</button><button type="button" data-t="all" title="Tick all">All</button><button type="button" data-t="none" title="Untick all">None</button></div>
-    <p class="hint" style="margin:4px 0">${sv.parts.length} part${sv.parts.length===1?'':'s'} within ${fmt(sv.reach)} mm of the station line; gap checked to ${n} (ticked). Gap = hose surface to part. Press Check after changing ticks.</p>`+
+    <p class="hint" style="margin:4px 0">${sv.parts.length} part${sv.parts.length===1?'':'s'} within ${fmt(sv.reach)} mm of the station line; gap checked to ${n} (ticked). Gap = ${W(sv.o)} surface to part. ${BC.mode==='arc'?'Solve again':BC.mode==='through'?'Route through ticked clamps again':'Press Check'} after changing ticks.</p>`+
     sv.parts.slice().sort((a,b)=>(group(a)-group(b))||(a.dLine-b.dLine)).slice(0,60).map((p,i,arr)=>(i===0||group(arr[i-1])!==group(p)?`<div class="cdhead">${GROUP[group(p)]}</div>`:'')+`<div class="cdrow${BC.focus===p.sid?' on':''}"><label class="chk cdp"><input type="checkbox" data-sid="${p.sid}" ${keepClear(p)?'checked':''}><span><b title="${esc(p.name)}">${esc(last(p.name))}</b> <span class="unit">${p.dims.map(v=>Math.round(v)).join('×')} mm · ${roleTxt(p)} · line ${fmt(p.dLine,1)} mm away · centre ${centre(p).map(v=>Math.round(v)).join(', ')}</span></span></label><button type="button" class="cdshow" data-show="${p.sid}" aria-pressed="${BC.focus===p.sid}" title="Show this part in 3D, zoomed">show</button></div>`).join('');
   box.querySelectorAll('input[data-sid]').forEach(el=>el.onchange=()=>{BC.user.set(+el.dataset.sid,el.checked);render();});
   box.querySelectorAll('button[data-show]').forEach(el=>el.onclick=()=>showPart(+el.dataset.show));
@@ -105,17 +114,23 @@ window.bendCad=function(P){
   if(!fixDirs.length&&!faces.length)return null;
   return{fixDirs:fixDirs.length?fixDirs:null,boxes:push?faces:null,rad,
     thin:push?{ix,d:o.d,gap:o.gap,r:rad+1}:null,
-    report(A){const parts=[],bits=[],holes=[],marks=[],out={};
+    report(A){const bits=[];
       if(straight.length)bits.push(`straight ${straight.join(', ')}`);
       let msg=straight.length?`Straight ${straight.join(', ')}.`:'';
       if(notes.length)msg+=`\n${notes.join('.\n')}.`;
+      return clearReport(A,P,o,sv,faces,ix,push,msg,bits);}};
+};
+// the clearance part of a report on run A (its dense samples A.d, its points A.Q): places below the gap (ticked parts count,
+// unticked ones listed muted), plate crossings, the smallest gap, the gap profile and the Clearance tab's rows. P: the
+// stations the spans are named by. msg / bits: what the caller says before it (straight runs).
+function clearReport(A,P,o,sv,faces,ix,push,msg,bits){const parts=[],holes=[],marks=[],out={},clips=o.clips||'clips at stations';
       if(ix){const w=CadSolids.clearance(A.d.pts,ix,o.d,o.d/2+o.gap+40),p=w.box&&sv.parts.find(x=>x.faces.includes(w.box));
         const near=A.Q.reduce((b,q,i)=>{const d=V.len(V.sub(q,w.p||q));return d<b.d?{d,i}:b;},{d:Infinity,i:0});
         const kept=sv.parts.filter(keepClear);kept.forEach(x=>x.faces.forEach(f=>parts.push({name:x.name,min:f.min,max:f.max})));
         bits.push(`${push?'pushed clear of':'gap checked to'} ${kept.length} CAD part${kept.length===1?'':'s'} (gap ${fmt(o.gap)}, Ø${fmt(o.d)})`);
         const open=throughOpenings(A,P,faces,o),spots=closeSpots(A,P,o,spanOf(A,P));
         const counted=spots.filter(x=>x.ticked),notCounted=spots.filter(x=>!x.ticked);
-        msg+=counted.length?`\nToo close — below the ${fmt(o.gap)} mm gap (${counted.length} place${counted.length>1?'s':''}, marked in 3D: red = into the part, amber = too close; clips at stations not counted):`:`\nNowhere closer than the ${fmt(o.gap)} mm gap to the parts checked (clips at stations not counted).`;
+        msg+=counted.length?`\nToo close — below the ${fmt(o.gap)} mm gap (${counted.length} place${counted.length>1?'s':''}, marked in 3D: red = into the part, amber = too close; ${clips} not counted):`:`\nNowhere closer than the ${fmt(o.gap)} mm gap to the parts checked (${clips} not counted).`;
         counted.forEach(x=>{msg+=`\n• ${x.msg}`;});
         if(notCounted.length)msg+=`\nNot counted (unticked, grey in 3D):`;notCounted.forEach(x=>{msg+=`\n• ${x.msg}`;});
         spots.forEach(x=>marks.push(x.mark));
@@ -129,12 +144,43 @@ window.bendCad=function(P){
         out.lead=msg.replace(/\nToo close[\s\S]*$|\nNowhere closer[\s\S]*$/,'')+(un.length?`\n${un.length===1?`${last(un[0])} is unticked and inside`:`${un.length} unticked parts are inside`} the ${fmt(o.gap)} mm gap, not counted (taken as clips without a CSYS); tick one in Keep clear if it is a screw, bolt or bracket.`:'');
         out.rows=spots.map(x=>x.row).concat(open.map(x=>x.row));
         if(isFinite(w.gap)&&w.gap>=o.gap-0.05)out.rows.push({where:`near P${near.i+1}`,part:p?last(p.name):'',full:p?p.name:'',gap:w.gap,bad:false,warn:false,note:'smallest gap that passes',sub:''});
-        out.head=`gap ${fmt(o.gap)} mm to ${kept.length} kept-clear part${kept.length===1?'':'s'} · clips at stations not counted`;
+        out.head=`gap ${fmt(o.gap)} mm to ${kept.length} kept-clear part${kept.length===1?'':'s'} · ${clips} not counted`;
         if(spots.some(x=>!x.ticked))msg+=`\nUnticked parts were taken as clips without a CSYS. Press “show” in the list to see one; tick it if it is a screw, bolt or bracket.`;if(open.length)msg+=`\nPlate crossings (marked in 3D):`;open.forEach(x=>{msg+=`\n• ${x.msg}`;if(x.hole)holes.push(x.hole);marks.push(x.mark);});
         out.min=isFinite(w.gap)?{gap:w.gap,name:p?p.name:null,at:near.i+1}:null;
         msg+=isFinite(w.gap)?`\nSmallest gap to the kept-clear parts: ${fmt(w.gap,1)} mm${p?` (${p.name})`:''} near point ${near.i+1}${w.gap<o.gap-0.05?` — below the ${fmt(o.gap)} mm gap`:''}.`:`\nNo kept-clear part within ${fmt(o.d/2+o.gap+40)} mm of the route.`;}
-      return{parts:parts.length?parts:undefined,holes:holes.length?holes:undefined,marks:marks.length?marks:undefined,clearDense:out.clearDense,gapLimit:out.gapLimit,spots:out.spots,min:out.min,rows:out.rows,head:out.head,lead:out.lead!=null?out.lead.trim():msg.trim(),tooClose:out.tooClose,canPush:out.canPush,note:bits.length?', '+bits.join(', '):'',msg:msg.trim(),bad:false};}};
-};
+      return{parts:parts.length?parts:undefined,holes:holes.length?holes:undefined,marks:marks.length?marks:undefined,clearDense:out.clearDense,gapLimit:out.gapLimit,spots:out.spots,min:out.min,rows:out.rows,head:out.head,lead:out.lead!=null?out.lead.trim():msg.trim(),tooClose:out.tooClose,canPush:out.canPush,note:bits.length?', '+bits.join(', '):'',msg:msg.trim(),bad:false};}
+
+// Pipe · Route through points and Pipe · Through clamps: the same check on a lines + arcs run A (no straight runs, no Push).
+// P: the points the spans are named by (stations, or the corners). null when no parts file is read or no route to survey.
+// The run keeps what it returns (marks, Clearance rows, gap profile, spots), as Check's generated run does.
+window.bcPipeCheck=function(A,P){if(!BC.cad||BC.mode==='hose')return null;const sv=survey();if(!sv)return null;const o=sv.o;
+  const faces=sv.parts.filter(keepClear).flatMap(p=>p.faces),ix=faces.length?CadSolids.index(faces,50):null;
+  const cx=clearReport(A,P,o,sv,faces,ix,false,'',[]);cx.kept=sv.parts.filter(keepClear).length;cx.reach=sv.reach;cx.word=W(o);return cx;};
+// one verdict line for a pipe check (as under Check route): into a part, else inside the gap, else clear; with the details
+// and a link to the Clearance tab. el: the status element; first: the solver's own line, kept above the details
+window.bcVerdict=function(el,cx,first){const sp=cx.spots||[],into=sp.filter(x=>x.gap<0).sort((a,b)=>a.gap-b.gap)[0],near0=sp.slice().sort((a,b)=>a.gap-b.gap)[0];
+  const span=x=>x.span.replace(/^(P\d+)–(P\d+)$/,'between $1 and $2');
+  const V0=into?['bad','Clash:',`${cx.word} ${fmt(-into.gap,1)} mm into ${last(into.name)} ${span(into)}, over ${fmt(into.len,0)} mm.`]
+    :near0?['warn','Close:',`${fmt(near0.gap,1)} mm from ${last(near0.name)} ${span(near0)}; the gap is ${+cx.gapLimit} mm.`]
+    :['ok','Clear:',cx.min?`smallest gap ${fmt(cx.min.gap,1)} mm${cx.min.name?`, to ${last(cx.min.name)}`:''} near P${cx.min.at}, ${cx.kept} kept-clear part${cx.kept===1?'':'s'}.`
+      :cx.kept?`no kept-clear part within ${fmt(cx.gapLimit+40)} mm of the ${cx.word}.`:`no part kept clear of within ${fmt(cx.reach)} mm (tick them under Keep clear).`];
+  const nRows=cx.rows?cx.rows.filter(x=>x.bad||x.warn).length:0;el.style.color='';el.style.whiteSpace='';
+  el.innerHTML=`<div class="verdict-line"><b class="vk vk-${V0[0]}">${V0[1]}</b> ${esc(V0[2])}</div><div class="vdet">${esc([first,cx.lead].filter(Boolean).join('\n'))}</div>`+
+    (cx.rows&&cx.rows.length?`<button type="button" class="linkish vclr">${nRows?`${nRows} place${nRows>1?'s':''} in the Clearance tab`:'Gaps in the Clearance tab'}</button>`:'');
+  const vl=el.querySelector('.vclr');if(vl)vl.onclick=()=>{dock='clr';showPane();};
+  return V0[0];};
+// the run fields a check fills (route-studio's runs)
+window.bcRunFields=cx=>cx?{parts:cx.parts,holes:cx.holes,marks:cx.marks,clearDense:cx.clearDense,gapLimit:cx.gapLimit,spots:cx.spots,clearRows:cx.rows,clearHead:cx.head}:{};
+// the list for the task on show: moves #cdBox into its panel and surveys that task's route
+// (nav() calls it on every panel change: the same task keeps its survey)
+function place(mode){const same=BC.mode===mode;BC.mode=mode;const box=$('cdBox'),host=mode==='arc'?$('arcKeep'):mode==='through'?$('thKeep'):$('cdHome');
+  if(host&&box.parentNode!==host)host.appendChild(box);if(same)return;
+  const dw=$('cdD').closest('.fields');dw.hidden=mode!=='arc';$('cdDLbl').firstChild.textContent=mode==='arc'?'Pipe OD ':'Hose Ø ';
+  if(mode==='arc'){const v=store.get('rs.arcD');if(v&&$('cdD').value!==v)$('cdD').value=v;}
+  BC.key='';BC.sv=null;if(!survey())render();}
+window.bcResurvey=()=>{BC.key='';if(!survey()){BC.sv=null;render();}};
+document.addEventListener('task:changed',e=>{const d=e.detail||{};place(d.mod==='pipe'&&d.task==='route'?'arc':d.mod==='pipe'&&d.task==='clamps'?'through':'hose');});
+$('cdD').addEventListener('change',()=>{if(BC.mode==='arc')store.set('rs.arcD',$('cdD').value);});
 
 // where the route crosses the plane of a flat face off its material — through a hole, or past the face's edge:
 // station span, what it passes, and the gap to that part around the crossing (exact for flat and cylindrical faces)
@@ -153,7 +199,7 @@ function closeSpots(A,P,o,span){const sv=BC.sv,pts=A.d.pts,s=A.d.s,out=[];
       else close();});
     close();});
   return out.sort((x,y)=>x.i-y.i).map(r=>{const len=s[r.i1]-s[r.i0],ticked=keepClear(r.part),bad=r.gap<0;
-    return{msg:`${span(r.i)}: ${r.part.name} (${r.part.dims.map(v=>Math.round(v)).join('×')} mm${ticked?'':', unticked'}) — ${bad?`hose ${fmt(-r.gap,1)} mm into it`:`${fmt(r.gap,1)} mm clear`}${r.exact?'':' (to a face box)'}, over ${fmt(Math.max(len,2),0)} mm of route`,
+    return{msg:`${span(r.i)}: ${r.part.name} (${r.part.dims.map(v=>Math.round(v)).join('×')} mm${ticked?'':', unticked'}) — ${bad?`${W(o)} ${fmt(-r.gap,1)} mm into it`:`${fmt(r.gap,1)} mm clear`}${r.exact?'':' (to a face box)'}, over ${fmt(Math.max(len,2),0)} mm of route`,
       ticked,spot:{i0:r.i0,i1:r.i1,i:r.i,gap:r.gap,name:r.part.name,span:span(r.i),len:Math.max(len,2)},
       row:{where:span(r.i),part:last(r.part.name),full:r.part.name,gap:r.gap,bad:bad&&ticked,warn:!bad&&ticked,
         note:(bad?`into the part over ${fmt(Math.max(len,2),0)} mm`:`inside the ${fmt(o.gap)} mm gap`)+(ticked?'':'; not counted: tick it in Keep clear if it is a screw, bolt or bracket'),
@@ -169,15 +215,15 @@ function throughOpenings(A,P,faces,o){const pts=A.d.pts,s=A.d.s,sv=BC.sv,out=[],
     let gap=Infinity;pts.forEach((p,i)=>{if(Math.abs(s[i]-s[g.i])>half)return;const n=ix.nearest(p,o.d+60);if(n.d-o.d/2<gap)gap=n.d-o.d/2;});
     const low=gap<o.gap-0.05,T=sh.plate.t,other=CadSolids.planeName(sh.plate.other.shape),ax=pn&&other&&pn[0]===other[0]?`${pn[0]} ${[+pn.slice(2),+other.slice(2)].sort((x,y)=>x-y).join(' / ')}`:pn,
       face=`${fmt(T,T%1?1:0)} mm plate${ax?` at ${ax}`:''}`;
-    if(!L.outer&&g.part.role==='station'){const at=g.part.stations.map(i=>'P'+(i+1)).join(', ');   // a ticked clip at a station: the hose is meant to sit in it
-      return{row:{where:at,part:last(g.part.name),full:g.part.name,gap,bad:false,warn:true,note:`through the opening of the clip at ${at}`,sub:'ticked, so it counts: untick it, the hose sits in it'},
-        msg:`${at}: through the ${L.round?`Ø${fmt(2*L.round.r,1)}`:`${Math.round(L.bb[2]-L.bb[0])}×${Math.round(L.bb[3]-L.bb[1])} mm`} opening of ${g.part.name}, the clip at ${at}, ${fmt(Math.max(gap,0),1)} mm clear. It is ticked, so it counts as an obstacle — untick it (the hose sits in it) unless it must keep clear`,
+    if(!L.outer&&g.part.role==='station'){const at=g.part.stations.map(stName).join(', ');   // a ticked clip at a station: the hose is meant to sit in it
+      return{row:{where:at,part:last(g.part.name),full:g.part.name,gap,bad:false,warn:true,note:`through the opening of the clip at ${at}`,sub:`ticked, so it counts: untick it, the ${W(o)} sits in it`},
+        msg:`${at}: through the ${L.round?`Ø${fmt(2*L.round.r,1)}`:`${Math.round(L.bb[2]-L.bb[0])}×${Math.round(L.bb[3]-L.bb[1])} mm`} opening of ${g.part.name}, the clip at ${at}, ${fmt(Math.max(gap,0),1)} mm clear. It is ticked, so it counts as an obstacle — untick it (the ${W(o)} sits in it) unless it must keep clear`,
         hole:{pts:CadSolids.loop3(sh,L),bad:false},mark:{p:g.c.x,text:`${g.part.name} · clip at ${at}, ticked`,bad:false}};}
     const what=L.outer?`past the edge of the ${face} of ${g.part.name}, ${fmt(Math.max(gap,0),1)} mm clear`
       :`through ${L.round?`a Ø${fmt(2*L.round.r,1)} hole`:`a ${Math.round(L.bb[2]-L.bb[0])}×${Math.round(L.bb[3]-L.bb[1])} mm opening`} in the ${face} of ${g.part.name}, ${fmt(Math.max(gap,0),1)} mm clear all round`;
     const hole=L.outer?`past the edge of the ${face}`:`through ${L.round?`a Ø${fmt(2*L.round.r,1)} hole`:`a ${Math.round(L.bb[2]-L.bb[0])}×${Math.round(L.bb[3]-L.bb[1])} mm opening`} in the ${face}`;
     return{row:{where:span(g.i),part:last(g.part.name),full:g.part.name,gap,bad:gap<0,warn:low&&gap>=0,note:hole,sub:'plate crossing'},
-      msg:`${span(g.i)}: ${what}${gap<0?` (hose ${fmt(-gap,1)} mm into it)`:low?` — below the ${fmt(o.gap)} mm gap`:''}`,
+      msg:`${span(g.i)}: ${what}${gap<0?` (${W(o)} ${fmt(-gap,1)} mm into it)`:low?` — below the ${fmt(o.gap)} mm gap`:''}`,
       hole:L.outer?null:{pts:CadSolids.loop3(sh,L),bad:low},mark:{p:g.c.x,text:`${span(g.i)} · ${fmt(Math.max(gap,0),1)} mm`,bad:low}};});}
 
 function load(f){say(`Reading ${f.name} (${(f.size/1e6).toFixed(1)} MB)...`);f.text().then(t=>setTimeout(()=>fromText(f.name,t),30));}
