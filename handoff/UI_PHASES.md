@@ -388,6 +388,16 @@ Click a part or a CSYS in the 3D view (Q5); the panel offers what fits the open 
   - Left: the 31 s freeze and most of the 2.8 GB are the parse result copied from the worker (face loops as millions of
     small [x, y, z] arrays) and the keep-clear parts built for the whole assembly. Next: loops as packed Float64Arrays in
     the reader (a fast copy, about a third of the memory), keep-clear parts built only near the route.
+  - **Packed faces (reader), 2026-10-30:** at the end of `StepAsm.parse` each face's loops and vertices become Float64Arrays
+    (x, y, z, …) and its circular edges 7 numbers each (centre, axis, radius), all of a part in one buffer (views into it);
+    the worker hands those buffers over instead of copying them. The B-spline surface entity kept for the pipe search is
+    dropped (nothing after the parse reads it). Readers changed: `asm-view.js` (outlines), `cad-solids.js` (face boxes,
+    swept extent), `fixlib.js` (thumbnails), `tests/asm-box.test.js`. Checked equal to main on frame_asm.stp and piping3:
+    every loop point, vertex and circle to the bit, the keep-clear faces and solids, the rest of the parse result, and the
+    outline buffer byte for byte. 663 MB: page heap **1.83 GB** (was 2.8), 4.85 GB all processes (was 6.2), the copy from
+    the worker 6 s (was ~20), usable after 179 s; parse result alive on the page, 164 MB file: 58 MB (was 309).
+    Left: the 28 s freeze after Open is the `asm:loaded` listeners in one task, mostly the keep-clear parts of all 9 696
+    solids. Next: keep-clear parts built only near the route.
 - Not done: reading only the parts near the route.
 
 ### Q5 — Show CSYS (DONE 2026-10-21, `js/asm-view.js`)

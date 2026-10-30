@@ -168,15 +168,18 @@ function step(text,opts){
   const exactStep=!(opts&&opts.exact===false);
   const SA=root.StepAsm||(typeof require!=="undefined"?require("./step-asm.js"):null);if(!SA)throw new Error('StepAsm not loaded');
   const r=(opts&&opts.parsed)||SA.parse(text,{pipe:(opts&&opts.pipe)||{}}),F=SA.F,faces=[],solids=[];let sid=0;
+  // StepAsm packs a face: each loop and its vertices as one Float64Array x, y, z, …, its circular edges as 7 numbers each
+  // (centre, axis, radius). Back to points, one face at a time
+  const pts3=L=>{const o=[];for(let i=0;i<L.length;i+=3)o.push([L[i],L[i+1],L[i+2]]);return o;};
   r.instances.forEach((inst,idx)=>{const pp=r.pipes.find(p=>p.inst===idx),pipe=pp?{name:pp.name,OD:pp.OD,kind:pp.kind}:null;
     // a part-local point placed in the world: F.pt (same sums in the same order) without its intermediate arrays
     const{o:Mo,x:Mx,y:My,z:Mz}=inst.M,P=q=>[Mo[0]+(Mx[0]*q[0]+(My[0]*q[1]+Mz[0]*q[2])),
       Mo[1]+(Mx[1]*q[0]+(My[1]*q[1]+Mz[1]*q[2])),Mo[2]+(Mx[2]*q[0]+(My[2]*q[1]+Mz[2]*q[2]))];
     inst.part.solids.forEach(sol=>{sid++;const sb=newBox();let made=0;
-    sol.faces.forEach(f=>{const b=newBox(),WL=(f.loops||[]).map(l=>l.map(P));f.verts.forEach(v=>grow(b,P(v)));
+    sol.faces.forEach(f=>{const b=newBox(),WL=(f.loops||[]).map(l=>pts3(l).map(P));pts3(f.verts).forEach(v=>grow(b,P(v)));
       // the box takes the sampled boundary loops too: a face bounded by spline edges (no circle) reaches past its vertices,
       // and index().nearest skips a face whose box is farther than the best gap so far. Same points as StepAsm's instance.bbox
-      WL.forEach(l=>l.forEach(q=>grow(b,q)));f.edges.forEach(ed=>circle(b,F.pt(inst.M,ed.ax.o),F.vec(inst.M,ed.ax.z),ed.r));
+      WL.forEach(l=>l.forEach(q=>grow(b,q)));const E=f.edges;for(let i=0;i<E.length;i+=7)circle(b,F.pt(inst.M,[E[i],E[i+1],E[i+2]]),F.vec(inst.M,[E[i+3],E[i+4],E[i+5]]),E[i+6]);
       if(!ok(b))return;const face={sid,min:b.min,max:b.max};
       // exact shape for flat and cylindrical faces, as for IGES: the boundary loops StepAsm sampled, placed in the world,
       // so the gap to a plate is measured to its hole edges, not to its box
@@ -194,7 +197,7 @@ function step(text,opts){
           const Pj=d?P0.map(q=>{const t=dot3(sub3(q,o),d);return sub3(q,d.map(v=>v*t));}):P0;
           for(let i=1;i<Pj.length;i++)segs.push(...Pj[i-1],...Pj[i]);
           // the face's extent along the sweep: its boundary measured from the profile
-          let t0=Infinity,t1=-Infinity;f.loops.forEach(l=>l.forEach(q=>{const t=dot3(sub3(P(q),o),d);if(t<t0)t0=t;if(t>t1)t1=t;}));
+          let t0=Infinity,t1=-Infinity;f.loops.forEach(l=>pts3(l).forEach(q=>{const t=dot3(sub3(P(q),o),d);if(t<t0)t0=t;if(t>t1)t1=t;}));
           if(d&&isFinite(t0))face.shape={kind:'ext',o,d,segs:Float64Array.from(segs),t0:Math.min(t0,0),t1:Math.max(t1,0),box};}}
       faces.push(face);grow(sb,face.min);grow(sb,face.max);made++;});
     if(made)solids.push({sid,inst:idx,name:inst.label||inst.name||`solid ${sid}`,faces:made,min:sb.min,max:sb.max,...(pipe?{pipe}:{})});});});

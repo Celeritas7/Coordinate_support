@@ -18,7 +18,8 @@ const asm=()=>typeof ASM!=='undefined'&&ASM&&ASM.r?ASM.r:null;
 // nearest first, until the budget is spent, and every other part with solids as its box (12 edges). The route: the ticked
 // stations (or the points as text) and the selected run, grown by NEAR mm; none yet → boxes only.
 const OUTLINE_BUDGET=4e6,NEAR=500;
-const loopSegs=inst=>{let n=0;if(inst.part&&inst.solids)inst.part.solids.forEach(s=>s.faces.forEach(f=>(f.loops||[]).forEach(L=>n+=L.length)));return n;};
+// a face loop is one Float64Array x, y, z, … (StepAsm): a closed loop of n points is n segments
+const loopSegs=inst=>{let n=0;if(inst.part&&inst.solids)inst.part.solids.forEach(s=>s.faces.forEach(f=>(f.loops||[]).forEach(L=>n+=L.length/3)));return n;};
 function routePts(){const T=typeof clampStationsTicked==='function'?clampStationsTicked():[];
   const P=T.length?T.map(s=>s.c):typeof parsePts==='function'?parsePts($('pts').value).map(p=>[p[0],p[1],p[2]]):[];
   const sel=typeof selected==='function'?selected():null;return sel&&sel.Q&&!sel.asm?P.concat(sel.Q):P;}
@@ -49,7 +50,7 @@ function geometry(r){
         // the box's 12 edges: corners that differ in one axis bit
         for(let i=0;i<8;i++)for(const bit of [1,2,4])if(!(i&bit))put(c(i),c(i|bit),ii);}}
     else if(inst.part&&inst.solids)inst.part.solids.forEach(s=>s.faces.forEach(f=>(f.loops||[]).forEach(L=>{
-      const W=L.map(p=>X(inst.M,p));
+      const W=[];for(let i=0;i<L.length;i+=3)W.push(X(inst.M,[L[i],L[i+1],L[i+2]]));
       for(let i=0;i<W.length;i++)put(W[i],W[(i+1)%W.length],ii);})));
     ranges[ii]=[k0,k-k0];});
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));

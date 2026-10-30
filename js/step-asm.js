@@ -501,6 +501,21 @@ function parse(text,opts){
         const h={inst:idx,name:inst.name,label:inst.label,csys:on.length?on[0].name:null,c,d:g.d,r:rmin,D:2*rmin,length:L};holes.push(h);
         if(on.length)fixings.push(h);}});});
 
+  // faces packed, the same doubles in the same order. As [x, y, z] arrays they were most of the result: ~72 bytes a point on
+  // the page instead of 24, and the copy from the worker rebuilt every one of them (a 663 MB file: ~25 M loop points).
+  //   loops: each loop one Float64Array x, y, z, x, y, z …
+  //   verts: one Float64Array x, y, z, … (the edges' end vertices, in order)
+  //   edges: the circular edges as one Float64Array of 7 per circle: centre x, y, z, axis x, y, z, radius (what the face
+  //          boxes read; the end points and in-plane axes were for the reader itself)
+  // All of a part's arrays are views into one buffer: the worker hands those buffers over (transfer, no copy) and the page
+  // rebuilds one view per array instead of one buffer each. The B-spline surface entity a face kept for the pipe search
+  // (solidPieces) goes too. Nothing after the parse reads what is dropped. Once per part (its instances share it)
+  for(const g of partCache.values()){const F=[];for(const sol of g.solids||[])for(const f of sol.faces)F.push(f);
+    let n=0;for(const f of F){for(const l of f.loops)n+=3*l.length;n+=3*f.verts.length+7*f.edges.length;}
+    const buf=new Float64Array(n);let at=0;
+    const pack=P=>{const a=buf.subarray(at,at+3*P.length);for(let i=0;i<P.length;i++){a[3*i]=P[i][0];a[3*i+1]=P[i][1];a[3*i+2]=P[i][2];}at+=3*P.length;return a;};
+    for(const f of F){delete f.S;f.loops=f.loops.map(pack);f.verts=pack(f.verts);
+      const e=buf.subarray(at,at+7*f.edges.length);f.edges.forEach((ed,i)=>{e.set(ed.ax.o,7*i);e.set(ed.ax.z,7*i+3);e[7*i+6]=ed.r;});at+=7*f.edges.length;f.edges=e;}}
   // the methods below close over this whole function: free the entity table (most of the memory on a big file) first
   const nEnt=E.size;E.clear();D.clear();byKind.clear();
   tell('Done',1);
@@ -542,7 +557,9 @@ const WORKER_MAIN=`self.onmessage=function(ev){try{
     src={chunks:chunks};}
   var r=StepAsm.parse(src,{pipe:ev.data.pipe,progress:tell});
   var out={};for(var k in r)if(typeof r[k]!=='function')out[k]=r[k];
-  self.postMessage({type:'done',r:out});
+  // the parts' packed face arrays (one buffer per part) are handed over, not copied
+  var bufs=new Set();r.instances.forEach(function(I){(I.part&&I.part.solids||[]).forEach(function(s){s.faces.forEach(function(f){bufs.add(f.verts.buffer);});});});
+  self.postMessage({type:'done',r:out},Array.from(bufs));
 }catch(e){self.postMessage({type:'error',message:String(e&&e.message||e)});}};`;
 let workerURL=null;
 const CHUNK=32<<20;   // also in WORKER_MAIN
