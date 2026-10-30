@@ -361,6 +361,15 @@ Click a part or a CSYS in the 3D view (Q5); the panel offers what fits the open 
   only the boxes a segment's samples reach, with an early-exit depth test, gives **38 s → 16 s** with identical results. The
   remaining 0.6–0.7 s stalls are drawing ~800 000 outline lines in the headless test browser's software renderer (0.23 s with
   outlines hidden); a real graphics card draws them at once. A Web Worker for the solvers is not worth its complexity now.
+- **Alternatives on the frame, 2026-10-30 (profiled in Chromium, `frame_asm.stp`):** with exact face shapes the time was the
+  exact gap, not the solver's own sums: on CS29 → CS41 (16 ways round) 77 % in `CadSolids.shapeNear`, called for every face
+  near a segment at every sample. Three changes, results identical (the chosen route's .pts byte for byte, all four cases):
+  the solver asks the exact gap only where the sample is within rad + 1 mm of the face box; `shapeNear` answers "lim or
+  more" for spheres, tori, cones and cylinders from squared distances and the face box (no `Math.hypot`); the boxes a
+  segment reaches are filtered again per run of 6 samples. **CS29 → CS41 160 s → 26 s, P1–P6 5.4 → 2.5 s, P5–P10
+  8.7 → 4.9 s, P11–P16 3.9 → 1.6 s.** What is left is spread over the exact gaps, the box tests and the curve samples;
+  going further means fewer solver steps or analytic gradients, which change the routes. `Math.sqrt` for `Math.hypot` in
+  the solver's `V.len` still saves ~9 % but changes which routes come out: not done.
 - Not done: reading only the parts near the route.
 
 ### Q5 — Show CSYS (DONE 2026-10-21, `js/asm-view.js`)
