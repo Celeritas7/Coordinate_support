@@ -23,10 +23,17 @@ function candidates(r,opt){const D=+opt.D,tol=opt.tol==null?1.5:+opt.tol;
 function pathLength(P,ord){let s=0;for(let i=1;i<ord.length;i++)s+=dist(P[ord[i-1]],P[ord[i]]);return s;}
 
 // visiting order through every point P[i]. opt.start / opt.end: index pinned first / last (null = free).
-// Nearest neighbour from each allowed start, then 2-opt; the shortest wins
+// Nearest neighbour from each allowed start, then 2-opt; the shortest wins. The distances are worked out once (the same
+// values). Past ALL_STARTS points (a big assembly ticks hundreds of holes, and every start is its own n² search) only the
+// extreme points are tried as starts: lowest and highest in X, Y and Z
+const ALL_STARTS=64;
 function order(P,opt={}){const n=P.length,S=opt.start==null?null:opt.start,E=opt.end==null||opt.end===S?null:opt.end;
   if(n<2)return P.map((_,i)=>i);
-  const d=(i,j)=>dist(P[i],P[j]),starts=S!=null?[S]:P.map((_,i)=>i).filter(i=>i!==E);
+  const T=new Float64Array(n*n);for(let i=0;i<n;i++)for(let j=i+1;j<n;j++)T[i*n+j]=T[j*n+i]=dist(P[i],P[j]);
+  const d=(i,j)=>T[i*n+j];let starts=S!=null?[S]:P.map((_,i)=>i).filter(i=>i!==E);
+  if(S==null&&starts.length>ALL_STARTS){const X=new Set();
+    for(let k=0;k<3;k++){let lo=starts[0],hi=starts[0];for(const i of starts){if(P[i][k]<P[lo][k])lo=i;if(P[i][k]>P[hi][k])hi=i;}X.add(lo);X.add(hi);}
+    starts=starts.filter(i=>X.has(i));}
   let best=null;
   for(const s of starts){const left=new Set(P.map((_,i)=>i));left.delete(s);if(E!=null)left.delete(E);
     const ord=[s];while(left.size){const a=ord[ord.length-1];let bj=-1,bd=Infinity;for(const j of left){const v=d(a,j);if(v<bd){bd=v;bj=j;}}ord.push(bj);left.delete(bj);}
