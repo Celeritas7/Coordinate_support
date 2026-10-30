@@ -13,22 +13,55 @@ const AV_GROUPS=['Route','Keep clear of it','Route passes it','Creo · Library']
 const X=(M,p)=>[M.o[0]+M.x[0]*p[0]+M.y[0]*p[1]+M.z[0]*p[2],M.o[1]+M.x[1]*p[0]+M.y[1]*p[1]+M.z[1]*p[2],M.o[2]+M.x[2]*p[0]+M.y[2]*p[1]+M.z[2]*p[2]];
 const asm=()=>typeof ASM!=='undefined'&&ASM&&ASM.r?ASM.r:null;
 
-// every placed part's face loops in world coordinates; ranges[i] = [first segment, count] of instance i
+// Outline budget (Q4): a big assembly's outlines would take most of the tab's memory (a 633 MB file: ~25 M segments, ~0.7 GB).
+// Up to OUTLINE_BUDGET segments every part is drawn in full, as before. Past it the parts near the route are drawn in full,
+// nearest first, until the budget is spent, and every other part with solids as its box (12 edges). The route: the ticked
+// stations (or the points as text) and the selected run, grown by NEAR mm; none yet → boxes only.
+const OUTLINE_BUDGET=4e6,NEAR=500;
+const loopSegs=inst=>{let n=0;if(inst.part&&inst.solids)inst.part.solids.forEach(s=>s.faces.forEach(f=>(f.loops||[]).forEach(L=>n+=L.length)));return n;};
+function routePts(){const T=typeof clampStationsTicked==='function'?clampStationsTicked():[];
+  const P=T.length?T.map(s=>s.c):typeof parsePts==='function'?parsePts($('pts').value).map(p=>[p[0],p[1],p[2]]):[];
+  const sel=typeof selected==='function'?selected():null;return sel&&sel.Q&&!sel.asm?P.concat(sel.Q):P;}
+// null = every part in full; else the Set of instances drawn in full
+function fullSet(r){if(!r._avSegs){r._avSegs=r.instances.map(loopSegs);r._avTotal=r._avSegs.reduce((a,b)=>a+b,0);}
+  if(r._avTotal<=OUTLINE_BUDGET)return null;
+  const P=routePts(),out=new Set();if(!P.length)return out;
+  const lo=[0,1,2].map(k=>Math.min(...P.map(p=>p[k]))-NEAR),hi=[0,1,2].map(k=>Math.max(...P.map(p=>p[k]))+NEAR);
+  const near=[];r.instances.forEach((inst,ii)=>{const b=inst.bbox;if(!r._avSegs[ii]||!b||[0,1,2].some(k=>b.max[k]<lo[k]||b.min[k]>hi[k]))return;
+    let d=Infinity;for(const p of P){let q=0;for(let k=0;k<3;k++){const e=Math.max(b.min[k]-p[k],0,p[k]-b.max[k]);q+=e*e;}if(q<d)d=q;}
+    if(d<=NEAR*NEAR)near.push([d,ii]);});
+  near.sort((a,b)=>a[0]-b[0]||a[1]-b[1]);let left=OUTLINE_BUDGET;
+  for(const [,ii] of near){if(r._avSegs[ii]>left)continue;left-=r._avSegs[ii];out.add(ii);}
+  return out;}
+const setKey=S=>S?[...S].join(','):'all';
+// every placed part's face loops in world coordinates (or its box, see the budget); ranges[i] = [first segment, count] of
+// instance i
 function geometry(r){
-  if(AV.r===r&&AV.geo)return AV.geo;
-  let n=0;r.instances.forEach(inst=>{if(inst.part&&inst.solids)inst.part.solids.forEach(s=>s.faces.forEach(f=>(f.loops||[]).forEach(L=>n+=L.length)));});
+  const F=fullSet(r),key=setKey(F);
+  if(AV.r===r&&AV.geo&&AV.geo.key===key)return AV.geo;
+  let n=0;r.instances.forEach((inst,ii)=>{n+=!F||F.has(ii)?r._avSegs[ii]:r._avSegs[ii]&&inst.bbox?12:0;});
   const pos=new Float32Array(n*6),seg=new Int32Array(n),ranges=[],min=[Infinity,Infinity,Infinity],max=[-Infinity,-Infinity,-Infinity];
   let k=0;
+  const put=(a,b,ii)=>{const o=k*6;pos[o]=a[0];pos[o+1]=a[1];pos[o+2]=a[2];pos[o+3]=b[0];pos[o+4]=b[1];pos[o+5]=b[2];seg[k++]=ii;
+    for(let j=0;j<3;j++){if(a[j]<min[j])min[j]=a[j];if(a[j]>max[j])max[j]=a[j];}};
   r.instances.forEach((inst,ii)=>{const k0=k;
-    if(inst.part&&inst.solids)inst.part.solids.forEach(s=>s.faces.forEach(f=>(f.loops||[]).forEach(L=>{
+    if(F&&!F.has(ii)){if(r._avSegs[ii]&&inst.bbox){const b=inst.bbox,c=i=>[i&1?b.max[0]:b.min[0],i&2?b.max[1]:b.min[1],i&4?b.max[2]:b.min[2]];
+        // the box's 12 edges: corners that differ in one axis bit
+        for(let i=0;i<8;i++)for(const bit of [1,2,4])if(!(i&bit))put(c(i),c(i|bit),ii);}}
+    else if(inst.part&&inst.solids)inst.part.solids.forEach(s=>s.faces.forEach(f=>(f.loops||[]).forEach(L=>{
       const W=L.map(p=>X(inst.M,p));
-      for(let i=0;i<W.length;i++){const a=W[i],b=W[(i+1)%W.length],o=k*6;
-        pos[o]=a[0];pos[o+1]=a[1];pos[o+2]=a[2];pos[o+3]=b[0];pos[o+4]=b[1];pos[o+5]=b[2];seg[k++]=ii;
-        for(let j=0;j<3;j++){if(a[j]<min[j])min[j]=a[j];if(a[j]>max[j])max[j]=a[j];}}})));
+      for(let i=0;i<W.length;i++)put(W[i],W[(i+1)%W.length],ii);})));
     ranges[ii]=[k0,k-k0];});
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));
-  AV.r=r;AV.geo={g,seg,ranges,n,box:n?{min,max}:null};return AV.geo;
+  AV.r=r;AV.geo={g,seg,ranges,n,box:n?{min,max}:null,key,full:F?F.size:null,boxes:F?r.instances.filter((inst,ii)=>!F.has(ii)&&r._avSegs[ii]&&inst.bbox).length:0};return AV.geo;
 }
+// a big assembly: what the budget did, for the status line after Open (shell.js); '' when every part is drawn in full
+window.asmOutlineNote=()=>{const r=asm();if(!r)return'';const G=geometry(r);
+  return G.full==null?'':`Big assembly: full outlines for the ${G.full} part${G.full===1?'':'s'} near the route, boxes for the other ${G.boxes}.`;};
+// the route changes (stations ticked, points typed): redraw only if another set of parts is drawn in full (a run selected
+// rebuilds the view anyway, and geometry() looks again)
+{let t=0;const again=()=>{clearTimeout(t);t=setTimeout(()=>{const r=asm();if(!r||!AV.parts||!AV.geo||AV.r!==r)return;if(setKey(fullSet(r))!==AV.geo.key)rebuild(false);},300);};
+  document.addEventListener('cs:changed',again);$('pts').addEventListener('input',again);}
 // CSYS for the current mode, each with the part it sits in and the hole it marks (if any)
 function csysList(r){
   if(AV.csys==='off')return[];

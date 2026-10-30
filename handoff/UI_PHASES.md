@@ -370,6 +370,24 @@ Click a part or a CSYS in the 3D view (Q5); the panel offers what fits the open 
   8.7 → 4.9 s, P11–P16 3.9 → 1.6 s.** What is left is spread over the exact gaps, the box tests and the curve samples;
   going further means fewer solver steps or analytic gradients, which change the routes. `Math.sqrt` for `Math.hypot` in
   the solver's `V.len` still saves ~9 % but changes which routes come out: not done.
+- **Big files, 2026-10-30 (outline budget):** no 633 MB file in the cloud, so `tests/big-asm.js` builds one: frame_asm.stp copied
+  N times into one STEP (ids renumbered, each copy 3 m further along X; copy 0 where route_343434's stations are). 32 copies =
+  663 MB, 11 424 instances, 25.5 M outline segments. On main it reached "Opened" after 197 s and then froze **780 s** (13 min),
+  page heap 3.1 GB, 7.0 GB over all the browser's processes. Where the time went (8 copies, profiled): the worker's result
+  copied to the page (8.6 s), **Auto order** of the 320 ticked holes (8.4 s; at 1 280 holes the n³ order search was most of
+  the 780 s), the keep-clear parts of the whole assembly (3.5 s); drawing is cheap. Memory (8 copies, live): parse result
+  309 MB, keep-clear parts 104 MB, outline buffers 179 MB.
+  - **Outline budget:** up to 4 M segments every part is drawn in full (the 20 MB frame has 0.8 M: unchanged). Past it, parts
+    near the route (the ticked stations or the points as text, and the selected run, within 500 mm) are drawn in full, nearest
+    first, until the budget is spent; every other part as its box (12 edges). Redrawn when the route changes the set; the
+    status after Open says so ("Big assembly: full outlines for the 450 parts near the route, boxes for the other 9 246.").
+  - **Auto order:** the distances worked out once (same orders: 400 random lists of 2–64 holes compared with main); past 64
+    holes only the extreme holes (lowest / highest in X, Y, Z) are tried as starts. 1 280 holes: 1.3 s.
+  - 663 MB after: usable after **192 s** (was 970 s), longest freeze **31 s** (was 780 s), page heap 2.8 GB, 6.2 GB all
+    processes, 4.1 M segments; Alternatives P1–P6 3.9 s (was 34.9 s), the same 679 mm route.
+  - Left: the 31 s freeze and most of the 2.8 GB are the parse result copied from the worker (face loops as millions of
+    small [x, y, z] arrays) and the keep-clear parts built for the whole assembly. Next: loops as packed Float64Arrays in
+    the reader (a fast copy, about a third of the memory), keep-clear parts built only near the route.
 - Not done: reading only the parts near the route.
 
 ### Q5 — Show CSYS (DONE 2026-10-21, `js/asm-view.js`)

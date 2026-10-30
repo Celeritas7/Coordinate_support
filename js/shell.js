@@ -121,7 +121,8 @@ function openAssembly(f,rest){const n=rest?rest.length:0,also=n?` ${n} other fil
   asmPend=done;
   const ok=e=>{const a=e.detail;if(!a||a.name!==f.name)return;done();
     if(hose&&typeof bcFromAsm==='function')bcFromAsm(a);
-    say(`Opened in ${(a.secs||0).toFixed(1)} s.${also}`);$('shStatus').title=where;
+    const big=typeof asmOutlineNote==='function'?asmOutlineNote():'';
+    say(`Opened in ${(a.secs||0).toFixed(1)} s.${big?' '+big:''}${also}`);$('shStatus').title=where;
     showAsm(a);};
   const bad=e=>{const x=e.detail;if(!x||x.name!==f.name)return;done();say(`${x.name} could not be read: ${x.message}`);};
   document.addEventListener('asm:loaded',ok);document.addEventListener('asm:failed',bad);
