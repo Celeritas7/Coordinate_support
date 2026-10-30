@@ -75,11 +75,22 @@ function shapeDist(s,p){if(s.kind!=='plane'&&s.kind!=='cyl')return surfDist(s,p)
   if(t>=s.t0-1e-6&&t<=s.t1+1e-6&&(s.full||((Math.atan2(y,x)-s.th0)%TAU+TAU)%TAU<=s.span+1e-9))return Math.abs(Math.hypot(x,y)-s.R);
   return seg3(p,s.segs);}
 
-// distance from p to a face shape when it is under lim; lim or more (cheaply, from the plane / the cylinder radius) otherwise
+// distance from p to a face shape when it is under lim; lim or more (cheaply, from the plane / the cylinder radius, or for
+// the surfaces from the face box and squared distances, no Math.hypot) otherwise. Under lim the value is shapeDist's,
+// to the bit: the squared tests only answer "lim or more" with a small slack (out), so a near case always takes the exact path
+const out=(q,a,lim)=>q>=(a+lim)*(a+lim)*(1+1e-9)+1e-9||(a>lim&&q<=(a-lim)*(a-lim)*(1-1e-9)-1e-9);
 function shapeNear(s,p,lim){
-  if(s.kind!=='plane'&&s.kind!=='cyl')return surfDist(s,p);
+  if(s.kind!=='plane'&&s.kind!=='cyl'){const b=s.box;let q=0;
+    for(let k=0;k<3;k++){const e=b.min[k]-p[k]>0?b.min[k]-p[k]:p[k]-b.max[k]>0?p[k]-b.max[k]:0;q+=e*e;}
+    if(q>=lim*lim*(1+1e-9)+1e-9)return lim;   // surfDist is never less than the distance to the face box
+    if(s.kind==='sph'){const x=p[0]-s.c[0],y=p[1]-s.c[1],z=p[2]-s.c[2];if(out(x*x+y*y+z*z,s.R,lim))return lim;}
+    else if(s.kind==='tor'){const x=p[0]-s.c[0],y=p[1]-s.c[1],z=p[2]-s.c[2],h=x*s.z[0]+y*s.z[1]+z*s.z[2],rho=Math.sqrt(Math.max(0,x*x+y*y+z*z-h*h));
+      if(out((rho-s.R)*(rho-s.R)+h*h,s.r,lim))return lim;}
+    else if(s.kind==='cone'){const x=p[0]-s.a[0],y=p[1]-s.a[1],z=p[2]-s.a[2],h=x*s.z[0]+y*s.z[1]+z*s.z[2],c=Math.cos(s.ang),t=s.r0+h*Math.tan(s.ang);
+      if(c>1e-6&&t>=0&&out(Math.max(0,x*x+y*y+z*z-h*h),t,lim/c))return lim;}
+    return surfDist(s,p);}
   if(s.kind==='plane'){const h=Math.abs((p[0]-s.o[0])*s.n[0]+(p[1]-s.o[1])*s.n[1]+(p[2]-s.o[2])*s.n[2]);if(h>=lim)return h;}
-  else{const w=sub3(p,s.a),t=dot3(w,s.z),x=dot3(w,s.ex),y=dot3(w,s.ey),e=Math.abs(Math.hypot(x,y)-s.R);if(e>=lim)return e;}
+  else{const w=sub3(p,s.a),x=dot3(w,s.ex),y=dot3(w,s.ey);if(out(x*x+y*y,s.R,lim))return lim;}
   return shapeDist(s,p);}
 
 function iges(text){

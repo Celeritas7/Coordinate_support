@@ -100,11 +100,21 @@ function makeRoute(P,opts={}){
     const near=boxes.length?boxes.filter(b=>b.max[0]+rad>lo[0]&&b.min[0]-rad<hi[0]&&b.max[1]+rad>lo[1]&&b.min[1]-rad<hi[1]&&b.max[2]+rad>lo[2]&&b.min[2]-rad<hi[2]):boxes;
     // opts.held: p → Set of boxes or null (MultiRoute.heldAt over MultiRoute.zones) — near a station the hose sits in the
     // part that holds it: those boxes give no depth there, every other box does
-    const held=opts.held||null;
-    for(let j=0;j<=S;j++){const p=ps[j],h=held&&near.length?held(p):null;
+    const held=opts.held||null,m1=rad+1;let run=near;
+    for(let j=0;j<=S;j++){const p=ps[j];
+      // and per run of 6 samples, only the boxes that run's own box reaches (grown by rad + 1, wider than either test below):
+      // a box left out gives nothing at any sample of the run, the rest keep their order, so the sum is the same again
+      if(j%6===0&&near.length>8){const l=[Infinity,Infinity,Infinity],u=[-Infinity,-Infinity,-Infinity];
+        for(let q=j;q<=Math.min(S,j+5);q++)for(let k=0;k<3;k++){const v=ps[q][k];if(v<l[k])l[k]=v;if(v>u[k])u[k]=v;}
+        run=near.filter(b=>b.max[0]+m1>=l[0]&&b.min[0]-m1<=u[0]&&b.max[1]+m1>=l[1]&&b.min[1]-m1<=u[1]&&b.max[2]+m1>=l[2]&&b.min[2]-m1<=u[2]);}
+      const h=held&&near.length?held(p):null;
       // boxDepth inline, leaving at the first axis that puts p outside (same value when inside). A face with an exact shape
       // (opts.shapeNear given: CadSolids) counts by its exact gap instead: rad − distance to the face, where positive
-      for(const b of near){if(h&&h.has(b))continue;if(b.shape&&sNear){const e=rad-sNear(b.shape,p,rad);if(e>0)obs+=e*e;continue;}
+      // A face's material lies within its box (an IGES arc may bulge a hair past it): a point more than rad + 1 mm outside
+      // the box cannot be within rad of the face, so the exact distance is only asked for points inside that grown box
+      for(const b of run){if(h&&h.has(b))continue;if(b.shape&&sNear){
+          if(p[0]<b.min[0]-m1||p[0]>b.max[0]+m1||p[1]<b.min[1]-m1||p[1]>b.max[1]+m1||p[2]<b.min[2]-m1||p[2]>b.max[2]+m1)continue;
+          const e=rad-sNear(b.shape,p,rad);if(e>0)obs+=e*e;continue;}
         let d=p[0]-b.min[0]+rad;if(d<=0)continue;let t=b.max[0]+rad-p[0];if(t<=0)continue;if(t<d)d=t;
         t=p[1]-b.min[1]+rad;if(t<=0)continue;if(t<d)d=t;t=b.max[1]+rad-p[1];if(t<=0)continue;if(t<d)d=t;
         t=p[2]-b.min[2]+rad;if(t<=0)continue;if(t<d)d=t;t=b.max[2]+rad-p[2];if(t<=0)continue;if(t<d)d=t;obs+=d*d;}
