@@ -171,7 +171,11 @@ function step(text,opts){
   // StepAsm packs a face: each loop and its vertices as one Float64Array x, y, z, …, its circular edges as 7 numbers each
   // (centre, axis, radius). Back to points, one face at a time
   const pts3=L=>{const o=[];for(let i=0;i<L.length;i+=3)o.push([L[i],L[i+1],L[i+2]]);return o;};
-  r.instances.forEach((inst,idx)=>{const pp=r.pipes.find(p=>p.inst===idx),pipe=pp?{name:pp.name,OD:pp.OD,kind:pp.kind}:null;
+  // opts.only (a Set of instance indices): build those instances only. Every other instance still counts its solids, so a
+  // solid's sid is the one a full build gives it (bend-cad.js builds a big assembly a piece at a time, near the route)
+  const only=opts&&opts.only||null;
+  r.instances.forEach((inst,idx)=>{if(only&&!only.has(idx)){sid+=inst.part?inst.part.solids.length:0;return;}
+    const pp=r.pipes.find(p=>p.inst===idx),pipe=pp?{name:pp.name,OD:pp.OD,kind:pp.kind}:null;
     // a part-local point placed in the world: F.pt (same sums in the same order) without its intermediate arrays
     const{o:Mo,x:Mx,y:My,z:Mz}=inst.M,P=q=>[Mo[0]+(Mx[0]*q[0]+(My[0]*q[1]+Mz[0]*q[2])),
       Mo[1]+(Mx[1]*q[0]+(My[1]*q[1]+Mz[1]*q[2])),Mo[2]+(Mx[2]*q[0]+(My[2]*q[1]+Mz[2]*q[2]))];
