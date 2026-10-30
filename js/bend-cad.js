@@ -15,7 +15,36 @@ const group=p=>keepClear(p)?0:p.role==='pipe'?2:1,GROUP=['Gap checked (ticked)',
 // parts the too-close list and the gap chart look at: ticked ones, and unticked ones away from any station except existing pipes
 const watched=p=>keepClear(p)||(p.role!=='station'&&p.role!=='pipe'&&p.role!=='mount');
 function survey(){if(!BC.cad)return null;const P=stations();if(P.length<2)return null;const o=opt(),key=JSON.stringify([P,o]);
-  if(BC.key!==key){BC.sv=CadSolids.survey(BC.cad,P,o);BC.key=key;render();}return BC.sv;}
+  // a big assembly read near the route: first the parts within the survey's reach of the station line (its own test, on
+  // the parts' boxes), so the survey is the one the whole assembly would give
+  if(BC.key!==key){if(BC.cad.lazy)ensure(near(CadSolids.along(P,2),Math.max(o.reach,o.d/2+o.gap+5)+1));
+    BC.sv=CadSolids.survey(BC.cad,P,o);BC.key=key;render();}return BC.sv;}
+// Big assembly (more than LAZY_FACES faces placed): its parts are not all read at Open (on a 663 MB file that was 720 000
+// faces and most of the freeze after Open). They are read a part at a time when something needs them: the survey (parts
+// near the station line), a part picked in 3D, Suggest (parts near the selected run). Built parts are kept per instance;
+// the solid and face lists stay in instance order with the sids of a full build, so every result is the full build's.
+const LAZY_FACES=100000;
+const placedFaces=r=>r.instances.reduce((n,I)=>n+(I.part?I.part.solids.reduce((m,s)=>m+s.faces.length,0):0),0);
+function lazyCad(name,r,pipe){return{format:'STEP',name,solids:[],faces:[],lazy:{r,pipe,chunks:new Map()}};}
+// instances with a box within d of any of the points (the points on a grid of d-sized cells: a box looks only at the cells
+// it covers, grown by d)
+function near(pts,d){const L=BC.cad&&BC.cad.lazy;if(!L||!pts.length)return[];const C=Math.max(d,20),cell=v=>Math.floor(v/C),G=new Map(),out=[];
+  pts.forEach(p=>{const k=cell(p[0])+','+cell(p[1])+','+cell(p[2]);let a=G.get(k);if(!a)G.set(k,a=[]);a.push(p);});
+  L.r.instances.forEach((I,ii)=>{const b=I.bbox;if(!b||!I.solids)return;const lo=b.min.map(v=>cell(v-d)),hi=b.max.map(v=>cell(v+d));
+    if((hi[0]-lo[0]+1)*(hi[1]-lo[1]+1)*(hi[2]-lo[2]+1)>G.size){if(pts.some(p=>CadSolids.boxDist(p,b)<=d))out.push(ii);return;}
+    for(let x=lo[0];x<=hi[0];x++)for(let y=lo[1];y<=hi[1];y++)for(let z=lo[2];z<=hi[2];z++){const a=G.get(x+','+y+','+z);
+      if(a&&a.some(p=>CadSolids.boxDist(p,b)<=d)){out.push(ii);return;}}});
+  return out;}
+// read these instances if not read yet; true when something was added
+function ensure(ids){const L=BC.cad&&BC.cad.lazy;if(!L)return false;const miss=ids.filter(i=>!L.chunks.has(i));if(!miss.length)return false;
+  const got=CadSolids.read('',BC.cad.name,{parsed:L.r,pipe:L.pipe,only:new Set(miss)}),inst=new Map(got.solids.map(s=>[s.sid,s.inst]));
+  miss.forEach(i=>L.chunks.set(i,{solids:[],faces:[]}));got.solids.forEach(s=>L.chunks.get(s.inst).solids.push(s));got.faces.forEach(f=>L.chunks.get(inst.get(f.sid)).faces.push(f));
+  const C=[...L.chunks.keys()].sort((a,b)=>a-b).map(i=>L.chunks.get(i));BC.cad.solids=C.flatMap(c=>c.solids);BC.cad.faces=C.flatMap(c=>c.faces);
+  return true;}
+// Suggest extra clamps (clamp-suggest.js): the parts within d of the run, read before it looks for mounts. It looks from
+// points between the run's samples (half the longest step between samples away) and from the stations it passes (up to
+// 5 mm off a sample): both are added, and 1 mm
+window.bcEnsureNear=(pts,d)=>{if(!BC.cad||!BC.cad.lazy)return;let h=0;for(let i=1;i<pts.length;i++)h=Math.max(h,V.len(V.sub(pts[i],pts[i-1])));ensure(near(pts,d+Math.max(h/2,5)+1));};
 function render(){const sv=BC.sv,box=$('cdParts');if(!sv){box.innerHTML='';return;}
   const n=sv.parts.filter(keepClear).length;
   box.innerHTML=`<div class="presets" style="margin:6px 0 2px"><button type="button" data-t="def" title="Clips and existing pipes unticked, frame and other parts ticked">Default</button><button type="button" data-t="frame" title="Only the parts that are not clips">Frame only</button><button type="button" data-t="all" title="Tick all">All</button><button type="button" data-t="none" title="Untick all">None</button></div>
@@ -50,7 +79,7 @@ window.bendCadBoxes=function(){const o=opt(),sv=survey();
 // keep clear on / off from the 3D view (asm-view.js): the solids of the picked instance
 // only when BC.cad is the open assembly's parse: a pick's inst indexes ASM.r.instances, not another file's
 const sameAsm=()=>!!BC.cad&&BC.asm!=null&&typeof ASM!=='undefined'&&!!ASM&&ASM.name===BC.asm;
-(window.AV_ACTIONS=window.AV_ACTIONS||[]).push((p,r)=>{if(!BC.cad||!sameAsm()||!BC.cad.solids.some(s=>s.inst!=null)||$('cdBox').hidden)return[];
+(window.AV_ACTIONS=window.AV_ACTIONS||[]).push((p,r)=>{if(BC.cad&&BC.cad.lazy&&p.kind==='part'&&sameAsm())ensure([p.inst]);if(!BC.cad||!sameAsm()||!BC.cad.solids.some(s=>s.inst!=null)||$('cdBox').hidden)return[];
   const inst=p.kind==='part'?p.inst:null;if(inst==null)return[];
   const sids=BC.cad.solids.filter(s=>s.inst===inst).map(s=>s.sid);if(!sids.length)return[];
   // a part away from the stations is not in the survey: it gets the default the survey would give it (frame-sized → kept
@@ -156,7 +185,12 @@ function load(f){say(`Reading ${f.name} (${(f.size/1e6).toFixed(1)} MB)...`);f.t
 function fromText(name,t,parsed){const t0=performance.now();let cad;
     BC.asm=null;
     // STEP: the parts marked pipe / not a pipe in the part tree for this file name count as such here too
-    try{cad=CadSolids.read(t,name,{pipe:window.AsmTree?AsmTree.load(name):{},parsed});}catch(e){return say(`${name}: ${e.message}`,true);}
+    const pipe=window.AsmTree?AsmTree.load(name):{};
+    if(parsed&&placedFaces(parsed)>LAZY_FACES){const nf=placedFaces(parsed),ns=parsed.instances.reduce((n,I)=>n+(I.solids||0),0);
+      BC.cad=lazyCad(name,parsed,pipe);BC.key='';BC.user=new Map();BC.sv=null;survey();
+      say(`${name}: big assembly, ${ns} solids, ${nf} faces: the parts near the route are read when the route is known (${BC.cad.solids.length} solids so far).`);
+      return true;}
+    try{cad=CadSolids.read(t,name,{pipe,parsed});}catch(e){return say(`${name}: ${e.message}`,true);}
     if(!cad.solids.length)return say(`${name}: no solids found. Export from Creo with solids (IGES: BREP / "Solid", or STEP AP214).`,true);
     BC.cad=cad;BC.key='';BC.user=new Map();survey();
     const ex=cad.faces.filter(x=>x.shape).length,np=cad.solids.filter(x=>x.pipe).length;

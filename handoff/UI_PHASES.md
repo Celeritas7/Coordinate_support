@@ -398,6 +398,16 @@ Click a part or a CSYS in the 3D view (Q5); the panel offers what fits the open 
     the worker 6 s (was ~20), usable after 179 s; parse result alive on the page, 164 MB file: 58 MB (was 309).
     Left: the 28 s freeze after Open is the `asm:loaded` listeners in one task, mostly the keep-clear parts of all 9 696
     solids. Next: keep-clear parts built only near the route.
+  - **Keep-clear parts near the route, 2026-10-30 (`bend-cad.js`):** an assembly with more than 100 000 faces placed (the
+    20 MB frame has 22 000: unchanged) is not read into keep-clear parts at Open. Parts are read a part at a time when
+    something needs them: the survey (every part whose box is within the survey's reach + 1 mm of the station line, the
+    survey's own test), a part picked in 3D (its Keep clear row), Suggest extra clamps (parts within its mount reach of the
+    run, + half a sample step or 5 mm, + 1 mm). `CadSolids.step` takes `only` (instances) and numbers solids as a full read
+    does; built parts are kept per instance, in instance order. Checked on 8 copies (`tests/big-asm.js`): the survey of
+    route_343434 P1–P6 equals a full read's (parts, roles, gaps, faces), Check and Alternatives give the frame's results,
+    Suggest (max spacing 60 mm, 9 rows with mounts) equals a full read's, a far part picked in 3D offers Keep clear; 52 of
+    2 704 solids read. 663 MB: longest freeze after Open **14 s** (was 28.5), page heap **0.66 GB** (was 1.83); the
+    4.75 GB peak is now the worker while it reads.
 - Not done: reading only the parts near the route.
 
 ### Q5 — Show CSYS (DONE 2026-10-21, `js/asm-view.js`)

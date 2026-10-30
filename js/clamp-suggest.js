@@ -69,6 +69,8 @@ function run(){
   const P=parsePts($('pts').value),names=typeof ClampStations!=='undefined'?ClampStations.pointNames($('pts').value):[];
   const T=typeof clampStationsTicked==='function'?clampStationsTicked():[];
   const stations=P.map((c,i)=>{const x=T.find(s=>len(sub(s.c,c))<0.5);return{name:names[i]||`P${i+1}`,c:[c[0],c[1],c[2]],part:x?x.part:'',i};});
+  // a big assembly is read near the route only: the parts within reach of this run first
+  if(typeof bcEnsureNear==='function')bcEnsureNear(r.d.pts,+$('sgReach').value||60);
   const cad=typeof bcCad==='function'?bcCad():null;
   const solids=cad?cad.solids.map(so=>({name:so.name,pipe:so.pipe,faces:[]})):[];
   if(cad){const by=new Map(cad.solids.map((so,i)=>[so.sid,solids[i]]));cad.faces.forEach(f=>{const so=by.get(f.sid);if(so)so.faces.push(f);});}

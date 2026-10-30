@@ -164,4 +164,6 @@ Wording is provisional until the design pass; the buttons live in `js/next.js` (
    reads `frame_asm.stp` stops it and offers Undo; a tick clicked right after typing Hose Ø takes.
 5. `node tests/big-asm.js [copies=8]`: frame_asm.stp copied 8 times (167 MB, in the OS temp folder). The status after Open
    says the outlines are budgeted; with route_343434 P1–P6 typed, the parts at the stations are drawn in full and every part
-   3 m or more away as its box; Alternatives P1–P6 still gives the direct 679 mm route; no freeze of 30 s. About 2 minutes.
+   3 m or more away as its box; keep-clear parts are read near the route only, with the survey, Check, Suggest (max spacing
+   60 mm) and a far part's Keep clear row as with the whole assembly read; Alternatives P1–P6 still gives the direct 679 mm
+   route; no freeze of 30 s. About 3 minutes.
