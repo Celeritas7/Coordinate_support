@@ -24,9 +24,10 @@ check(src.length === cad.faces.length, `${cad.faces.length} face boxes, one per 
 let out = 0, nEx = 0, far = null;
 cad.faces.forEach((b, i) => { if (!b.shape || (b.shape.kind !== "plane" && b.shape.kind !== "cyl")) return; nEx++; const { M, f } = src[i];
   const old = { min: [Infinity, Infinity, Infinity], max: [-Infinity, -Infinity, -Infinity] }, grow = p => [0, 1, 2].forEach(k => { old.min[k] = Math.min(old.min[k], p[k]); old.max[k] = Math.max(old.max[k], p[k]); });
-  f.verts.forEach(v => grow(StepAsm.F.pt(M, v)));
-  f.edges.forEach(e => { const c = StepAsm.F.pt(M, e.ax.o), n = StepAsm.F.vec(M, e.ax.z); [0, 1, 2].forEach(k => { const s = e.r * Math.sqrt(Math.max(0, 1 - n[k] * n[k])); grow(c.map((v, j) => j === k ? v - s : v)); grow(c.map((v, j) => j === k ? v + s : v)); }); });
-  f.loops.forEach(l => l.forEach(q => { const p = StepAsm.F.pt(M, q), d = C.boxDist(p, b), e = C.boxDist(p, old); out = Math.max(out, d); if (!far || e > far.e) far = { e, p, b }; })); });
+  for (let i = 0; i < f.verts.length; i += 3) grow(StepAsm.F.pt(M, [f.verts[i], f.verts[i + 1], f.verts[i + 2]]));
+  // circular edges packed: 7 numbers each (centre, axis, radius)
+  [...Array(f.edges.length / 7)].map((_, i) => f.edges.subarray(7 * i, 7 * i + 7)).map(q => ({ ax: { o: [q[0], q[1], q[2]], z: [q[3], q[4], q[5]] }, r: q[6] })).forEach(e => { const c = StepAsm.F.pt(M, e.ax.o), n = StepAsm.F.vec(M, e.ax.z); [0, 1, 2].forEach(k => { const s = e.r * Math.sqrt(Math.max(0, 1 - n[k] * n[k])); grow(c.map((v, j) => j === k ? v - s : v)); grow(c.map((v, j) => j === k ? v + s : v)); }); });
+  f.loops.forEach(l => [...Array(l.length / 3)].map((_, i) => [l[3 * i], l[3 * i + 1], l[3 * i + 2]]).forEach(q => { const p = StepAsm.F.pt(M, q), d = C.boxDist(p, b), e = C.boxDist(p, old); out = Math.max(out, d); if (!far || e > far.e) far = { e, p, b }; })); });
 check(nEx > 10000 && out <= 0.05, `${nEx} exact faces: every boundary sample inside its face box (worst ${out.toFixed(3)} mm outside)`);
 // the face whose boundary lay farthest outside the old box, and a decoy box 8.7 mm from a point on it, tested first (one big
 // cell, in order): the face is then skipped unless its box reaches the point

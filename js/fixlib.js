@@ -56,15 +56,17 @@ const viewDir=d0=>[[1,1,1],[-1,1,1],[1,-1,1],[-1,-1,1]].map(norm).sort((a,b)=>Ma
 const bores=(r,inst)=>(r.holes||r.fixings).filter(x=>x.inst===inst);
 let GL=null;
 function gl(){if(GL!==null)return GL;try{const R=new THREE.WebGLRenderer({alpha:true,antialias:true,preserveDrawingBuffer:true});R.setPixelRatio(1);GL=R;}catch(e){GL=false;}return GL;}
+// a face loop from StepAsm (one Float64Array x, y, z, …) as points
+const pts3=L=>{const o=[];for(let i=0;i<L.length;i+=3)o.push([L[i],L[i+1],L[i+2]]);return o;};
 // triangles of one face in world coordinates, or null when the face kind is not drawn
 function faceMesh(f,M,P){const pt=p=>P.pt(M,p),vec=v=>P.vec(M,v);
   if(f.kind==='plane'&&f.ax&&f.loops.length){const o=pt(f.ax.o),ex=norm(vec(f.ax.x)),ey=norm(vec(f.ax.y));
-    const L=f.loops.map(lp=>{const q=lp.map(p=>{const w=sub(pt(p),o);return[dot(w,ex),dot(w,ey)];});let a=0;for(let i=0;i<q.length;i++){const j=(i+1)%q.length;a+=q[i][0]*q[j][1]-q[j][0]*q[i][1];}return{q,area:Math.abs(a)};}).sort((a,b)=>b.area-a.area);
+    const L=f.loops.map(lp=>{const q=pts3(lp).map(p=>{const w=sub(pt(p),o);return[dot(w,ex),dot(w,ey)];});let a=0;for(let i=0;i<q.length;i++){const j=(i+1)%q.length;a+=q[i][0]*q[j][1]-q[j][0]*q[i][1];}return{q,area:Math.abs(a)};}).sort((a,b)=>b.area-a.area);
     const shape=new THREE.Shape(L[0].q.map(v=>new THREE.Vector2(v[0],v[1])));L.slice(1).forEach(h=>shape.holes.push(new THREE.Path(h.q.map(v=>new THREE.Vector2(v[0],v[1])))));
     let g;try{g=new THREE.ShapeGeometry(shape);}catch(e){return null;}const pos=g.attributes.position;
     for(let i=0;i<pos.count;i++){const w=addv(o,addv(mul(ex,pos.getX(i)),mul(ey,pos.getY(i))));pos.setXYZ(i,w[0],w[1],w[2]);}g.computeVertexNormals();return g;}
   if(f.kind==='cylindrical'&&f.ax&&f.r>0&&f.loops.length){const o=pt(f.ax.o),z=norm(vec(f.ax.z)),ex=norm(vec(f.ax.x)),ey=cross(z,ex),TAU=Math.PI*2;
-    let t0=Infinity,t1=-Infinity;const ang=[];f.loops.forEach(lp=>lp.forEach(p=>{const w=sub(pt(p),o),t=dot(w,z);t0=Math.min(t0,t);t1=Math.max(t1,t);ang.push(((Math.atan2(dot(w,ey),dot(w,ex))%TAU)+TAU)%TAU);}));
+    let t0=Infinity,t1=-Infinity;const ang=[];f.loops.forEach(lp=>pts3(lp).forEach(p=>{const w=sub(pt(p),o),t=dot(w,z);t0=Math.min(t0,t);t1=Math.max(t1,t);ang.push(((Math.atan2(dot(w,ey),dot(w,ex))%TAU)+TAU)%TAU);}));
     if(!(t1-t0>1e-6))return null;ang.sort((a,b)=>a-b);let gap=ang[0]+TAU-ang[ang.length-1],th0=ang[0];for(let i=1;i<ang.length;i++){const d=ang[i]-ang[i-1];if(d>gap){gap=d;th0=ang[i];}}
     const full=gap<Math.PI/6,span=full?TAU:TAU-gap,a0=full?0:th0,N=Math.max(8,Math.ceil(span/TAU*48)),V=[],I=[];
     for(let i=0;i<=N;i++){const a=a0+span*i/N,rad=addv(mul(ex,f.r*Math.cos(a)),mul(ey,f.r*Math.sin(a)));[t0,t1].forEach(t=>{const w=addv(o,addv(rad,mul(z,t)));V.push(w[0],w[1],w[2]);});
