@@ -58,11 +58,11 @@
           <div><label for="csD">Hose Ø <span class="unit">mm</span></label><input id="csD" type="number" value="8" min="0.1" step="0.5" inputmode="decimal" placeholder="e.g. 12"></div>
         </div>
         <div class="status" id="statusCs"></div>
-        <details class="adv" id="cdBox"><summary id="cdSum">Keep clear of the parts near the route</summary>
-          <div class="fields c3" hidden><div><label for="cdD">Hose Ø <span class="unit">mm</span></label><input id="cdD" type="number" value="8" min="0.1" step="0.5" inputmode="decimal"></div></div>
+        <div id="cdHome"><details class="adv" id="cdBox"><summary id="cdSum">Keep clear of the parts near the route</summary>
+          <div class="fields c3" hidden><div><label for="cdD" id="cdDLbl">Hose Ø <span class="unit">mm</span></label><input id="cdD" type="number" value="8" min="0.1" step="0.5" inputmode="decimal"></div></div>
           <div class="status" id="statusCad"></div>
           <div id="cdParts" class="cdparts"></div>
-        </details>
+        </details></div>
         <div class="advblk"><div class="fields c3">
           <div><label for="csTol">Bore fit + <span class="unit">mm</span></label><input id="csTol" type="number" value="1.5" min="0" step="0.5" inputmode="decimal" title="A bore from Hose Ø − 0.2 to Hose Ø + this counts as fitting the hose (it cannot pass a smaller bore)."></div>
           <div><label for="cdReach">Look within <span class="unit">mm</span></label><input id="cdReach" type="number" value="60" min="10" step="10" inputmode="decimal" title="Parts this close to the station line are listed under Keep clear"></div>
@@ -106,6 +106,7 @@
       <div class="cardbody">
         <label class="chk spline-only"><input type="checkbox" id="cdPush">Push the route away from kept-clear parts</label>
         <p class="hint pushnote spline-only">Trial: works on face boxes; can force tighter bends.</p>
+        <div id="arcKeep"></div>
         <button class="go" id="runBend" type="button">Check route</button>
         <div class="status" id="statusBend" aria-live="polite"></div>
         <p class="hint" id="arcHint" hidden>In Creo: Curve through points, Single radius, the radius from the file header.</p>
@@ -126,7 +127,7 @@
           <div class="fields c3">
             <div><label for="r">Min R <span class="unit">mm</span></label><input id="r" type="number" value="65" min="1" step="1" inputmode="decimal"></div>
             <div><label for="sf">Margin <span class="unit">×</span></label><input id="sf" type="number" value="1.5" min="1" step="0.1" inputmode="decimal" title="Safety factor on the min radius"></div>
-            <div class="spline-only"><label for="cdGap">Gap <span class="unit">mm</span></label><input id="cdGap" type="number" value="4" min="0" step="0.5" inputmode="decimal" title="Keep-clear gap from the hose surface to the ticked parts"></div>
+            <div><label for="cdGap">Gap <span class="unit">mm</span></label><input id="cdGap" type="number" value="4" min="0" step="0.5" inputmode="decimal" title="Keep-clear gap from the hose (pipe) surface to the ticked parts"></div>
           </div>
           <div id="splineOpts">
             <div class="fields c3">
@@ -301,8 +302,12 @@
         <div><label for="thMin">Min straight <span class="unit">mm</span></label><input id="thMin" type="number" value="30" min="0" step="5" inputmode="decimal"></div>
         <div><label for="thMargin">Margin <span class="unit">mm</span></label><input id="thMargin" type="number" value="2" min="0" step="1" inputmode="decimal"></div>
       </div>
+      <div class="fields c3">
+        <div><label for="thGap">Gap to parts <span class="unit">mm</span></label><input id="thGap" type="number" value="4" min="0" step="0.5" inputmode="decimal" title="Keep-clear gap from the pipe surface to the ticked parts below"></div>
+      </div>
       <label class="chk" style="margin-top:-4px"><input type="checkbox" id="thDrop" checked>Drop detour corners <span class="unit">(bends over 120°, or a corner whose removal shortens the route by 15 % or more)</span></label>
-      <p class="hint">The pipe is re-routed so a straight runs along each ticked bore, covering it plus Margin at both sides. Both ends and end directions stay; existing corners move as little as possible, a corner is added only when needed. Min straight applies between bends. Other corners are kept: parts the pipe bends around are not read yet.</p>
+      <p class="hint">The pipe is re-routed so a straight runs along each ticked bore, covering it plus Margin at both sides. Both ends and end directions stay; existing corners move as little as possible, a corner is added only when needed. Min straight applies between bends. Other corners are kept. The new route is checked against the parts kept clear of (below), not steered round them yet.</p>
+      <div id="thKeep"></div>
       <button class="go" id="thRun" type="button">Route through ticked clamps</button>
       <div class="status" id="statusThrough"></div>
       <div id="thOut"></div>

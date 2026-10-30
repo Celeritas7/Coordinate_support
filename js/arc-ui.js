@@ -54,16 +54,21 @@ function arcRun(){
       $('statusBend').textContent=`No lines + arcs route holds R ${R} through these stations: ${res.reason}.`+(off.length?` Off the curve: ${off.join(', ')}.`:'')+' Move those stations apart, or lower Min radius to see how far it gets.';
       return;}
     const W=res.W.map(q=>q.map(v=>Math.round(v*1000)/1000));
-    const G=ArcRoute.build(W,res.R),d=ArcRoute.sample(G,10);
+    // with a parts file read: samples at most OD / 4 apart (as Through clamps), so a thin plate between two is not missed
+    const cad=typeof bcCad==='function'&&bcCad(),OD=Math.max(0.1,+$('cdD').value||8);
+    const G=ArcRoute.build(W,res.R),d=ArcRoute.sample(G,cad?Math.min(10,Math.max(2,OD/4)):10);
     const errs=P.map((p,k)=>{const w=[0,W.length-1];return ArcRoute.nearest(G,p,w[0],w[1]).d;}),err=Math.max(...errs);
     let wi=0;d.k.forEach((k,i)=>{if(k>d.k[wi])wi=i;});
     const len=d.s[d.s.length-1],Rtxt=+res.R.toFixed(2);
+    // gap to the kept-clear parts (bend-cad.js), as Check route does for a hose
+    const cx=typeof bcPipeCheck==='function'?bcPipeCheck({Q:W,d},P):null;
     dropCheckRuns();
-    addRun({fromCheck:true,Q:W,d,wi,minR:res.R,len,tidx:[],qLabel:arcLabels(res,names),stations:P.map((p,i)=>({p,name:names[i]})),
+    addRun({fromCheck:true,...(cx?bcRunFields(cx):{}),Q:W,d,wi,minR:res.R,len,tidx:[],qLabel:arcLabels(res,names),stations:P.map((p,i)=>({p,name:names[i]})),
       name:`Lines + arcs R${Rtxt}`,kind:'arc',kindLabel:'bend radius, lines + arcs',params:{R,SF},
-      settings:`${W.length} corner points, single radius ${Rtxt} mm, stations within ${err.toFixed(3)} mm${frameNote}`,
+      settings:`${W.length} corner points, single radius ${Rtxt} mm, stations within ${err.toFixed(3)} mm${cx?cx.note:''}${frameNote}`,
       text:arcPts({W,owner:res.owner},names,{R:Rtxt,Rlim:R,len,err})});
-    $('statusBend').textContent=`Added. One radius, R ${Rtxt} mm (${(res.R/R).toFixed(2)}x the limit), through all ${P.length} stations with ${W.length} points. Solved in ${ms} ms.`;
+    const done=`Added. One radius, R ${Rtxt} mm (${(res.R/R).toFixed(2)}x the limit), through all ${P.length} stations with ${W.length} points. Solved in ${ms} ms.`;
+    if(cx)bcVerdict($('statusBend'),cx,done);else $('statusBend').textContent=done;
   },20);
 }
 

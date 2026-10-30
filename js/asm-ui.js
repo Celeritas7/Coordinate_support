@@ -154,7 +154,7 @@ function thRender(){if(!ASM)return;const pi=thPipe(),p=ASM.r.pipes[pi];if(!p)ret
     return`<label class="chk thc"><input type="checkbox" data-k="${k}" ${TH.pick[k]&&!dis?'checked':''} ${dis?'disabled':''}><span><b>${esc(c.fix.name)}</b> <span class="unit">${c.lib?`<span title="${esc(c.lib.pattern)}">Library: ${esc(c.lib.type)}</span> · `:''}${meta} · ${why}${add}</span>${c.boreWarn?`<span class="thwarn">${c.boreWarn}: still used.</span>`:''}</span></label>`;}).join('')+
     `<p class="hint">Ticked: the pipe must run straight through. ${lib?`A part counts as a fixing when its name matches the ${libLink}; the bore range there is a check only.`:'Bores of another size, bolt holes and end fittings are left out.'}</p>`;
   thLibWire(box);
-  box.querySelectorAll('input[data-k]').forEach(el=>el.onchange=()=>{TH.pick[el.dataset.k]=el.checked;const r=asmBase(pi);if(r){r.clamps=asmClampViz(pi);rebuild(false);}});}
+  box.querySelectorAll('input[data-k]').forEach(el=>el.onchange=()=>{TH.pick[el.dataset.k]=el.checked;const r=asmBase(pi);if(r){r.clamps=asmClampViz(pi);rebuild(false);}thResurvey();});}
 
 // Library from the 3D view (asm-view.js): the picked part, or the part a picked CSYS's hole is in
 (window.AV_ACTIONS=window.AV_ACTIONS||[]).push((p,r)=>{if(typeof FixLib==='undefined')return[];
@@ -211,6 +211,13 @@ function cmpReport(){const C=TH.cmp;if(!C)return;const{res}=C,F=asmFrame(),xyz=q
   $('cmpBtns').hidden=false;$('cmpBtns').style.display='';}
 
 // ---- route through clamps ----
+// what the Keep clear list (bend-cad.js, mode 'through') surveys: the line is the routed pipe's corners once Route through
+// ticked clamps has run for this pipe, else the pipe's own; stations are its ends and the ticked clamps (their parts are the
+// clamps it runs through, not kept clear)
+function thSurvey(){if(!ASM||!ASM.r)return null;const pi=thPipe(),p=ASM.r.pipes[pi];if(!p||!p.Q||p.Q.length<2)return null;
+  const C=thClamps(pi).filter(c=>c.known&&TH.pick[pi+':'+c.i]&&!c.end&&!c.holds),R=TH.route&&TH.route.pi===pi&&TH.route.file===ASM.name?TH.route:null;
+  return{line:R?R.W:p.Q,stations:[p.Q[0],...C.map(c=>c.fix.c),p.Q[p.Q.length-1]],names:['start',...C.map(c=>c.fix.name),'end'],d:p.OD||8};}
+const thResurvey=()=>{if(typeof bcResurvey==='function')bcResurvey();};
 function thRun(){
   if(!ASM)return;const pi=thPipe(),p=ASM.r.pipes[pi],say=(m,bad)=>{$('statusThrough').textContent=m;$('statusThrough').style.color=bad?'var(--bad)':'';};
   const C=thClamps(pi).filter(c=>c.known&&TH.pick[pi+':'+c.i]&&!c.end&&!c.holds);
@@ -229,13 +236,16 @@ function thRun(){
     const extra=[`Through ${C.map((c,k)=>`${c.fix.name} (${c.fix.csys||'no CSYS'}, bore Ø${fmt(c.fix.D,2)})`).join(', ')}: centreline straight along each bore, at most ${Math.max(...rep.clamps.map(c=>c.maxOff)).toFixed(3)} mm off its axis.`,
       `Changed from ${ASM.name}: ${p.Q.length} → ${res.W.length} points, largest corner move ${fmt(Math.max(0,...rep.rows.map(x=>x.moved||0)),2)} mm${rep.removed.length?`, dropped corner${rep.removed.length>1?'s':''} ${rep.removed.map(i=>'#'+(i+1)).join(', ')} (detour)`:''}, ends and end directions kept.`];
     const old=asmBase(pi);if(old){old.visible=true;}
-    const run=addRun({Q:res.W,d,wi,minR:R,len:rep.length,tidx:[],qLabel,stations:[],parts:old?old.parts:[],cable:{d:p.OD,gap:0},
+    // gap to the kept-clear parts along the new route (bend-cad.js): surveyed along its corners, spans named by them
+    TH.route={pi,file:ASM.name,W:res.W};const cx=typeof bcPipeCheck==='function'?bcPipeCheck({Q:res.W,d},res.W):null;
+    const run=addRun({Q:res.W,d,wi,minR:R,len:rep.length,tidx:[],qLabel,stations:[],parts:old?old.parts:[],cable:{d:p.OD,gap:0},...(cx?bcRunFields(cx):{}),
       name:`${p.name} · through ${C.length>1?C.length+' clamps':C[0].fix.name}`,kind:'pipe',kindLabel:'pipe routed through clamps',params:{R,SF:1},
-      settings:`${res.W.length} corner points, single radius ${fmt(R,2)}, shortest straight ${Math.round(rep.minStraight)} mm (min ${minS}), margin ${margin} mm, through ${names}`,
+      settings:`${res.W.length} corner points, single radius ${fmt(R,2)}, shortest straight ${Math.round(rep.minStraight)} mm (min ${minS}), margin ${margin} mm, through ${names}${cx?cx.note:''}`,
       asm:{file:ASM.name,pi},through:true,clamps:asmClampViz(pi,okSet),hdr,hdrExtra:extra,text:''});
-    TH.last={run,rep,res,p,C};asmTexts();thReport();
+    TH.last={run,rep,res,p,C,cx};asmTexts();thReport();
     const warns=C.filter(c=>c.boreWarn).map(c=>`${c.fix.name}: ${c.boreWarn}`);
-    say(`Done: ${pipeShort(p.name)} now runs straight through ${C.length} clamp${C.length>1?'s':''} (${ms} ms). ${res.steps.map(s=>s.clamp?`${s.clamp}: ${s.how}`:s.how).join('; ')}.${warns.length?` Check: ${warns.join('; ')}.`:''}`,false);
+    const done=`Done: ${pipeShort(p.name)} now runs straight through ${C.length} clamp${C.length>1?'s':''} (${ms} ms). ${res.steps.map(s=>s.clamp?`${s.clamp}: ${s.how}`:s.how).join('; ')}.${warns.length?` Check: ${warns.join('; ')}.`:''}`;
+    if(cx)bcVerdict($('statusThrough'),cx,done);else say(done+(typeof bcCad==='function'&&!bcCad()?' Clearance to parts: open the assembly with its parts to check it.':''),false);
     if(typeof nextSteps==='function')nextSteps('statusThrough',[{label:'Download .pts',go:()=>$('thDl').click()},
       {label:'Compare with your .pts',title:'Pipe · Check .pts against pipe',go:()=>{if(typeof goTask==='function')goTask('pipe','asm');$('cmpOpen').click();}}]);
   },20);
@@ -248,12 +258,14 @@ function thReport(){const L=TH.last;if(!L)return;const{rep,res,p,C}=L,F=asmFrame
   $('thOut').innerHTML=`<table><thead><tr><th>#</th><th>was</th><th>moved</th><th>bend °</th><th></th></tr></thead><tbody>${rows}</tbody></table>${gone}
     <ul class="sum">${cl}<li>Ends: moved ${rep.endMove.toFixed(3)} mm, direction ${rep.endDirErr.toFixed(3)}°.</li>
     <li>Single radius ${fmt(L.run.params.R,2)}; ${rep.bends.length} bends; shortest straight between bends ${fmt(rep.minStraight,1)} mm; length ${Math.round(p.length)} → ${Math.round(rep.length)} mm.</li>
-    <li>Coordinates (${esc(F.name)} frame) are in the .pts below and in the Points pane; hover a row to see them. Clearance to other parts is not checked yet.</li></ul>`;
+    <li>Coordinates (${esc(F.name)} frame) are in the .pts below and in the Points pane; hover a row to see them.</li>
+    <li>${L.cx?`Clearance: gap ${fmt(L.cx.gapLimit!=null?L.cx.gapLimit:+$('thGap').value,1)} mm to ${L.cx.kept} kept-clear part${L.cx.kept===1?'':'s'}${L.cx.min?`, smallest gap ${fmt(L.cx.min.gap,1).replace('-','−')} mm`:''}; places in the Clearance tab. Parts are checked, not avoided: move a corner, or untick a part that is not in the way.`:'Clearance to parts: not checked (no parts read).'}</li></ul>`;
   $('thPts').value=L.run.text;['thCopy','thDl'].forEach(k=>$(k).disabled=false);}
 
 {const inp=$('asmfile');if(inp){inp.onchange=e=>{if(e.target.files[0])asmLoad(e.target.files[0]);e.target.value='';};}
   const ci=$('cmpfile');$('cmpOpen').onclick=()=>ci.click();ci.onchange=e=>{if(e.target.files[0]&&ASM)cmpLoad(e.target.files[0]);e.target.value='';};
-  $('thPipe').onchange=()=>{thRender();$('cmpOut').innerHTML='';$('cmpBtns').hidden=true;$('statusCmp').textContent='';TH.cmp=null;};
+  $('thGap').onchange=thResurvey;
+  $('thPipe').onchange=()=>{thRender();thResurvey();$('cmpOut').innerHTML='';$('cmpBtns').hidden=true;$('statusCmp').textContent='';TH.cmp=null;};
   $('thRun').onclick=thRun;$('thFrame').onchange=()=>{asmTexts();thReport();cmpReport();};
   const copy=async(btn,text,label)=>{try{await navigator.clipboard.writeText(text);btn.textContent='Copied';}catch(e){btn.textContent='Copy failed: use Download';}setTimeout(()=>btn.textContent=label,1600);};
   $('thCopy').onclick=()=>{const t=$('thPts');if(t.value)copy($('thCopy'),t.value,'Copy .pts');};

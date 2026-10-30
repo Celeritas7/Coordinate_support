@@ -23,6 +23,8 @@ function nav(){
     return`<button type="button" role="tab" data-task="${t.id}"${t.soon?' disabled':''} aria-selected="${on}" tabindex="${on?0:-1}">${t.label}${t.soon?`<small>${t.soon}</small>`:''}</button>`;}).join('');
   $('tasks').querySelectorAll('button[data-task]').forEach(b=>b.onclick=()=>go(st.mod,b.dataset.task));
   document.querySelectorAll('.modsw button').forEach(b=>b.tabIndex=b.dataset.mod===st.mod?0:-1);
+  // the task on show (bend-cad.js moves its Keep clear list into that task's panel)
+  document.dispatchEvent(new CustomEvent('task:changed',{detail:{mod:st.mod,task:st.task[st.mod]}}));
 }
 // module switch and task tabs: one tab stop each, ← / → move between them (and open the one reached)
 const arrows=(box,sel,pick)=>box.addEventListener('keydown',e=>{const d=e.key==='ArrowRight'?1:e.key==='ArrowLeft'?-1:0;if(!d)return;
