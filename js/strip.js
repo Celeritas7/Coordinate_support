@@ -17,17 +17,18 @@ const asmOpen=()=>typeof ASM!=='undefined'&&!!ASM&&!!ASM.r;
 // the example points the page starts with are not input: until points are typed, dropped or chosen (or kept from last
 // time), Load is the current card
 let typed=!!store.get('rs.pts');$('pts').addEventListener('input',()=>{typed=true;});
-const nInput=()=>typed||(typeof PRESETS!=='undefined'&&$('pts').value!==PRESETS.target)?parsePts($('pts').value).length:0;
+// nAll: the points in the box (parsed once per update); nInput: those that count as input
+const nInput=nAll=>typed||(typeof PRESETS!=='undefined'&&$('pts').value!==PRESETS.target)?nAll:0;
 // the current card: Load until an assembly is open (or points are typed), Stations until 2 are ticked, then Route
-function current(){const nList=$('csList').querySelectorAll('.csrow').length,nTick=typeof clampStationsTicked==='function'?clampStationsTicked().length:0,
-    nPts=nInput();
-  if($('shape').value==='arc')return parsePts($('pts').value).length>=2?3:2;
+function current(nAll){const nList=$('csList').querySelectorAll('.csrow').length,nTick=typeof clampStationsTicked==='function'?clampStationsTicked().length:0,
+    nPts=nInput(nAll);
+  if($('shape').value==='arc')return nAll>=2?3:2;
   if(!asmOpen()&&nPts<2)return 1;
   if(nList&&nTick<2&&!(nTick===0&&nPts>=2))return 2;
   return nList||nPts>=2?3:2;}
-function update(){values();const arc=$('shape').value==='arc',cur=current(),short=innerHeight<900;
+function update(){values();const nAll=parsePts($('pts').value).length,arc=$('shape').value==='arc',cur=current(nAll),short=innerHeight<900;
   if(arc)$('ptsBox').open=true;   // Pipe · Route through points: the points are the input
-  const nList=$('csList').querySelectorAll('.csrow').length,T=typeof clampStationsTicked==='function'?clampStationsTicked():[],nPts=nInput(),nAll=parsePts($('pts').value).length;
+  const nList=$('csList').querySelectorAll('.csrow').length,T=typeof clampStationsTicked==='function'?clampStationsTicked():[],nPts=nInput(nAll);
   const kept=$('cdParts').querySelectorAll('input[type=checkbox]:checked').length,listed=$('cdParts').querySelectorAll('input[type=checkbox]').length;
   $('loadEmpty').hidden=asmOpen();
   $('csBox').classList.toggle('empty',!nList);
@@ -44,11 +45,13 @@ function update(){values();const arc=$('shape').value==='arc',cur=current(),shor
 // a heading opens or folds its card (Enter / Space on the button too)
 cards.forEach((c,i)=>c.querySelector('.cardsum').onclick=()=>{const n=i+1,f=c.classList.contains('fold');
   if(f){opened.add(n);shut.delete(n);}else{shut.add(n);opened.delete(n);}update();});
+// one station render fires cs:changed, the list observer and input events: those ask for one update in the next frame
+let pend=0;const later=()=>{if(!pend)pend=requestAnimationFrame(()=>{pend=0;update();});};
 $('loadOpen').onclick=()=>$('shFile').click();
-['input','change'].forEach(t=>pan.addEventListener(t,update));
-['cs:changed','asm:loaded','asm:removed'].forEach(t=>document.addEventListener(t,()=>setTimeout(update,0)));
+['input','change'].forEach(t=>pan.addEventListener(t,later));
+['cs:changed','asm:loaded','asm:removed'].forEach(t=>document.addEventListener(t,later));
 // the parts list, the runs and the verdict are written by their own panels: follow them
-const mo=new MutationObserver(()=>update());['cdParts','runlist','csList'].forEach(id=>mo.observe($(id),{childList:true,subtree:true,attributes:true,attributeFilter:['checked']}));
-$('shape').addEventListener('change',update);addEventListener('resize',update);
+const mo=new MutationObserver(later);['cdParts','runlist','csList'].forEach(id=>mo.observe($(id),{childList:true,subtree:true,attributes:true,attributeFilter:['checked']}));
+$('shape').addEventListener('change',later);addEventListener('resize',later);
 update();
 }

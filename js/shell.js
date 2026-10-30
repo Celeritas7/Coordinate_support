@@ -77,12 +77,15 @@ $('shTheme').onclick=()=>{const t=dark()?'light':'dark';document.documentElement
 const say=m=>{const e=$('shStatus');e.textContent=m;e.classList.add('on');};
 const isAsm=t=>/PRODUCT_DEFINITION\s*\(/.test(t)&&/MANIFOLD_SOLID_BREP|BREP_WITH_VOIDS/.test(t);
 let masterSet=false;
+// an open still sniffing its files (Remove stops it: openSeq moves on and the open drops what it read)
+let openSeq=0,opening=null;
 async function open(list){
   const files=[...list];if(!files.length)return;say(`Reading ${files.length>1?`${files.length} files`:files[0].name}…`);
   // what each file is, from its text; a big STEP is only sampled (first and last 8 MB): reading it whole would fail past the
   // 537 M-character string limit, and the assembly reader reads it in pieces anyway
   const BIG=64e6,sniff=f=>f.size>BIG&&/\.(stp|step)$/i.test(f.name)?Promise.all([f.slice(0,8e6).text(),f.slice(Math.max(0,f.size-8e6)).text()]).then(a=>({big:true,t:a.join('\n')})):f.text().then(t=>({big:false,t}));
-  const got=await Promise.all(files.map(sniff)),texts=got.map(g=>g.t);
+  const my=++openSeq;opening=files.map(f=>f.name).join(', ');
+  const got=await Promise.all(files.map(sniff)),texts=got.map(g=>g.t);if(my!==openSeq)return;opening=null;
   // assembly (product tree + solids): opened once, for every panel (see openAssembly)
   const ai=files.findIndex((f,i)=>/\.(stp|step)$/i.test(f.name)&&(isAsm(texts[i])||got[i].big&&/PRODUCT_DEFINITION\s*\(/.test(texts[i])));
   // the others are named in the final "Opened in …" line (the reading progress overwrites anything said before it)
@@ -137,8 +140,14 @@ document.addEventListener('cs:changed',()=>{if(typeof ASM!=='undefined'&&ASM&&AS
 function showAsm(a){const on=!!(a&&a.r);$('shAsmTxt').classList.toggle('unit',!on);$('shAsmTxt').innerHTML=on?asmLine(a):'No assembly open.';$('shAsmAct').hidden=!on;}
 let undoT=0;
 $('shChange').onclick=()=>$('shFile').click();
-$('shRemove').onclick=()=>{const parts=typeof bcName==='function'&&typeof ASM!=='undefined'&&ASM&&bcName()===ASM.name,a=typeof asmRemove==='function'?asmRemove():null;if(!a)return;showAsm(null);clearTimeout(undoT);
-  const el=$('shStatus');el.classList.add('on');el.innerHTML=`Removed ${esc(a.name)}. <button type="button" class="linkish" id="shUndo">Undo</button>`;$('shUndo').focus();
+// Remove while another file is being read (Change…): the read stops (its Open listeners go too) and the one on the line goes
+$('shRemove').onclick=()=>{const bn=typeof bcName==='function'?bcName():null,x=typeof asmRemove==='function'?asmRemove():null;if(!x)return;
+  if(x.stopped&&asmPend)asmPend();
+  if(opening){x.stopped=x.stopped||opening;openSeq++;opening=null;}
+  const a=x.a,parts=!!a&&bn===a.name;showAsm(null);clearTimeout(undoT);
+  const el=$('shStatus');el.classList.add('on');el.title='';
+  if(!a){el.textContent=`Stopped reading ${x.stopped}.`;return;}
+  el.innerHTML=`Removed ${esc(a.name)}${x.stopped?` (stopped reading ${esc(x.stopped)})`:''}. <button type="button" class="linkish" id="shUndo">Undo</button>`;$('shUndo').focus();
   $('shUndo').onclick=()=>{clearTimeout(undoT);if(typeof ASM!=='undefined'&&ASM)return say('Another assembly is open; nothing to undo.');
     document.addEventListener('asm:loaded',e=>{if(e.detail&&e.detail.name===a.name&&typeof bcFromAsm==='function'&&parts)bcFromAsm(e.detail);showAsm(e.detail);},{once:true});
     asmRestore(a);say(`${a.name} is back.`);$('shChange').focus();};

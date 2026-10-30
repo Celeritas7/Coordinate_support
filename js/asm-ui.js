@@ -77,6 +77,8 @@ function asmTexts(){const F=asmFrame();
 // parse (again) with the saved overrides and replace this file's runs. The parse runs in a Web Worker (StepAsm.parseAsync)
 // so the page stays live on a big file; a newer read replaces an older one still running.
 let asmSeq=0;
+// the assembly on the line while another is being read (Change…): what Remove takes away, and Undo puts back
+let asmPrev=null;
 // while reading: one line ("Reading frame_asm.stp, 20.3 MB: parts 59 %") and a 2 px bar under the Pipe status and the header
 // status; f = null removes the bars. The stage "reading the file" has no %, "parts" has
 function asmProgress(line,f){['statusPipe','shStatus'].forEach(id=>{const el=$(id);if(!el)return;let b=el.nextElementSibling;
@@ -94,7 +96,7 @@ function asmApply(note){
       document.dispatchEvent(new CustomEvent('asm:failed',{detail:{name:A.name,message:e.message}}));}});
 }
 function asmApplied(r,note,t0){
-  ASM.r=r;TH.pick={};TH.last=null;TH.cmp=null;const ms=Math.round(performance.now()-t0),s=r.summary,parts=r.instances.filter(i=>i.solids).length;
+  ASM.r=r;asmPrev=null;TH.pick={};TH.last=null;TH.cmp=null;const ms=Math.round(performance.now()-t0),s=r.summary,parts=r.instances.filter(i=>i.solids).length;
   ASM.secs=ms/1000;
   runs=runs.filter(x=>!(x.asm&&x.asm.file===ASM.name));
   const nOv=Object.keys(ASM.ov).length,tree=`${parts} part${parts===1?'':'s'} with solids (${s.solids} solid${s.solids===1?'':'s'}), ${s.csys} coordinate systems${nOv?`, ${nOv} part${nOv>1?'s':''} marked by hand`:''}`;
@@ -109,11 +111,14 @@ function asmApplied(r,note,t0){
 }
 // Remove (shell.js): unload the open assembly, keeping its parse for Undo; asmRestore puts the same one back (no re-read).
 // Runs made from it stay. Panels drop what came from it on asm:removed and rebuild on the asm:loaded Undo sends.
-function asmRemove(){if(!ASM)return null;const a=ASM;ASM=null;asmSeq++;asmProgress('',null);thSetup();cadSay('statusPipe','');
-  document.dispatchEvent(new CustomEvent('asm:removed',{detail:a}));return a.r?a:null;}
+// During a read (Change…) the read stops and the assembly still on the line goes. Returns {a: the one Undo puts back, or
+// null, stopped: the name of the file whose read was stopped, or null}; null when nothing is open
+function asmRemove(){if(!ASM)return null;const cur=ASM,a=cur.r?cur:asmPrev;ASM=null;asmPrev=null;asmSeq++;asmProgress('',null);thSetup();cadSay('statusPipe','');
+  document.dispatchEvent(new CustomEvent('asm:removed',{detail:a||cur}));return{a,stopped:cur.r?null:cur.name};}
 function asmRestore(a){if(!a||!a.r)return;ASM=a;thSetup();setTimeout(()=>document.dispatchEvent(new CustomEvent('asm:loaded',{detail:ASM})),0);}
 function asmLoad(file){
   asmProgress(`Reading ${file.name}, ${(file.size/1e6).toFixed(1)} MB: reading the file`,0);
+  if(ASM)asmPrev=ASM.r?ASM:asmPrev;
   ASM={name:file.name,file,ov:AsmTree.load(file.name),r:null};$('asmParts').open=false;asmApply();
 }
 function asmTree(){if(!ASM||!ASM.r)return;const n=new Set(ASM.r.instances.filter(i=>i.solids).map(i=>i.pd)).size;$('asmPartsN').textContent=`(${n} different)`;

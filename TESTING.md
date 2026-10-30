@@ -160,3 +160,5 @@ Wording is provisional until the design pass; the buttons live in `js/next.js` (
    (P1–P6, P5–P10, P11–P16); Check reads Clear on P1–P6 and P5–P10; unticked parts within the gap are listed muted,
    "not counted"; fitting 991980 at P1 is not listed.
 3. At 1366 × 768 the Load card folds once an assembly is open but keeps Hose Ø.
+4. `node tests/stations-ui.js`: a hand-made order survives a later 3D click and an armed click's Undo; Remove while Change…
+   reads `frame_asm.stp` stops it and offers Undo; a tick clicked right after typing Hose Ø takes.
