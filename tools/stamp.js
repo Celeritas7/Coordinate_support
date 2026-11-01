@@ -6,7 +6,10 @@
 "use strict";
 const fs = require("fs"), path = require("path"), crypto = require("crypto");
 const ROOT = path.join(__dirname, ".."), PAGES = ["index.html", "inspector.html"];
-const sha = b => crypto.createHash("sha1").update(b).digest("hex").slice(0, 8);
+// line endings normalised to LF first: git on Windows checks text out with CRLF (core.autocrlf), the repo and Pages have LF,
+// and the tag must be the same on every machine (binary files, e.g. fonts, are taken as they are)
+const lf = b => Buffer.isBuffer(b) && b.includes(0) ? b : Buffer.from(String(b).replace(/\r\n/g, "\n"));
+const sha = b => crypto.createHash("sha1").update(lf(b)).digest("hex").slice(0, 8);
 // src="js/x.js" or src="js/x.js?v=…", href="css/x.css…": local files only (no http, no //)
 const TAG = /(\b(?:src|href)=")((?!https?:|\/\/)[^"?#]+\.(?:js|css))(?:\?v=[0-9a-f]*)?(")/g;
 function stamp(html) { return html.replace(TAG, (m, a, f, z) => { const p = path.join(ROOT, f); return fs.existsSync(p) ? `${a}${f}?v=${sha(fs.readFileSync(p))}${z}` : m; }); }
@@ -24,10 +27,10 @@ function run(check) {
     if (now !== was) { stale.push(page); if (!check) fs.writeFileSync(file, now); }
   }
   const vj = path.join(ROOT, "version.json"), want = JSON.stringify({ build: out.build }) + "\n";
-  if (!fs.existsSync(vj) || fs.readFileSync(vj, "utf8") !== want) { stale.push("version.json"); if (!check) fs.writeFileSync(vj, want); }
+  if (!fs.existsSync(vj) || fs.readFileSync(vj, "utf8").replace(/\r\n/g, "\n") !== want) { stale.push("version.json"); if (!check) fs.writeFileSync(vj, want); }
   return { build: out.build, stale };
 }
-module.exports = { run, stamp, build };
+module.exports = { run, stamp, build, sha };
 if (require.main === module) {
   const check = process.argv.includes("--check"), r = run(check);
   console.log(r.stale.length ? `${check ? "stale" : "stamped"}: ${r.stale.join(", ")} (build ${r.build})` : `up to date (build ${r.build})`);
