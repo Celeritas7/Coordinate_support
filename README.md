@@ -3,7 +3,8 @@
 Hose and cable routing checks for Creo: bend radius on one route, clearance between two, bundles of cables through shared clamps, analysis of existing .pts files, local point refinement.
 
 ## Files
-- index.html - the app (markup only)
+- index.html - the app (markup only). Its scripts and stylesheets carry version tags (`?v=<hash>`) and `<meta name="app-build">`
+- tools/stamp.js + version.json - **run `node tools/stamp.js` after changing any js / css file, and commit what it changes** (`tests/stamp.test.js` fails otherwise). It tags every local script and stylesheet with a hash of its content, so a reload never runs an old copy (GitHub Pages lets a browser keep files 10 minutes), and writes the build to version.json; the page checks version.json past the cache when it opens or comes back into view and offers "A newer version of Route Studio is out · Reload"
 - css/route-studio.css - styles, light and dark theme
   - `--axis-x` / `--axis-y` / `--axis-z` (#E03131 / #2F9E44 / #1971C2, same in both themes) are an intentional addition to the palette: the CSYS X / Y / Z arrows in 3D and the axis letters in the pick panel. Picked parts and the picked CSYS ring use `--ink`, so they never read as Alternative A1 (`--alt1`).
 - js/route-studio.js - geometry, optimiser, 3D view, bend / clearance / bundle tabs

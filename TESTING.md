@@ -202,3 +202,13 @@ clamp CLAMP_1 on it with a CSYS, BLOCK_1 3 mm into its middle straight, PIPE_B Ã
    frame_asm.stp (clean routes about 679 / 931 / 1141 mm; STEP exact gap âˆ’0.41 mm = IGES).
 On the real files (not run here: no samples in that session): piping3 Through clamps on pipe 111 and frame_asm.stp Route
 through points with route_343434's stations should list the frame parts as on Hose, and the clamps as not counted.
+
+## 15. Version tags (GitHub Pages cache)
+
+1. `node tests/stamp.test.js` (no browser): every local script / stylesheet in index.html and inspector.html has
+   `?v=<first 8 hex of its SHA-1>`, and index.html's `app-build` = version.json. After a js / css change it fails, naming
+   the file: run `node tools/stamp.js` and commit.
+2. `node tests/version-ui.js` (Chromium): with version.json = the page's build, no notice; with a newer build on the
+   server, "A newer version of Route Studio is out. Reload" shows; Reload loads the page again.
+3. On Pages after a merge: F5 loads the new scripts at once (new tags); a page opened from a bookmark within 10 minutes of
+   the merge may be the old one, and then shows the notice within about 3 s.

@@ -169,3 +169,12 @@ addEventListener('drop',e=>{depth=0;document.body.classList.remove('dropping');i
 
 go(st.mod,st.task[st.mod]);
 }
+// A newer build on the server: GitHub Pages lets a browser keep each file up to 10 minutes, and a bookmark can open the
+// old page without asking. tools/stamp.js writes the build into <meta name="app-build"> and version.json; version.json is
+// fetched past the cache when the page opens and when it comes back into view, and a newer build offers a reload (never
+// automatic: an open assembly would be lost). Not on file:// (no server to ask).
+{const mine=(document.querySelector('meta[name="app-build"]')||{}).content;let last=0;
+  const check=()=>{if(!mine||location.protocol==='file:'||Date.now()-last<60000)return;last=Date.now();
+    fetch('version.json?t='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.json():null).then(v=>{if(v&&v.build&&v.build!==mine)$('shNew').hidden=false;}).catch(()=>{});};
+  $('shNewGo').onclick=()=>location.reload();
+  setTimeout(check,3000);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')check();});}
