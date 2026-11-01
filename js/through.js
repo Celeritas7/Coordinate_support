@@ -4,6 +4,8 @@
  * one straight lies on the bore axis and covers the whole bore plus a margin each side.
  * Objective: move the existing corners as little as possible. An added corner costs as much as moving one by
  * addCost mm. Clamps the pipe already passes through are kept.
+ * Avoid (opt.avoid): after the clamps, each place the route comes closer than the gap to a kept-clear part is fixed by
+ * moving the corners near it, or by adding corners that go round it (two corners on one side, or one), clamps held.
  * No DOM. Needs ArcRoute (arcroute.js). Browser: window.Through. Node: require('./through.js').
  */
 (function (root) {
@@ -40,8 +42,16 @@ function residuals(V,W,o,wc){
     const tP=j>0?G.corners[j].t:0,tQ=j+1<m?G.corners[j+1].t:0;
     const uP=dot(sub(W[j],c.c),d)+tP,uQ=dot(sub(W[j+1],c.c),d)-tQ;
     r.push(wc*Math.max(0,uP+c.h+o.safe),wc*Math.max(0,c.h+o.safe-uQ));});
+  if(o.clr)clrSamples(G,o.clr).forEach(p=>r.push(o.clr.box&&!nearBox(p,o.clr.box)?0:wc*o.clr.w*Math.max(0,o.clr.need+0.3-o.clr.gap(p))));
   return r;
 }
+// a fixed number of samples (the residual count must not change during a fit): K[j] on straight j, 4 on each bend after it
+function clrSamples(G,c){const out=[];
+  for(let j=0;j<G.m;j++){const l=G.lines[j],K=c.K[j]||0;for(let i=0;i<K;i++)out.push(add(l.P,mul(sub(l.Q,l.P),(i+0.5)/K)));
+    const cn=G.corners[j+1];if(j+1<G.m&&(c.K[j]||c.K[j+1]))for(let i=1;i<=4;i++){if(!cn||!cn.th){out.push(l.Q);continue;}const f=cn.th*i/5;
+      out.push(add(cn.C,add(mul(cn.a,cn.R*Math.cos(f)),mul(cn.b,cn.R*Math.sin(f)))));}}
+  return out;}
+const nearBox=(p,b)=>p[0]>=b.min[0]&&p[0]<=b.max[0]&&p[1]>=b.min[1]&&p[1]<=b.max[1]&&p[2]>=b.min[2]&&p[2]<=b.max[2];
 function lm(V,o,wc,iters){
   const F=x=>residuals(V,unpack(V,x),o,wc),ss=r=>r.reduce((s,v)=>s+v*v,0);
   let x=pack(V),r=F(x),f=ss(r),lam=1e-3;const n=x.length,h=1e-5;
@@ -119,8 +129,9 @@ function solve(W0,opt){
       return{ok:false,reason:`no route through ${o.clamps[k].name}`+(near?`: ${near.bad.slice(0,3).join('; ')}`:''),steps,tried};}
     V=best.V;done.push(k);steps.push({clamp:o.clamps[k].name,how:best.cs.max<1e-3?best.how.replace(/moved onto/,'already on'):best.how,maxMove:best.cs.max,added:best.cs.added});}
   if(o.dropDetours)V=dropDetours(V,o,done,steps);
+  let left=null;if(o.avoid){const a=avoid(V,o,done,steps);V=a.V;left=a.left;}
   const W=V.map(v=>v.p.map(x=>Math.round(x*1000)/1000));
-  return{ok:true,W,R:o.R,steps,report:report(W0,V,W,o)};
+  return{ok:true,W,R:o.R,steps,report:report(W0,V,W,o),left};
 }
 // "Drop detour corners": remove an original corner that turns over 120° or whose removal shortens the polyline by 15 % or more,
 // re-fit with every routed clamp held, keep the removal only if all checks still pass. Largest detour first, repeat.
@@ -132,9 +143,75 @@ function dropDetours(V,o,done,steps){
       const th=G.corners[j]?G.corners[j].th*DEG:0,save=len(sub(W[j],W[j-1]))+len(sub(W[j+1],W[j]))-len(sub(W[j+1],W[j-1]));
       if(th>120||save>=0.15*plen)c.push({j,th,save,score:th+save});}
     c.sort((a,b)=>b.score-a.score);let took=null;
-    for(const d of c){const Vn=cloneV(V);Vn.splice(d.j,1);if(!fitActive(Vn,o,done).length){took={Vn,d};break;}}
+    // with parts kept clear: a corner that keeps the route off a part stays (dropping it must not add a clash)
+    const before=o.avoid?badness(clashes(W,o)):0;
+    for(const d of c){const Vn=cloneV(V);Vn.splice(d.j,1);if(!fitActive(Vn,o,done).length&&(!o.avoid||badness(clashes(Vn.map(v=>v.p),o))<=before+1e-6)){took={Vn,d};break;}}
     if(!took)break;V=took.Vn;steps.push({how:`detour corner ${took.d.j+1} dropped (${took.d.th.toFixed(1)}° bend, ${Math.round(took.d.save)} mm shorter)`});}
   return V;}
+// ---- keep clear of parts (opt.avoid) ----
+// opt.avoid: {need: gap to keep (mm, pipe surface to part), gap(p): surface gap at a centreline point (OD counted; large when
+// nothing is near), local(pts): {gap(p) for the parts near these points only (fast), box: the box of the faces causing it,
+// name}, step: sample spacing (mm)}
+// places closer than need, worst first: {g: smallest gap, p: there, pts: the samples, j: the straight nearest p}
+function clashes(W,o){const G=AR.build(W,o.R),S=AR.sample(G,o.avoid.step||3),out=[],need=o.avoid.need-0.05;let run=null;
+  S.pts.forEach(p=>{const g=o.avoid.gap(p);if(g<need){if(!run)run={g,p,pts:[]};run.pts.push(p);if(g<run.g){run.g=g;run.p=p;}}else if(run){out.push(run);run=null;}});
+  if(run)out.push(run);
+  out.forEach(c=>{let bj=0,bd=Infinity;for(let j=0;j+1<W.length;j++){const d=segDist(c.p,W[j],W[j+1]);if(d<bd){bd=d;bj=j;}}c.j=bj;c.len=c.pts.length*(o.avoid.step||3);});
+  return out.sort((a,b)=>a.g-b.g);}
+const badness=C=>C.reduce((s,c)=>s+(1+c.len/10)*(1+Math.max(0,-c.g)),0);
+const routeLen=(V,o)=>{const W=V.map(v=>v.p),G=AR.build(W,o.R);let L=0;G.lines.forEach(l=>L+=l.gap);G.corners.forEach(c=>{if(c&&c.th)L+=c.th*c.R;});return L;};
+const sideName=n=>{let k=0;for(let i=1;i<3;i++)if(Math.abs(n[i])>Math.abs(n[k]))k=i;return(n[k]>0?'+':'-')+'XYZ'[k];};
+// ways round one clash: move the corners near it; or add two corners (one side of the box) or one (a tent) on its straight
+function detours(V,c,o,loc){const W=V.map(v=>v.p),m=W.length-1,j=c.j,out=[{V:cloneV(V),how:'corners near it moved',added:0}];
+  if(j<1||j>m-2||!loc.box)return out;   // never between an end and its direction corner
+  const a=W[j],t=norm(sub(W[j+1],a)),L=len(sub(W[j+1],a)),b=loc.box,cs=[];for(let k=0;k<8;k++)cs.push([k&1?b.max[0]:b.min[0],k&2?b.max[1]:b.min[1],k&4?b.max[2]:b.min[2]]);
+  const ctr=mul(add(b.min,b.max),0.5),cp=add(a,mul(t,Math.max(0,Math.min(L,dot(sub(ctr,a),t)))));
+  let u=sub(cp,ctr);u=sub(u,mul(t,dot(u,t)));if(len(u)<1e-6)u=Math.abs(t[2])<0.9?[0,0,1]:[1,0,0];u=norm(sub(u,mul(t,dot(u,t))));const v=norm([t[1]*u[2]-t[2]*u[1],t[2]*u[0]-t[0]*u[2],t[0]*u[1]-t[1]*u[0]]);
+  const rad=o.avoid.rad||0,clear=rad+o.avoid.need+2,along=cs.map(q=>dot(sub(q,a),t)),lo=Math.min(...along),hi=Math.max(...along);
+  // a clamp on this straight keeps its part of it: an added corner on the bore axis, on the clamp's side, ends that part
+  const shared=V[j].ks.filter(k=>V[j+1].ks.includes(k));let room=[L*0.05,L*0.95],inl=null;
+  if(shared.length){const c=o.clamps[shared[0]],uc=dot(sub(c.c,a),t);
+    if(uc<lo){const ue=uc+c.h+o.R+2;if(ue>=lo)return out;inl={at:'start',u:ue};room[0]=ue+o.R;}
+    else if(uc>hi){const ue=uc-c.h-o.R-2;if(ue<=hi)return out;inl={at:'end',u:ue};room[1]=ue-o.R;}
+    else return out;}
+  for(const n of[u,mul(u,-1),v,mul(v,-1)]){const h=Math.max(...cs.map(q=>dot(sub(q,a),n)))+clear;if(h<=0||h>600)continue;
+    const fr=x=>Math.max(room[0],Math.min(room[1],x)),pa=fr(lo-o.R-clear),pb=fr(hi+o.R+clear);
+    const nv=p=>({kind:'free',p,anchor:null,init:p,ks:[]}),ins=list=>{const Vn=cloneV(V);let L2=list;
+      if(inl){const p=add(a,mul(t,inl.u)),E={kind:'axis',o:a,d:t,p,anchor:null,init:p,ks:shared.slice()};
+        if(inl.at==='start'){L2=[E,...list];Vn[j+1].ks=Vn[j+1].ks.filter(k=>!shared.includes(k));}
+        else{L2=[...list,E];Vn[j].ks=Vn[j].ks.filter(k=>!shared.includes(k));}}
+      Vn.splice(j+1,0,...L2);return Vn;};
+    const extra=inl?1:0;
+    if(pb-pa>2*o.R)out.push({V:ins([nv(add(add(a,mul(t,pa)),mul(n,h))),nv(add(add(a,mul(t,pb)),mul(n,h)))]),how:`${2+extra} corners added, round its ${sideName(n)} side`,added:2+extra,side:sideName(n)});
+    const mid=(lo+hi)/2,H=Math.max(...cs.map((q,i)=>{const y=dot(sub(q,a),n)+clear,x=along[i];return x<=mid?y*mid/Math.max(x,1):y*(L-mid)/Math.max(L-x,1);}));
+    if(H>0&&H<800&&mid>room[0]&&mid<room[1])out.push({V:ins([nv(add(add(a,mul(t,mid)),mul(n,H)))]),how:`${extra?'2 corners':'one corner'} added, round its ${sideName(n)} side`,added:1+extra,side:sideName(n)});}
+  return out;}
+// fit one candidate: only the corners near the clash move (j-1 … j+2 and the added ones); the rest are held
+function fitLocal(V,o,done,c,loc,added){const m=V.length-1,lo=Math.max(1,c.j-1),hi=Math.min(m-1,c.j+2+added);
+  const Vl=V.map((v,i)=>i<lo||i>hi?{...v,kind:'fixed',ks:v.ks.slice()}:v);
+  const G0=AR.build(Vl.map(v=>v.p),o.R),K=G0.lines.map((l,j)=>j>=lo-1&&j<=hi?Math.max(2,Math.ceil(len(sub(l.Q,l.P))/(o.avoid.step*2||6))):0);
+  const pad=(o.avoid.rad||0)+o.avoid.need+5,box=loc.box?{min:loc.box.min.map(x=>x-pad-200),max:loc.box.max.map(x=>x+pad+200)}:null;
+  const oc={...o,clr:{gap:loc.gap,need:o.avoid.need,K,w:1,box}},map=[],cl=[];o.clamps.forEach((cc,i)=>{if(done.includes(i)){map[i]=cl.length;cl.push(cc);}});
+  const Vm=Vl.map(v=>({...v,ks:v.ks.filter(k=>done.includes(k)).map(k=>map[k])}));oc.clamps=cl;
+  for(const wc of[1,30,1e3,3e4])lm(Vm,oc,wc,25);
+  Vm.forEach((v,i)=>V[i].p=v.p);
+  const bad=check(V.map((v,i)=>({...v,ks:v.ks.filter(k=>done.includes(k)).map(k=>map[k])})),{...o,clamps:cl});return bad;}
+// each clash in turn, worst first: the candidate that clears it, adds no worse clash and is shortest (moving the corners is
+// taken at once when it works: it adds nothing). Gives up on a clash nothing clears; at most budget ms in all
+function avoid(V,o,done,steps){let C=clashes(V.map(v=>v.p),o);const tried=new Set(),t0=Date.now(),budget=o.avoid.budget||15000;
+  for(let guard=0;guard<8&&C.length&&Date.now()-t0<budget;guard++){
+    const c=C.find(x=>!tried.has(Math.round(x.p[0])+','+Math.round(x.p[1])+','+Math.round(x.p[2])));if(!c)break;
+    tried.add(Math.round(c.p[0])+','+Math.round(c.p[1])+','+Math.round(c.p[2]));
+    const loc=o.avoid.local(c.pts),b0=badness(C),L0=routeLen(V,o);let best=null;
+    for(const d of detours(V,c,o,loc)){const bad=fitLocal(d.V,o,done,c,loc,d.added);if(bad.length)continue;
+      const Cn=clashes(d.V.map(v=>v.p),o),still=Cn.some(x=>x.pts.some(p=>len(sub(p,c.p))<o.avoid.need+(o.avoid.rad||0)+20)),bn=badness(Cn);
+      if(still||bn>=b0-1e-6)continue;
+      const score=routeLen(d.V,o)-L0+o.addCost*d.added;if(!best||score<best.score)best={...d,Cn,score};
+      if(!d.added||Date.now()-t0>budget)break;}
+    if(!best)continue;
+    const dL=Math.round(routeLen(best.V,o)-L0);V=best.V;C=best.Cn;tried.clear();
+    steps.push({how:`${loc.name?`kept clear of ${loc.name}`:'kept clear of a part'}: ${best.how} (${dL>0?`${dL} mm longer`:dL<0?`${-dL} mm shorter`:'same length'})`,avoid:true,part:loc.name||null});}
+  return{V,left:C.map(c=>({g:c.g,p:c.p,name:o.avoid.local(c.pts).name||null}))};}
 // fit with only the clamps in `ks` active (renumbered so inactive clamps drop out)
 function fitActive(V,o,ks){const map=[],cl=[];o.clamps.forEach((c,i)=>{if(ks.includes(i)){map[i]=cl.length;cl.push(c);}});
   const Vm=V.map(v=>({...v,ks:v.ks.filter(k=>ks.includes(k)).map(k=>map[k])}));
@@ -158,7 +235,7 @@ function report(W0,V,W,o){
     endMove,endDirErr:Math.max(Math.acos(Math.min(1,dirS)),Math.acos(Math.min(1,dirE)))*DEG,samples:S,G};
 }
 
-const API={solve,report};
+const API={solve,report,clashes};
 if(typeof module!=="undefined"&&module.exports)module.exports=API;
 root.Through=API;
 })(typeof globalThis!=="undefined"?globalThis:this);

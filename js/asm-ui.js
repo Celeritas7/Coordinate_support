@@ -225,7 +225,9 @@ function thRun(){
   const R=+$('thR').value||p.R,minS=Math.max(0,+$('thMin').value||0),margin=Math.max(0,+$('thMargin').value||0);
   say(`Routing ${p.name} through ${C.length} clamp${C.length>1?'s':''}...`);$('thRun').disabled=true;
   setTimeout(()=>{let res;const t0=performance.now();
-    try{res=Through.solve(p.Q,{R,minStraight:minS,margin,dropDetours:$('thDrop').checked,clamps:C.map(c=>({c:c.fix.c,a:c.fix.d,length:c.fix.length,name:c.fix.name}))});}
+    // Go round the parts: the kept-clear parts of the survey along the pipe (bend-cad.js) as a constraint in the fit
+    const avoid=$('thAvoid').checked&&typeof bcAvoider==='function'?bcAvoider(p.OD||8):null;
+    try{res=Through.solve(p.Q,{R,minStraight:minS,margin,dropDetours:$('thDrop').checked,avoid,clamps:C.map(c=>({c:c.fix.c,a:c.fix.d,length:c.fix.length,name:c.fix.name}))});}
     catch(e){$('thRun').disabled=false;return say(e.message,true);}
     $('thRun').disabled=false;const ms=Math.round(performance.now()-t0);
     if(!res.ok){$('thOut').innerHTML='';return say(`No route: ${res.reason}. Try a smaller margin or min straight, or untick a clamp.`,true);}
@@ -245,9 +247,14 @@ function thRun(){
     TH.last={run,rep,res,p,C,cx};asmTexts();thReport();
     const warns=C.filter(c=>c.boreWarn).map(c=>`${c.fix.name}: ${c.boreWarn}`);
     const done=`Done: ${pipeShort(p.name)} now runs straight through ${C.length} clamp${C.length>1?'s':''} (${ms} ms). ${res.steps.map(s=>s.clamp?`${s.clamp}: ${s.how}`:s.how).join('; ')}.${warns.length?` Check: ${warns.join('; ')}.`:''}`;
-    if(cx)bcVerdict($('statusThrough'),cx,done);else say(done+(typeof bcCad==='function'&&!bcCad()?' Clearance to parts: open the assembly with its parts to check it.':''),false);
-    if(typeof nextSteps==='function')nextSteps('statusThrough',[{label:'Download .pts',go:()=>$('thDl').click()},
-      {label:'Compare with your .pts',title:'Pipe · Check .pts against pipe',go:()=>{if(typeof goTask==='function')goTask('pipe','asm');$('cmpOpen').click();}}]);
+    const left=res.left&&res.left.length?` Could not go round ${[...new Set(res.left.map(x=>x.name||'a part'))].join(', ')}: on an end straight, a clamp's straight, or no way round with R ${fmt(R,1)} and min straight ${minS} mm.`:'';
+    const v=cx?bcVerdict($('statusThrough'),cx,done+left):(say(done+(typeof bcCad==='function'&&!bcCad()?' Clearance to parts: open the assembly with its parts to check it.':''),false),'ok');
+    // a clash or a tight spot: fix it first (go round it, or stop keeping clear of that part), then deliver
+    const sp=cx&&cx.spots?cx.spots.slice().sort((a,b)=>a.gap-b.gap)[0]:null,nm=sp?String(sp.name).split(' / ').pop():'';
+    const fix=sp?[!$('thAvoid').checked?{label:'Go round it',title:'Ticks “Go round the parts kept clear of” and routes again: corners move or are added to keep the gap, clamps held',go:()=>{$('thAvoid').checked=true;thRun();}}:null,
+      {label:`Stop keeping clear of ${esc(nm)}`,title:'Unticks it under Keep clear and routes again',go:()=>{if(typeof bcKeepClearName==='function')bcKeepClearName(sp.name,false);thRun();}}].filter(Boolean):[];
+    if(typeof nextSteps==='function')nextSteps('statusThrough',fix.concat([{label:'Download .pts',go:()=>$('thDl').click()},
+      ...(fix.length?[]:[{label:'Compare with your .pts',title:'Pipe · Check .pts against pipe',go:()=>{if(typeof goTask==='function')goTask('pipe','asm');$('cmpOpen').click();}}])]).slice(0,3));
   },20);
 }
 function thReport(){const L=TH.last;if(!L)return;const{rep,res,p,C}=L,F=asmFrame(),loc=q=>asmLocal(q,F);
@@ -259,7 +266,7 @@ function thReport(){const L=TH.last;if(!L)return;const{rep,res,p,C}=L,F=asmFrame
     <ul class="sum">${cl}<li>Ends: moved ${rep.endMove.toFixed(3)} mm, direction ${rep.endDirErr.toFixed(3)}°.</li>
     <li>Single radius ${fmt(L.run.params.R,2)}; ${rep.bends.length} bends; shortest straight between bends ${fmt(rep.minStraight,1)} mm; length ${Math.round(p.length)} → ${Math.round(rep.length)} mm.</li>
     <li>Coordinates (${esc(F.name)} frame) are in the .pts below and in the Points pane; hover a row to see them.</li>
-    <li>${L.cx?`Clearance: gap ${fmt(L.cx.gapLimit!=null?L.cx.gapLimit:+$('thGap').value,1)} mm to ${L.cx.kept} kept-clear part${L.cx.kept===1?'':'s'}${L.cx.min?`, smallest gap ${fmt(L.cx.min.gap,1).replace('-','−')} mm`:''}; places in the Clearance tab. Parts are checked, not avoided: move a corner, or untick a part that is not in the way.`:'Clearance to parts: not checked (no parts read).'}</li></ul>`;
+    <li>${L.cx?`Clearance: gap ${fmt(L.cx.gapLimit!=null?L.cx.gapLimit:+$('thGap').value,1)} mm to ${L.cx.kept} kept-clear part${L.cx.kept===1?'':'s'}${L.cx.min?`, smallest gap ${fmt(L.cx.min.gap,1).replace('-','−')} mm`:''}; places in the Clearance tab. ${$('thAvoid').checked?'':' Parts are checked, not avoided: tick “Go round the parts kept clear of”, or untick a part that is not in the way.'}`:'Clearance to parts: not checked (no parts read).'}</li></ul>`;
   $('thPts').value=L.run.text;['thCopy','thDl'].forEach(k=>$(k).disabled=false);}
 
 {const inp=$('asmfile');if(inp){inp.onchange=e=>{if(e.target.files[0])asmLoad(e.target.files[0]);e.target.value='';};}

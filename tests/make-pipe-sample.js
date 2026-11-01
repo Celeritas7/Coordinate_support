@@ -1,8 +1,9 @@
 // node tests/make-pipe-sample.js — writes samples/pipe_clear_test.stp (tests/pipe-clear.js makes it when missing)
 // A small assembly for Phase 6 (clearance to parts on Pipe routes), all three parts placed at the origin:
-//   PIPE_A   Ø12 pipe: straight along +X (0,0,0) → (300,0,0), 90° bend R 50 about Z, straight along +Y (350,50,0) → (350,400,0)
+//   PIPE_A   Ø12 pipe, a U: along +X (0,0,0) → (300,0,0), 90° bend R 50, along +Y (350,50,0) → (350,350,0), 90° bend R 50,
+//            along +X (400,400,0) → (650,400,0). Corners (350,0,0) and (350,400,0)
 //   CLAMP_1  20 × 30 × 30 block with a Ø12.5 bore along X on the pipe's axis (X 140…160), CSYS CLAMP_1_CS in it
-//   BLOCK_1  100 × 60 × 60 block, X 353…453, Y 200…260: the second straight runs 3 mm into it
+//   BLOCK_1  100 × 60 × 60 block, X 353…453, Y 200…260: the middle straight runs 3 mm into it (it can slide clear)
 //   PIPE_B   Ø15 straight pipe along X at Y −60 (0 … 300): another existing pipe, 46.5 mm from PIPE_A surface to surface
 // Only what the readers use: faces with their surfaces and edge loops (circles, lines), no end caps on the pipe.
 (function (root) {
@@ -41,10 +42,13 @@ function make() {
 
   // pipe: cylinder, torus, cylinder; the end rings are shared by the faces that meet there
   const r = 6, R = 50, X = [1,0,0], Y = [0,1,0], Z = [0,0,1];
-  const a0 = ring([0,0,0], X, Y, r), a1 = ring([300,0,0], X, Y, r), b0 = ring([350,50,0], Y, [-1,0,0], r), b1 = ring([350,400,0], Y, [-1,0,0], r);
+  const a0 = ring([0,0,0], X, Y, r), a1 = ring([300,0,0], X, Y, r), b0 = ring([350,50,0], Y, [-1,0,0], r), b1 = ring([350,350,0], Y, [-1,0,0], r);
+  const d0 = ring([400,400,0], X, Y, r), d1 = ring([650,400,0], X, Y, r);
   const pipe = [face(E(`CYLINDRICAL_SURFACE('',#${AX([0,0,0], X, Y)},${n(r)})`), [a0, a1], true),
     face(E(`TOROIDAL_SURFACE('',#${AX([300,50,0], Z, [0,-1,0])},${n(R)},${n(r)})`), [a1, b0], true),
-    face(E(`CYLINDRICAL_SURFACE('',#${AX([350,50,0], Y, [-1,0,0])},${n(r)})`), [b0, b1], true)];
+    face(E(`CYLINDRICAL_SURFACE('',#${AX([350,50,0], Y, [-1,0,0])},${n(r)})`), [b0, b1], true),
+    face(E(`TOROIDAL_SURFACE('',#${AX([400,350,0], [0,0,-1], [-1,0,0])},${n(R)},${n(r)})`), [b1, d0], true),
+    face(E(`CYLINDRICAL_SURFACE('',#${AX([400,400,0], X, Y)},${n(r)})`), [d0, d1], true)];
   // clamp: block X 140…160, Y −15…15, Z −15…15; bore Ø12.5 along X on the pipe's axis, a hole face (sense .F.)
   const rb = 6.25, c0 = ring([140,0,0], X, Y, rb), c1 = ring([160,0,0], X, Y, rb);
   const clamp = box([140,-15,-15], [160,15,15], { 0: [c0], 1: [c1] }).concat([face(E(`CYLINDRICAL_SURFACE('',#${AX([140,0,0], X, Y)},${n(rb)})`), [c0, c1], false)]);

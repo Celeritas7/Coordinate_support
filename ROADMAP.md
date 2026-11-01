@@ -166,7 +166,18 @@ Today (`js/through.js`): every ticked clamp is routed in one run, but clamps are
    on Route through points an existing pipe touching 2+ stations is taken as the one being replaced. Hose keeps them
    unticked. Spans are named by the stations (Route through points) or the corner points (Through clamps). Checked, not
    avoided: step 3 below. Test: `tests/pipe-clear.js` on a generated sample
-3. **Avoidance**: parts as a constraint in the Through clamps fit (corners move to clear them, clamps held on their axes); "Drop detour corners" keeps a corner that bends round a part
+3. **Avoidance** (done for Through clamps, Phase 6 step 3): "Go round the parts kept clear of" (Through clamps, off by
+   default; also the first Next button on a clash). After the clamps are placed, each place closer than the gap to a
+   kept-clear part, worst first, is fixed by the cheapest of: the corners near it moved (taken at once when it works);
+   two corners added round one side of the faces causing it (4 sides tried); one corner added (a tent). Each is a local
+   fit (only the corners near it move; clamps, ends, end directions, min straight held) with the gap as a penalty on
+   samples of the route; it is kept only if a full check finds no clash there and no worse one elsewhere. On a clamp's
+   straight the added corners start with one on the bore axis, so the clamp keeps its straight. A part on an end straight
+   (end and direction fixed) cannot be gone round: reported, route unchanged. "Drop detour corners" keeps a corner whose
+   removal adds a clash. At most 15 s. Next buttons on a clash: Go round it · Stop keeping clear of <part> · Download .pts.
+   Route through points: Next (Stop keeping clear of <part> · Download .pts) only; going round there is still to do
+   (its solver fits stations, not clamps). Known limit: the gap is to faces, unsigned: a centreline deep inside a part
+   reads as near its faces, not as inside. Tests: `tests/through-avoid.test.js` (exact boxes), `tests/pipe-clear.js`
 - Tests with the user's multi-clamp examples; piping3 pipe 111 (3 clamps) must still pass unchanged
 
 ## Phase 13 — Parts in 3D and clearance to real parts

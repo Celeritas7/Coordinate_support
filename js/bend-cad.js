@@ -177,6 +177,21 @@ window.bcVerdict=function(el,cx,first){const sp=cx.spots||[],into=sp.filter(x=>x
     (cx.rows&&cx.rows.length?`<button type="button" class="linkish vclr">${nRows?`${nRows} place${nRows>1?'s':''} in the Clearance tab`:'Gaps in the Clearance tab'}</button>`:'');
   const vl=el.querySelector('.vclr');if(vl)vl.onclick=()=>{dock='clr';showPane();};
   return V0[0];};
+// Through clamps' "Go round the parts" (through.js opt.avoid): gaps to the kept-clear parts of the current survey. gap(p) is
+// the pipe surface gap at a centreline point (to faces: flat and cylindrical exact, others their box); local(pts) gives the
+// same for the parts near those points only (fast, for the fit), the box of the faces causing the clash and the part's name
+window.bcAvoider=function(OD){if(!BC.cad||BC.mode!=='through')return null;const sv=survey();if(!sv)return null;
+  const kept=sv.parts.filter(keepClear);if(!kept.length)return null;const need=sv.o.gap,rad=OD/2,r=rad+need+60;
+  const faces=kept.flatMap(p=>p.faces.map(f=>({f,p}))),ix=CadSolids.index(faces.map(x=>x.f),50);
+  return{need,rad,step:Math.max(1,Math.min(3,OD/4)),
+    gap:p=>{const n=ix.nearest(p,r);return isFinite(n.d)?n.d-rad:1e6;},
+    local(pts){const hit=faces.filter(x=>pts.some(q=>CadSolids.boxDist(q,x.f)<=rad+need+5));if(!hit.length)return{gap:this.gap,box:null,name:null};
+      const box={min:[0,1,2].map(k=>Math.min(...hit.map(x=>x.f.min[k]))),max:[0,1,2].map(k=>Math.max(...hit.map(x=>x.f.max[k])))};
+      const near=faces.filter(x=>CadSolids.boxDist([0,1,2].map(k=>Math.max(box.min[k],Math.min(box.max[k],(x.f.min[k]+x.f.max[k])/2))),x.f)<=300),lix=CadSolids.index(near.map(x=>x.f),50);
+      const names=[...new Set(hit.map(x=>last(x.p.name)))];
+      return{gap:p=>{const n=lix.nearest(p,r);return isFinite(n.d)?n.d-rad:1e6;},box,name:names.slice(0,2).join(', ')+(names.length>2?` and ${names.length-2} more`:'')};}};};
+// stop keeping clear of a part by its name (a pipe check's Next button): every solid of that name in the current survey
+window.bcKeepClearName=(name,on)=>{if(!BC.sv)return 0;const ps=BC.sv.parts.filter(p=>p.name===name);ps.forEach(p=>BC.user.set(p.sid,!!on));render();return ps.length;};
 // the run fields a check fills (route-studio's runs)
 window.bcRunFields=cx=>cx?{parts:cx.parts,holes:cx.holes,marks:cx.marks,clearDense:cx.clearDense,gapLimit:cx.gapLimit,spots:cx.spots,clearRows:cx.rows,clearHead:cx.head}:{};
 // the list for the task on show: moves #cdBox into its panel and surveys that task's route

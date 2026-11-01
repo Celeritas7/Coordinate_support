@@ -4,7 +4,7 @@
 // unticking BLOCK_1 gives Clear, and the Clearance tab lists the places. Needs Playwright + Chromium (as tests/ui-walk.js).
 const fs=require("fs"),path=require("path"),http=require("http");const ROOT=path.join(__dirname,"..");
 const SAMPLE=path.join(ROOT,"samples/pipe_clear_test.stp");
-if(!fs.existsSync(SAMPLE)||!fs.readFileSync(SAMPLE,"utf8").includes("PIPE_B")){fs.mkdirSync(path.dirname(SAMPLE),{recursive:true});fs.writeFileSync(SAMPLE,require("./make-pipe-sample.js").makePipeSample());}
+{fs.mkdirSync(path.dirname(SAMPLE),{recursive:true});fs.writeFileSync(SAMPLE,require("./make-pipe-sample.js").makePipeSample());}
 let pw;for(const p of["playwright","/opt/node22/lib/node_modules/playwright"]){try{pw=require(p);break;}catch(e){}}
 if(!pw){console.log("skip: playwright not installed");process.exit(0);}
 const exe=process.env.PLAYWRIGHT_CHROMIUM||(fs.existsSync("/opt/pw-browsers/chromium")?"/opt/pw-browsers/chromium":undefined);
@@ -32,7 +32,7 @@ let fail=0;const check=(ok,m)=>{console.log((ok?"ok   ":"FAIL ")+m);if(!ok)fail+
  await pg.evaluate(()=>{$("cdBox").open=true;});
  check(await pg.isVisible("#cdD")&&/^Pipe OD/.test(await txt("cdDLbl")),`Pipe OD field shown (${await txt("cdDLbl")})`);
  await pg.fill("#cdD","12");await pg.dispatchEvent("#cdD","change");await pg.click("#advTog");check(await pg.isVisible("#cdGap"),"Gap shown for the pipe (Advanced)");await pg.fill("#r","50");await pg.dispatchEvent("#r","change");
- await pg.fill("#pts","0 0 0\n250 0 0\n350 100 0\n350 400 0");await pg.dispatchEvent("#pts","change");await pg.waitForTimeout(300);
+ await pg.fill("#pts","0 0 0\n250 0 0\n350 100 0\n350 300 0\n450 400 0\n650 400 0");await pg.dispatchEvent("#pts","change");await pg.waitForTimeout(300);
 
  L=await listed();console.log("     list: "+L.join("\n           "));
  check(L.some(x=>/^\[x\] BLOCK_1/.test(x))&&L.some(x=>/^\[ \] PIPE_A .*existing pipe.*taken as the pipe being replaced/.test(x))&&L.some(x=>/^\[ \] CLAMP_1/.test(x)),"BLOCK_1 kept clear; the pipe the points trace and the clamp are not");
@@ -44,6 +44,7 @@ let fail=0;const check=(ok,m)=>{console.log((ok?"ok   ":"FAIL ")+m);if(!ok)fail+
  check(R.some(r=>r[0]==="bad"&&r[2]==="BLOCK_1"&&r[3]==="−3.0 mm"),"Clearance tab: BLOCK_1 −3.0 mm, red");
  check(R.some(r=>r[0]===""&&r[2]==="CLAMP_1"&&/not counted/.test(r[4])),"Clearance tab: CLAMP_1 listed, not counted (unticked)");
  check(/^Clearance \(1\)$/.test(await txt("dClr")),`tab label: ${await txt("dClr")}`);
+ check(JSON.stringify(await pg.evaluate(()=>[...document.querySelectorAll("#statusBend + .next button")].map(b=>b.textContent)))==='["Stop keeping clear of BLOCK_1","Download .pts"]',"Route through points: Next offers Stop keeping clear of BLOCK_1, Download .pts");
  check(/Clash: 3\.0 mm into BLOCK_1/.test(await txt("readout")),`3D readout: ${(await txt("readout")).slice(0,90)}`);
 
  // ---- Pipe · Through clamps: the clamp on the pipe ticked, route; the route keeps the second straight
@@ -61,8 +62,17 @@ let fail=0;const check=(ok,m)=>{console.log((ok?"ok   ":"FAIL ")+m);if(!ok)fail+
  R=await rows();console.log("     rows: "+R.map(r=>r.join(" | ")).join("\n           "));
  check(R.some(r=>r[0]==="bad"&&r[2]==="BLOCK_1")&&!R.some(r=>r[2]==="CLAMP_1"&&r[0]),"Clearance tab: BLOCK_1 red; the clamp it runs through is not a clash");
  const th=await txt("thOut");check(/Clearance: gap 4(\.0)? mm to 2 kept-clear parts, smallest gap −3\.0 mm/.test(th),"the Through report says what was checked: "+(th.match(/Clearance:[^.]*/)||[""])[0]);
+ // ---- step 3: the clash's Next buttons; Go round it slides the middle straight clear, clamp and ends held
+ const nexts=await pg.evaluate(()=>[...document.querySelectorAll("#statusThrough + .next button")].map(b=>b.textContent));
+ check(nexts[0]==="Go round it"&&nexts[1]==="Stop keeping clear of BLOCK_1"&&nexts[2]==="Download .pts",`Next: ${nexts.join(" · ")}`);
+ await pg.click('#statusThrough + .next button:text-is("Go round it")');for(let i=0;i<60;i++){await pg.waitForTimeout(250);if(/Clear:|Close:|Clash:/.test(await txt("statusThrough"))&&await pg.evaluate(()=>$("thAvoid").checked))break;}
+ st=await txt("statusThrough");console.log("     "+st.slice(0,320));
+ check(await pg.evaluate(()=>$("thAvoid").checked)&&/^Clear: smallest gap 4\.\d mm/.test(st)&&/kept clear of BLOCK_1: corners near it moved/.test(st),"Go round it: Clear, the corners near BLOCK_1 moved");
+ check(/now runs straight through 1 clamp/.test(st)&&/CLAMP_1/.test(await txt("thOut"))&&/off its axis/.test(await txt("thOut")),"the clamp is still on the route");
+ R=await rows();check(!R.some(r=>r[0]==="bad"||r[0]==="warn"),"Clearance tab: no red or amber row");
+ check(/Ends: moved 0\.000 mm, direction 0\.000°/.test(await txt("thOut")),"ends and end directions kept");
  // untick BLOCK_1 and route again: Clear
- await pg.evaluate(()=>{const i=[...document.querySelectorAll("#cdParts .cdrow")].find(r=>/BLOCK_1/.test(r.textContent)).querySelector("input");i.click();});
+ await pg.evaluate(()=>{$("thAvoid").checked=false;const i=[...document.querySelectorAll("#cdParts .cdrow")].find(r=>/BLOCK_1/.test(r.textContent)).querySelector("input");i.click();});
  await pg.click("#thRun");await pg.waitForTimeout(800);st=await txt("statusThrough");console.log("     "+st.slice(0,200));
  check(/^Clear: no kept-clear part within 44\.0 mm of the pipe/.test(st),"BLOCK_1 unticked: Clear (PIPE_B, still kept clear, is 46.5 mm away)");
 
