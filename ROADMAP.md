@@ -178,6 +178,12 @@ Today (`js/through.js`): every ticked clamp is routed in one run, but clamps are
    Route through points: Next (Stop keeping clear of <part> · Download .pts) only; going round there is still to do
    (its solver fits stations, not clamps). Known limit: the gap is to faces, unsigned: a centreline deep inside a part
    reads as near its faces, not as inside. Tests: `tests/through-avoid.test.js` (exact boxes), `tests/pipe-clear.js`
+   - Fixed after the first try on piping3 (2026-11-01): Go round on pipe 111 made loops round pipe 211. Cause: a torus face
+     (a pipe bend) was measured as the full ring, held only to its box, so 111 read "5.6 mm into" 211 at six places where it
+     is 13–29 mm clear (only 2.44 mm, side by side near Z −2005, is real). Torus faces now keep their arc (from the boundary)
+     and past it the distance is to the nearer end circle; this also corrects Hose's gaps near bends of existing pipes or
+     tubes. Go round also refuses a fix that adds a bend over 100° or makes the route over 300 mm longer, and sizes a detour
+     from the part near the clash only. piping3: 111 and 211 each move two corners ≤ 2 mm, gap 2.44 → 4.27 / 4.25 mm.
 - Tests with the user's multi-clamp examples; piping3 pipe 111 (3 clamps) must still pass unchanged
 
 ## Phase 13 — Parts in 3D and clearance to real parts

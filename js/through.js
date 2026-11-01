@@ -164,7 +164,12 @@ const sideName=n=>{let k=0;for(let i=1;i<3;i++)if(Math.abs(n[i])>Math.abs(n[k]))
 // ways round one clash: move the corners near it; or add two corners (one side of the box) or one (a tent) on its straight
 function detours(V,c,o,loc){const W=V.map(v=>v.p),m=W.length-1,j=c.j,out=[{V:cloneV(V),how:'corners near it moved',added:0}];
   if(j<1||j>m-2||!loc.box)return out;   // never between an end and its direction corner
-  const a=W[j],t=norm(sub(W[j+1],a)),L=len(sub(W[j+1],a)),b=loc.box,cs=[];for(let k=0;k<8;k++)cs.push([k&1?b.max[0]:b.min[0],k&2?b.max[1]:b.min[1],k&4?b.max[2]:b.min[2]]);
+  // the part near the clash only: a long face (a rail, another pipe's straight) is cut to the clash's stretch plus room for
+  // two bends, so the detour is sized to what is in the way here, not to the whole face
+  const e=(o.avoid.rad||0)+o.avoid.need+2*o.R+50,pm=[0,1,2].map(k=>Math.min(...c.pts.map(p=>p[k]))-e),px=[0,1,2].map(k=>Math.max(...c.pts.map(p=>p[k]))+e);
+  const b={min:[0,1,2].map(k=>Math.max(loc.box.min[k],pm[k])),max:[0,1,2].map(k=>Math.min(loc.box.max[k],px[k]))};
+  if([0,1,2].some(k=>b.min[k]>b.max[k]))return out;
+  const a=W[j],t=norm(sub(W[j+1],a)),L=len(sub(W[j+1],a)),cs=[];for(let k=0;k<8;k++)cs.push([k&1?b.max[0]:b.min[0],k&2?b.max[1]:b.min[1],k&4?b.max[2]:b.min[2]]);
   const ctr=mul(add(b.min,b.max),0.5),cp=add(a,mul(t,Math.max(0,Math.min(L,dot(sub(ctr,a),t)))));
   let u=sub(cp,ctr);u=sub(u,mul(t,dot(u,t)));if(len(u)<1e-6)u=Math.abs(t[2])<0.9?[0,0,1]:[1,0,0];u=norm(sub(u,mul(t,dot(u,t))));const v=norm([t[1]*u[2]-t[2]*u[1],t[2]*u[0]-t[0]*u[2],t[0]*u[1]-t[1]*u[0]]);
   const rad=o.avoid.rad||0,clear=rad+o.avoid.need+2,along=cs.map(q=>dot(sub(q,a),t)),lo=Math.min(...along),hi=Math.max(...along);
@@ -198,12 +203,15 @@ function fitLocal(V,o,done,c,loc,added){const m=V.length-1,lo=Math.max(1,c.j-1),
   const bad=check(V.map((v,i)=>({...v,ks:v.ks.filter(k=>done.includes(k)).map(k=>map[k])})),{...o,clamps:cl});return bad;}
 // each clash in turn, worst first: the candidate that clears it, adds no worse clash and is shortest (moving the corners is
 // taken at once when it works: it adds nothing). Gives up on a clash nothing clears; at most budget ms in all
-function avoid(V,o,done,steps){let C=clashes(V.map(v=>v.p),o);const tried=new Set(),t0=Date.now(),budget=o.avoid.budget||15000;
+// a way round must look like a pipe: no more bends over 100° than before (a detour round a part needs none; the loops it
+// made round a false clash on piping3 had five, 91–119°), at most maxLonger mm longer (default 300)
+const sharp=(V,o)=>{const G=AR.build(V.map(v=>v.p),o.R);return G.corners.filter(c=>c&&c.th*DEG>100).length;};
+function avoid(V,o,done,steps){let C=clashes(V.map(v=>v.p),o);const tried=new Set(),t0=Date.now(),budget=o.avoid.budget||15000,maxL=o.avoid.maxLonger??300;
   for(let guard=0;guard<8&&C.length&&Date.now()-t0<budget;guard++){
     const c=C.find(x=>!tried.has(Math.round(x.p[0])+','+Math.round(x.p[1])+','+Math.round(x.p[2])));if(!c)break;
     tried.add(Math.round(c.p[0])+','+Math.round(c.p[1])+','+Math.round(c.p[2]));
-    const loc=o.avoid.local(c.pts),b0=badness(C),L0=routeLen(V,o);let best=null;
-    for(const d of detours(V,c,o,loc)){const bad=fitLocal(d.V,o,done,c,loc,d.added);if(bad.length)continue;
+    const loc=o.avoid.local(c.pts),b0=badness(C),L0=routeLen(V,o),s0=sharp(V,o);let best=null;
+    for(const d of detours(V,c,o,loc)){const bad=fitLocal(d.V,o,done,c,loc,d.added);if(bad.length||sharp(d.V,o)>s0||routeLen(d.V,o)-L0>maxL)continue;
       const Cn=clashes(d.V.map(v=>v.p),o),still=Cn.some(x=>x.pts.some(p=>len(sub(p,c.p))<o.avoid.need+(o.avoid.rad||0)+20)),bn=badness(Cn);
       if(still||bn>=b0-1e-6)continue;
       const score=routeLen(d.V,o)-L0+o.addCost*d.added;if(!best||score<best.score)best={...d,Cn,score};
