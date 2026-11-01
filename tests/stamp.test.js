@@ -1,0 +1,17 @@
+// node tests/stamp.test.js — version tags are current (tools/stamp.js): every local script and stylesheet of index.html and
+// inspector.html carries ?v=<hash of its content>, index.html's app-build matches version.json. Fails after a js / css change
+// that was not stamped: run `node tools/stamp.js` and commit what it changes.
+const fs = require("fs"), path = require("path"), crypto = require("crypto"), S = require("../tools/stamp.js");
+let fail = 0;
+const check = (ok, msg) => { console.log((ok ? "ok   " : "FAIL ") + msg); if (!ok) fail++; };
+const r = S.run(true);
+check(!r.stale.length, r.stale.length ? `stale tags in ${r.stale.join(", ")}: run node tools/stamp.js and commit` : `tags current (build ${r.build})`);
+const html = fs.readFileSync(path.join(__dirname, "../index.html"), "utf8");
+const refs = [...html.matchAll(/\b(?:src|href)="((?!https?:|\/\/)[^"]+\.(?:js|css)(?:\?[^"]*)?)"/g)].map(m => m[1]);
+check(refs.length > 30 && refs.every(u => /\?v=[0-9a-f]{8}$/.test(u)), `every local script / stylesheet tagged (${refs.length})`);
+const bad = refs.filter(u => { const [f, v] = u.split("?v="); return crypto.createHash("sha1").update(fs.readFileSync(path.join(__dirname, "..", f))).digest("hex").slice(0, 8) !== v; });
+check(!bad.length, bad.length ? `tag does not match the file: ${bad.join(", ")}` : "each tag is the hash of its file");
+const meta = (html.match(/<meta name="app-build" content="([0-9a-f]+)">/) || [])[1], vj = JSON.parse(fs.readFileSync(path.join(__dirname, "../version.json"), "utf8"));
+check(meta && meta === vj.build && meta === S.build(html), `app-build ${meta} = version.json ${vj.build}`);
+console.log(fail ? `${fail} failed` : "all passed");
+process.exit(fail ? 1 : 0);

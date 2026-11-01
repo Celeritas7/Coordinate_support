@@ -52,6 +52,7 @@ details{margin:10px 0}summary{cursor:pointer;color:var(--muted);font-size:13px}
 .modsw{display:grid;grid-template-columns:repeat(4,1fr);margin:12px 0 0;border:1px solid var(--rule);border-radius:6px;overflow:hidden}
 .modsw button{border:0;background:var(--field);color:var(--muted);font:600 13.5px var(--sans);padding:9px 4px;cursor:pointer}.modsw button+button{border-left:1px solid var(--rule)}
 .modsw button[aria-selected="true"]{background:var(--ink);color:var(--paper)}
+.shnew{font-size:12px;margin:6px 0 0;padding:6px 8px;border-radius:6px;background:var(--panel);border:1px solid var(--rule);color:var(--ink)}
 .shstatus{font-size:12px;color:var(--muted);margin:7px 0 0;min-height:1.3em;overflow-wrap:anywhere}.shstatus.on{color:var(--ink)}
 .tabs[hidden]{display:none}
 .mod{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;align-items:start}
