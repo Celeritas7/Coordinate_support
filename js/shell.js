@@ -108,8 +108,8 @@ async function open(list){
     return say(`${files[0].name} → ${label('hose','offset')}, as the ${t==='mpts'?'master (next file: slave)':'slave'} route.`);}
   go('hose','route');cadLoadInto('pts',files[0]);say(`${files[0].name} → ${label('hose','route')}.`);
 }
-// One assembly per session, read once. In Hose / Cable · Route through stations it feeds Stations from clamps and
-// Keep clear of CAD parts; anywhere else it opens in Pipe. Both see the same parse, so switching task needs no reload.
+// One assembly per session, read once. In Hose / Cable · Route through stations it feeds Stations from clamps; anywhere
+// else it opens in Pipe. Its parts feed Keep clear (bend-cad.js) wherever it is opened. Both see the same parse, so switching task needs no reload.
 // rest: names of files dropped with it and not opened
 let asmPend=null;
 function openAssembly(f,rest){const n=rest?rest.length:0,also=n?` ${n} other file${n>1?'s were':' was'} not opened (${rest.join(', ')}); open ${n>1?'them':'it'} now the assembly has loaded.`:'';
@@ -122,7 +122,8 @@ function openAssembly(f,rest){const n=rest?rest.length:0,also=n?` ${n} other fil
   const done=()=>{document.removeEventListener('asm:loaded',ok);document.removeEventListener('asm:failed',bad);$('shStatus').title='';asmPend=null;};
   asmPend=done;
   const ok=e=>{const a=e.detail;if(!a||a.name!==f.name)return;done();
-    if(hose&&typeof bcFromAsm==='function')bcFromAsm(a);
+    // the parts feed Keep clear in every task that has it (Hose, Pipe · Route through points, Pipe · Through clamps)
+    if(typeof bcFromAsm==='function')bcFromAsm(a);
     const big=typeof asmOutlineNote==='function'?asmOutlineNote():'';
     say(`Opened in ${(a.secs||0).toFixed(1)} s.${big?' '+big:''}${also}`);$('shStatus').title=where;
     showAsm(a);};

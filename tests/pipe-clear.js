@@ -15,12 +15,16 @@ let fail=0;const check=(ok,m)=>{console.log((ok?"ok   ":"FAIL ")+m);if(!ok)fail+
 (async()=>{await new Promise(r=>server.listen(0,r));const b=await pw.chromium.launch(exe?{executablePath:exe}:{});const pg=await b.newPage({viewport:{width:1600,height:1000}});const errs=[];pg.on("pageerror",e=>errs.push(e.message));
  await pg.goto(`http://127.0.0.1:${server.address().port}/index.html`);await pg.evaluate(()=>localStorage.clear());await pg.reload();await pg.waitForTimeout(800);
  const txt=id=>pg.evaluate(i=>document.getElementById(i).textContent.replace(/\s+/g," ").trim(),id);
- const task=async(mod,t)=>{await pg.click(`.modsw button[data-mod="${mod}"]`);await pg.click(`#tasks button[data-task="${t}"]`);await pg.waitForTimeout(300);};
+ let L;const task=async(mod,t)=>{await pg.click(`.modsw button[data-mod="${mod}"]`);await pg.click(`#tasks button[data-task="${t}"]`);await pg.waitForTimeout(300);};
  const host=()=>pg.evaluate(()=>$("cdBox").parentNode.id);
  const rows=()=>pg.evaluate(()=>{dock="clr";showPane();return[...document.querySelectorAll("#clrList tbody tr")].map(r=>[r.className,...[...r.cells].map(c=>c.textContent.replace(/\s+/g," ").trim())]);});
  const listed=()=>pg.evaluate(()=>[...document.querySelectorAll("#cdParts .cdrow")].map(r=>(r.querySelector("input").checked?"[x] ":"[ ] ")+r.textContent.replace(/\s+/g," ").trim()));
+ // opened from Pipe · Through clamps (the user's way): the parts must reach Keep clear there too, not only when opened in Hose
+ await task("pipe","clamps");await pg.evaluate(()=>{$("cdBox").open=true;});
+ check(/No parts read/.test(await txt("cdParts")),"before Open, the empty list says why: "+await txt("cdParts"));
  await pg.setInputFiles("#shFile",SAMPLE);for(let i=0;i<60;i++){if(/^Opened in/.test(await txt("shStatus")))break;await pg.waitForTimeout(250);}await pg.waitForTimeout(800);
- check(await host()==="cdHome","Hose · Route through stations: the Keep clear list is in the Load card");
+ L=await listed();check(L.some(x=>/BLOCK_1/.test(x)),"opened from Pipe: the Keep clear list has the parts ("+L.length+" listed)");
+ await task("hose","route");check(await host()==="cdHome","Hose · Route through stations: the Keep clear list is in the Load card");
 
  // ---- Pipe · Route through points: lines + arcs through 4 stations along the pipe; the second straight runs into BLOCK_1
  await task("pipe","route");
@@ -29,7 +33,7 @@ let fail=0;const check=(ok,m)=>{console.log((ok?"ok   ":"FAIL ")+m);if(!ok)fail+
  check(await pg.isVisible("#cdD")&&/^Pipe OD/.test(await txt("cdDLbl")),`Pipe OD field shown (${await txt("cdDLbl")})`);
  await pg.fill("#cdD","12");await pg.dispatchEvent("#cdD","change");await pg.click("#advTog");check(await pg.isVisible("#cdGap"),"Gap shown for the pipe (Advanced)");await pg.fill("#r","50");await pg.dispatchEvent("#r","change");
  await pg.fill("#pts","0 0 0\n250 0 0\n350 100 0\n350 400 0");await pg.dispatchEvent("#pts","change");await pg.waitForTimeout(300);
-;let L;
+
  L=await listed();console.log("     list: "+L.join("\n           "));
  check(L.some(x=>/^\[x\] BLOCK_1/.test(x))&&L.some(x=>/^\[ \] PIPE_A .*existing pipe/.test(x))&&L.some(x=>/^\[ \] CLAMP_1/.test(x)),"BLOCK_1 kept clear; the existing pipe and the clamp are not");
  await pg.click("#runBend");for(let i=0;i<40;i++){if(/Clash:|Clear:|Close:|No lines/.test(await txt("statusBend")))break;await pg.waitForTimeout(250);}

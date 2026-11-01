@@ -172,6 +172,8 @@ Wording is provisional until the design pass; the buttons live in `js/next.js` (
 
 `node tests/pipe-clear.js` makes the sample when missing (`tests/make-pipe-sample.js`: Ø12 pipe PIPE_A with one R 50 bend,
 clamp CLAMP_1 on it with a CSYS, BLOCK_1 3 mm into its second straight) and walks it in Chromium:
+0. The file is opened from Pipe · Through clamps (before: the empty list says "No parts read"): the Keep clear list gets its
+   parts there too, not only when the assembly is opened in Hose · Route through stations.
 1. Pipe · Route through points: the Keep clear list sits above Solve with Pipe OD; BLOCK_1 ticked, the existing pipe and the
    clamp not. Stations `0 0 0 / 250 0 0 / 350 100 0 / 350 400 0`, Min R 50 → "Clash: pipe 3.0 mm into BLOCK_1 between P3 and
    P4"; Clearance tab: BLOCK_1 −3.0 mm red, CLAMP_1 muted "not counted"; tab label "Clearance (1)"; the 3D readout says Clash.

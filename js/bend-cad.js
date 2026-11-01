@@ -54,7 +54,9 @@ function ensure(ids){const L=BC.cad&&BC.cad.lazy;if(!L)return false;const miss=i
 // points between the run's samples (half the longest step between samples away) and from the stations it passes (up to
 // 5 mm off a sample): both are added, and 1 mm
 window.bcEnsureNear=(pts,d)=>{if(!BC.cad||!BC.cad.lazy)return;let h=0;for(let i=1;i<pts.length;i++)h=Math.max(h,V.len(V.sub(pts[i],pts[i-1])));ensure(near(pts,d+Math.max(h/2,5)+1));};
-function render(){const sv=BC.sv,box=$('cdParts');if(!sv){box.innerHTML='';return;}
+function render(){const sv=BC.sv,box=$('cdParts');
+  if(!sv){box.innerHTML=BC.mode==='hose'?'':`<p class="hint" style="margin:4px 0">${!BC.cad?'No parts read: open the assembly with its parts (Open…) to check the route against them.'
+    :BC.mode==='arc'?'Type or paste the points: the parts near them are listed here.':'Pick a pipe with bends: the parts near it are listed here.'}</p>`;return;}
   const n=sv.parts.filter(keepClear).length;
   box.innerHTML=`<div class="presets" style="margin:6px 0 2px"><button type="button" data-t="def" title="Clips and existing pipes unticked, frame and other parts ticked">Default</button><button type="button" data-t="frame" title="Only the parts that are not clips">Frame only</button><button type="button" data-t="all" title="Tick all">All</button><button type="button" data-t="none" title="Untick all">None</button></div>
     <p class="hint" style="margin:4px 0">${sv.parts.length} part${sv.parts.length===1?'':'s'} within ${fmt(sv.reach)} mm of the station line; gap checked to ${n} (ticked). Gap = ${W(sv.o)} surface to part. ${BC.mode==='arc'?'Solve again':BC.mode==='through'?'Route through ticked clamps again':'Press Check'} after changing ticks.</p>`+
