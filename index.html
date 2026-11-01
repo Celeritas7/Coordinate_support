@@ -305,8 +305,9 @@
       <div class="fields c3">
         <div><label for="thGap">Gap to parts <span class="unit">mm</span></label><input id="thGap" type="number" value="4" min="0" step="0.5" inputmode="decimal" title="Keep-clear gap from the pipe surface to the ticked parts below"></div>
       </div>
-      <label class="chk" style="margin-top:-4px"><input type="checkbox" id="thDrop" checked>Drop detour corners <span class="unit">(bends over 120°, or a corner whose removal shortens the route by 15 % or more)</span></label>
-      <p class="hint">The pipe is re-routed so a straight runs along each ticked bore, covering it plus Margin at both sides. Both ends and end directions stay; existing corners move as little as possible, a corner is added only when needed. Min straight applies between bends. Other corners are kept. The new route is checked against the parts kept clear of (below), not steered round them yet.</p>
+      <label class="chk" style="margin-top:-4px"><input type="checkbox" id="thAvoid">Go round the parts kept clear of <span class="unit">(corners move or are added to keep the gap; clamps, ends and end directions held)</span></label>
+      <label class="chk"><input type="checkbox" id="thDrop" checked>Drop detour corners <span class="unit">(bends over 120°, or a corner whose removal shortens the route by 15 % or more)</span></label>
+      <p class="hint">The pipe is re-routed so a straight runs along each ticked bore, covering it plus Margin at both sides. Both ends and end directions stay; existing corners move as little as possible, a corner is added only when needed. Min straight applies between bends. Other corners are kept. The new route is checked against the parts kept clear of (below); with “Go round” ticked it keeps the gap to them where it can.</p>
       <div id="thKeep"></div>
       <button class="go" id="thRun" type="button">Route through ticked clamps</button>
       <div class="status" id="statusThrough"></div>

@@ -297,8 +297,12 @@ Seen, not changed: the 3D readout says "Passes, but inside the ×1.5 safety marg
   parts. For Design: the Keep clear list is one element that moves into the task on show (Hose: Load card; Route through
   points: above Solve, with Pipe OD; Through clamps: under the clamp settings, with "Gap to parts"). The result is the Hose
   verdict line (Clash / Close / Clear) over the solver's own line, and a link to the Clearance tab, whose rows, muted
-  "not counted" rows and tab count are the Hose ones. Not yet: Next-step buttons for a pipe clash (nothing to offer until
-  step 3, avoidance), and Alternatives / Push for pipes.
+  "not counted" rows and tab count are the Hose ones. Not yet: Alternatives / Push for pipes.
+- **Step 3 done for Through clamps (2026-11-01):** a checkbox "Go round the parts kept clear of" under Gap to parts (off by
+  default), and on a clash the Next line: **Go round it** (primary: ticks it and routes again) · **Stop keeping clear of
+  <part>** · **Download .pts**. What it did is in the "Done:" line ("kept clear of BLOCK_1: corners near it moved (same
+  length)"); what it could not go round follows ("Could not go round …: on an end straight, a clamp's straight, or no way
+  round with R …"). Route through points: Next is Stop keeping clear of <part> · Download .pts (no going round yet).
 
 ---
 

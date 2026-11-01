@@ -69,6 +69,11 @@ function arcRun(){
       text:arcPts({W,owner:res.owner},names,{R:Rtxt,Rlim:R,len,err})});
     const done=`Added. One radius, R ${Rtxt} mm (${(res.R/R).toFixed(2)}x the limit), through all ${P.length} stations with ${W.length} points. Solved in ${ms} ms.`;
     if(cx)bcVerdict($('statusBend'),cx,done);else $('statusBend').textContent=done;
+    // a clash or a tight spot: stop keeping clear of that part (it is not in the way), or move a station beside it
+    const sp=cx&&cx.spots?cx.spots.slice().sort((a,b)=>a.gap-b.gap)[0]:null;
+    if(sp&&typeof nextSteps==='function')nextSteps('statusBend',[
+      {label:`Stop keeping clear of ${esc(String(sp.name).split(' / ').pop())}`,title:'Unticks it under Keep clear and solves again. To go round it instead, add or move a station beside it',go:()=>{bcKeepClearName(sp.name,false);arcRun();}},
+      {label:'Download .pts',go:()=>{dock='pts';showPane();$('dl').click();}}]);
   },20);
 }
 

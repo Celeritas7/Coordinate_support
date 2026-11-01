@@ -170,17 +170,27 @@ Wording is provisional until the design pass; the buttons live in `js/next.js` (
 
 ## 14. Phase 6: clearance to parts on Pipe routes (`samples/pipe_clear_test.stp`)
 
-`node tests/pipe-clear.js` makes the sample when missing (`tests/make-pipe-sample.js`: Ø12 pipe PIPE_A with one R 50 bend,
-clamp CLAMP_1 on it with a CSYS, BLOCK_1 3 mm into its second straight) and walks it in Chromium:
+`node tests/pipe-clear.js` writes the sample each run (`tests/make-pipe-sample.js`: Ø12 pipe PIPE_A, a U with two R 50 bends,
+clamp CLAMP_1 on it with a CSYS, BLOCK_1 3 mm into its middle straight, PIPE_B Ø15 beside it) and walks it in Chromium:
 0. The file is opened from Pipe · Through clamps (before: the empty list says "No parts read"): the Keep clear list gets its
    parts there too, not only when the assembly is opened in Hose · Route through stations.
 1. Pipe · Route through points: the Keep clear list sits above Solve with Pipe OD; BLOCK_1 and the other pipe PIPE_B ticked,
-   PIPE_A (the points trace it: "taken as the pipe being replaced") and the clamp not. Stations `0 0 0 / 250 0 0 / 350 100 0 / 350 400 0`, Min R 50 → "Clash: pipe 3.0 mm into BLOCK_1 between P3 and
-   P4"; Clearance tab: BLOCK_1 −3.0 mm red, CLAMP_1 muted "not counted"; tab label "Clearance (1)"; the 3D readout says Clash.
+   PIPE_A (the points trace it: "taken as the pipe being replaced") and the clamp not. Stations `0 0 0 / 250 0 0 / 350 100 0 /
+   350 300 0 / 450 400 0 / 650 400 0`, Min R 50 → "Clash: pipe 3.0 mm into BLOCK_1 between P3 and P4"; Clearance tab: BLOCK_1
+   −3.0 mm red, CLAMP_1 muted "not counted"; tab label "Clearance (1)"; the 3D readout says Clash; Next: Stop keeping clear of
+   BLOCK_1 · Download .pts.
 2. Pipe · Through clamps: the same list under the clamp settings, CLAMP_1 "clip at CLAMP_1" (the clamp the pipe runs
    through, not kept clear), PIPE_A "the pipe being re-routed" unticked, PIPE_B ticked; Route through ticked clamps → Clash
-   into BLOCK_1; the report's Clearance line; untick BLOCK_1 and route again → Clear.
+   into BLOCK_1; the report's Clearance line; Next: Go round it · Stop keeping clear of BLOCK_1 · Download .pts; Go round it
+   → Clear (smallest gap 4.3 mm), "kept clear of BLOCK_1: corners near it moved", the clamp still straight through, ends
+   kept, no red or amber row; untick BLOCK_1 and route again → Clear.
 3. Back to Hose · Route through stations: the list is in the Load card again, Check on the same points reports BLOCK_1 in hose
    words; existing pipes unticked (Hose default).
+4. `node tests/through-avoid.test.js` (no samples): exact boxes round a U route: a block 3 mm into the middle straight →
+   corners slide clear (gap ≥ 4); a wall across it → one corner added over it; a box on a clamp's straight → corners added
+   on the far side, the clamp still straight through; a part on an end straight → left, route unchanged; nothing near →
+   the same route as without it.
+5. piping3 pipe 111 with Go round ticked: if nothing kept clear is within 4 mm, the route is the one without it (pipe 111
+   still kept through its 3 clamps, 23 points).
 On the real files (not run here: no samples in that session): piping3 Through clamps on pipe 111 and frame_asm.stp Route
 through points with route_343434's stations should list the frame parts as on Hose, and the clamps as not counted.
