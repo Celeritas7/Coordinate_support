@@ -163,8 +163,9 @@ Today (`js/through.js`): every ticked clamp is routed in one run, but clamps are
    tab, marks and the gap chart as on Hose. Through clamps surveys along the pipe's corners (the routed ones after a run); its
    stations are the ends and the ticked clamps, so those clamps are not kept clear, nor the pipe being re-routed. Other
    existing pipes are kept clear by default on both pipe tasks (user's call, 2026-11-01: piping3 pipe 211 when routing 111);
-   on Route through points an existing pipe touching 2+ stations is taken as the one being replaced. Hose keeps them
-   unticked. Spans are named by the stations (Route through points) or the corner points (Through clamps). Checked, not
+   on Route through points an existing pipe with 2+ stations on its axis (nearest face OD / 2 away, survey's onAxis) is
+   taken as the one being replaced: merely touching the stations was not enough, the neighbour in a twin clamp touches
+   them too and both came out "being replaced" (review fix, 2026-11-01). Hose keeps them unticked. Spans are named by the stations (Route through points) or the corner points (Through clamps). Checked, not
    avoided: step 3 below. Test: `tests/pipe-clear.js` on a generated sample
 3. **Avoidance** (done for Through clamps, Phase 6 step 3): "Go round the parts kept clear of" (Through clamps, off by
    default; also the first Next button on a clash). After the clamps are placed, each place closer than the gap to a
@@ -185,8 +186,9 @@ Today (`js/through.js`): every ticked clamp is routed in one run, but clamps are
    reads as near its faces, not as inside. Tests: `tests/through-avoid.test.js` (exact boxes), `tests/pipe-clear.js`
    - Fixed after the first try on piping3 (2026-11-01): Go round on pipe 111 made loops round pipe 211. Cause: a torus face
      (a pipe bend) was measured as the full ring, held only to its box, so 111 read "5.6 mm into" 211 at six places where it
-     is 13–29 mm clear (only 2.44 mm, side by side near Z −2005, is real). Torus faces now keep their arc (from the boundary)
-     and past it the distance is to the nearer end circle; this also corrects Hose's gaps near bends of existing pipes or
+     is 13–29 mm clear (only 2.44 mm, side by side near Z −2005, is real). Torus faces now keep their arc (from the boundary;
+     only when the gap in the boundary angles stands out by 20° or more — a 180° face with just its two end circles has two
+     equal gaps, and then the full ring is kept) and past it the distance is to the nearer end circle; this also corrects Hose's gaps near bends of existing pipes or
      tubes. Go round also refuses a fix that adds a bend over 100° or makes the route over 300 mm longer, and sizes a detour
      from the part near the clash only. piping3: 111 and 211 each move two corners ≤ 2 mm, gap 2.44 → 4.27 / 4.25 mm.
 - Tests with the user's multi-clamp examples; piping3 pipe 111 (3 clamps) must still pass unchanged
