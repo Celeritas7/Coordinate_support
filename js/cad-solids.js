@@ -226,8 +226,11 @@ function torShape(c,z,R,r,box,WL){const s={kind:'tor',c,z,R,r,box},A=[];let x=nu
     if(!x)x=u.map(v=>v/L);A.push(u);}
   if(!x||A.length<2)return s;const y=[z[1]*x[2]-z[2]*x[1],z[2]*x[0]-z[0]*x[2],z[0]*x[1]-z[1]*x[0]];
   const ang=A.map(u=>((Math.atan2(dot3(u,y),dot3(u,x)))%TAU+TAU)%TAU).sort((a,b)=>a-b);
-  let gap=TAU-ang[ang.length-1]+ang[0],a0=ang[0];for(let i=1;i<ang.length;i++)if(ang[i]-ang[i-1]>gap){gap=ang[i]-ang[i-1];a0=ang[i];}
-  if(gap<1e-6)return s;   // all the way round
+  let gap=TAU-ang[ang.length-1]+ang[0],a0=ang[0],second=0;
+  for(let i=1;i<ang.length;i++){const g=ang[i]-ang[i-1];if(g>gap){second=gap;gap=g;a0=ang[i];}else if(g>second)second=g;}
+  // the gap must stand out (a 180° face with only its two end circles has two equal gaps: which half is the face is not
+  // in the boundary) and be a real one, else the full ring is kept, as before: never less than the face
+  if(gap<1e-6||gap-second<20/360*TAU)return s;
   return Object.assign(s,{x,y,a0,th:TAU-gap});}
 // opts.pipe: STEP only, the "pipe?" overrides for this file ({partName: true|false}); opts.parsed: a StepAsm.parse result of
 // the same text (the assembly already open), so the file is not read twice
@@ -261,7 +264,10 @@ function survey(cad,stations,o){
   const solid=new Map(cad.solids.map(x=>[x.sid,x]));
   const parts=[...by.values()].map(s=>{const so=solid.get(s.sid),size=Math.max(...so.max.map((v,k)=>v-so.min[k]));
     const role=so.pipe?'pipe':size>clipSize?'obstacle':s.st.size?'station':s.dLine<=touch?'clip':'obstacle';
-    return{sid:s.sid,name:so.name,pipe:so.pipe||null,size,dims:so.max.map((v,k)=>v-so.min[k]),min:so.min,max:so.max,dLine:s.dLine,stations:[...s.st].sort((a,b)=>a-b),role,faces:s.faces};}).sort((a,b)=>a.dLine-b.dLine);
+    // an existing pipe: how many stations lie on its axis (its nearest face is OD / 2 away, within 1.5 mm; exact faces).
+    // Touching a station is not enough: two pipes side by side in a twin clamp both touch a station on either one
+    const onAxis=so.pipe?stations.filter(p=>s.faces.some(f=>Math.abs((f.shape?shapeDist(f.shape,p):boxDist(p,f))-so.pipe.OD/2)<=1.5)).length:0;
+    return{sid:s.sid,name:so.name,pipe:so.pipe||null,size,dims:so.max.map((v,k)=>v-so.min[k]),min:so.min,max:so.max,dLine:s.dLine,stations:[...s.st].sort((a,b)=>a-b),onAxis,role,faces:s.faces};}).sort((a,b)=>a.dLine-b.dLine);
   // mount: a bracket-sized part (≤ mountSize) at a station that touches a clip — the clip is bolted to it, so a hose
   // through the clip always reaches into its face box. Frame-sized parts stay obstacles (the hose must still clear a rail).
   // The clip may be recorded at a neighbouring station or only on the station line: one bracket often carries the clips of
@@ -314,7 +320,7 @@ function planeName(s){for(let k=0;k<3;k++)if(Math.abs(Math.abs(s.n[k])-1)<1e-6)r
 // a loop of a flat face as 3D points (to draw it)
 function loop3(s,L){const g=L.segs,out=[];for(let i=0;i<g.length;i+=4){const u=g[i],v=g[i+1];out.push([s.o[0]+s.eu[0]*u+s.ev[0]*v,s.o[1]+s.eu[1]*u+s.ev[1]*v,s.o[2]+s.eu[2]*u+s.ev[2]*v]);}return out;}
 
-const API={read,iges,step,survey,index,clearance,boxDist,along,shapeDist,shapeNear,openings,loop3,planeName};
+const API={read,iges,step,survey,index,clearance,boxDist,along,shapeDist,shapeNear,openings,loop3,planeName,torShape};
 if(typeof module!=="undefined"&&module.exports)module.exports=API;
 root.CadSolids=API;
 })(typeof globalThis!=="undefined"?globalThis:this);

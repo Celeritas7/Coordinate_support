@@ -24,9 +24,10 @@ const keepClear=p=>BC.user.has(p.sid)?BC.user.get(p.sid):p.role==='obstacle'||(p
 // list groups: ticked, unticked clips and parts, unticked existing pipes
 const group=p=>keepClear(p)?0:p.role==='pipe'?2:1,GROUP=['Gap checked (ticked)','Not checked (clips, or unticked)','Existing pipes (not checked)'];
 // the existing pipe a pipe task replaces: Through clamps, the picked pipe (its instance, from thSurvey); Route through points,
-// an existing pipe touching 2 or more of the stations (the points trace it)
+// an existing pipe with 2 or more of the stations on its axis (the points trace it; survey's onAxis — merely touching a
+// station is not enough, the neighbour in a twin clamp touches it too)
 function markSelf(sv,c){if(BC.mode==='hose')return;const inst=new Map(BC.cad.solids.map(s=>[s.sid,s.inst]));
-  sv.parts.forEach(p=>{if(p.role!=='pipe')return;p.self=BC.mode==='through'?c.self!=null&&inst.get(p.sid)===c.self:p.stations.length>=2;});}
+  sv.parts.forEach(p=>{if(p.role!=='pipe')return;p.self=BC.mode==='through'?c.self!=null&&inst.get(p.sid)===c.self:p.onAxis>=2;});}
 // parts the too-close list and the gap chart look at: ticked ones, and unticked ones away from any station except existing pipes
 const watched=p=>keepClear(p)||(p.role!=='station'&&p.role!=='pipe'&&p.role!=='mount');
 function survey(){if(!BC.cad)return null;const c=surveyCtx();if(!c||c.P.length<2||c.line.length<2)return null;const{P,line,o}=c,key=JSON.stringify([BC.mode,P,line,o]);

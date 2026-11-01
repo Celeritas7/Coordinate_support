@@ -60,6 +60,16 @@ const dRing = C.shapeDist(tor.shape, [300, 100, 0]), dArc = C.shapeDist(tor.shap
 check(tor.shape.th > 0 && Math.abs(tor.shape.th - Math.PI / 2) < 1e-3, `bend face arc: ${(tor.shape.th * 180 / Math.PI).toFixed(1)}°`);
 check(Math.abs(dRing - Math.hypot(44, 50)) < 0.01, `where the rest of the ring would be: ${dRing.toFixed(2)} mm to the bend's end (was −6, "into" the full ring)`);
 check(Math.abs(dArc - 3) < 1e-6, `on the arc: ${dArc.toFixed(3)} mm (3 mm off the tube)`);
+// a 180° face whose boundary is only its two end circles (no seam edge): which half is the face is not in the boundary,
+// so the full ring is kept (never less than the face); the same face with a seam edge sampled along it keeps its arc
+{ const ringPts = (a, n) => { const o = []; for (let i = 0; i < n; i++) { const t = 2 * Math.PI * i / n; o.push([(50 + 6 * Math.cos(t)) * Math.cos(a), (50 + 6 * Math.cos(t)) * Math.sin(a), 6 * Math.sin(t)]); } return o; };
+  const box = { min: [-56, -6, -6], max: [56, 56, 6] }, tie = C.torShape([0, 0, 0], [0, 0, 1], 50, 6, box, [ringPts(0, 24), ringPts(Math.PI, 24)]);
+  check(tie.th == null, "180° bend face, end circles only: no arc (full ring kept)");
+  const seam = []; for (let i = 0; i <= 18; i++) { const a = Math.PI * i / 18; seam.push([56 * Math.cos(a), 56 * Math.sin(a), 0]); }
+  const arc = C.torShape([0, 0, 0], [0, 0, 1], 50, 6, box, [ringPts(0, 24), ringPts(Math.PI, 24), seam]);
+  check(arc.th != null && Math.abs(arc.th - Math.PI) < 1e-6 && Math.abs(C.shapeDist(arc, [0, -60, 0]) - Math.hypot(44, 60)) < 1e-6,
+    `with a seam edge: arc 180°, below the face the distance is to its end (${C.shapeDist(arc, [0, -60, 0]).toFixed(2)} mm, full ring would say 4)`); }
+
 
 // 7. piping3 (skipped without it): the gap between pipes 111 and 211 read from the faces = the gap between their
 // centrelines; Go round on 111 (and 211) only nudges corners off the one real 2.44 mm spot, clamps held, no loop
@@ -96,6 +106,13 @@ else {
       const av2 = { ...avoid, gap: g(ix2), local(pts) { const hit = f2.filter(x => pts.some(q => C.boxDist(q, x.f) <= rad + need + 5)); if (!hit.length) return { gap: this.gap, box: null, name: null };
         return { gap: this.gap, box: { min: [0, 1, 2].map(k => Math.min(...hit.map(x => x.f.min[k]))), max: [0, 1, 2].map(k => Math.max(...hit.map(x => x.f.max[k]))) }, name: [...new Set(hit.map(x => x.q.name.split(" / ").pop()))].join(", ") }; } };
       const v = T.viaRound(St, so, av2), G = AR.build(v.res.W, v.res.R), r0 = AR.solve(St, so);
+      // stations typed along this pipe where the other runs beside it (2.4 mm): only this pipe is "on the axis" of 2+
+      // stations; the neighbour touches them too but is not the one being replaced, so it stays kept clear
+      { const B = other.samples.pts, A = p.samples.pts; let bi = 0, bd = Infinity; A.forEach((q, i) => B.forEach(b => { const d = len(sub(q, b)); if (d < bd) { bd = d; bi = i; } }));
+        const St3 = [A[Math.max(0, bi - 20)], A[bi], A[Math.min(A.length - 1, bi + 20)]], sv3 = C.survey(cad, St3, { d: OD, gap: need, reach: 60 });
+        const me = sv3.parts.find(q => q.role === "pipe" && inst.get(q.sid) === p.inst), nb = sv3.parts.find(q => q.role === "pipe" && inst.get(q.sid) === other.inst);
+        check(me && me.onAxis >= 2 && nb && nb.stations.length >= 2 && nb.onAxis < 2,
+          `${p.name.slice(-3)} beside ${other.name.slice(-3)}: ${me ? me.onAxis : "?"} stations on its axis; ${other.name.slice(-3)} touches ${nb ? nb.stations.length : "?"} but is on the axis of ${nb ? nb.onAxis : "?"} (not taken as the pipe being replaced)`); }
       check(v.res.ok && !v.left.length && minGap(v.res.W, v.res.R, av2.gap) >= need - 0.06 && G.corners.filter(c => c && c.th * 180 / Math.PI > 100).length === 0 &&
         Math.max(...St.map(q => AR.nearest(G, q, 0, v.res.W.length - 1).d)) <= 0.05,
         `${p.name.slice(-3)} through points (ends + clamps): ${v.steps.map(s => s.how).join("; ") || "nothing near, unchanged"}; gap ${minGap(v.res.W, v.res.R, av2.gap).toFixed(2)} mm (was ${minGap(r0.W, r0.R, av2.gap).toFixed(2)})`); }
