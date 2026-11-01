@@ -177,8 +177,9 @@ clamp CLAMP_1 on it with a CSYS, BLOCK_1 3 mm into its middle straight, PIPE_B �
 1. Pipe · Route through points: the Keep clear list sits above Solve with Pipe OD; BLOCK_1 and the other pipe PIPE_B ticked,
    PIPE_A (the points trace it: "taken as the pipe being replaced") and the clamp not. Stations `0 0 0 / 250 0 0 / 350 100 0 /
    350 300 0 / 450 400 0 / 650 400 0`, Min R 50 → "Clash: pipe 3.0 mm into BLOCK_1 between P3 and P4"; Clearance tab: BLOCK_1
-   −3.0 mm red, CLAMP_1 muted "not counted"; tab label "Clearance (1)"; the 3D readout says Clash; Next: Stop keeping clear of
-   BLOCK_1 · Download .pts.
+   −3.0 mm red, CLAMP_1 muted "not counted"; tab label "Clearance (1)"; the 3D readout says Clash; Next: Go round it · Stop
+   keeping clear of BLOCK_1 · Download .pts; Go round it → Clear, "a via point added between P3 and P4", stations within
+   0.000 mm, no red or amber row.
 2. Pipe · Through clamps: the same list under the clamp settings, CLAMP_1 "clip at CLAMP_1" (the clamp the pipe runs
    through, not kept clear), PIPE_A "the pipe being re-routed" unticked, PIPE_B ticked; Route through ticked clamps → Clash
    into BLOCK_1; the report's Clearance line; Next: Go round it · Stop keeping clear of BLOCK_1 · Download .pts; Go round it
@@ -193,6 +194,8 @@ clamp CLAMP_1 on it with a CSYS, BLOCK_1 3 mm into its middle straight, PIPE_B �
 5. The same test, bend faces: a point where the rest of a bend's ring would be reads 66.6 mm to the bend's end (was −6);
    on piping3 (skipped without it) the face gap between pipes 111 and 211 equals their centreline gap (one place, 2.44 mm),
    and Go round on 111 / 211 moves two corners ≤ 2 mm (gap 4.27 / 4.25 mm), 23 points, clamps held, no new sharp bend.
+   Route through points (viaRound): the U stations round BLOCK_1 with one via between P3 and P4, every station on the curve;
+   piping3 111 / 211 through their ends and clamps: 111 unchanged, 211 one via (+Y), clear of 111, no bend over 100°.
 6. In the app (piping3, Pipe → Through clamps, pipe 111, Go round ticked): "Clear: smallest gap 4.3 mm …", Done line "kept
    clear of U104904_PIPING-3_PRACTICE_211: corners near it moved (same length)", no loops in 3D.
 7. The bend fix changes Hose gaps near bend faces: rerun `node tests/frame-alt.js` and `node tests/cad-solids.test.js` on

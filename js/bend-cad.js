@@ -177,10 +177,10 @@ window.bcVerdict=function(el,cx,first){const sp=cx.spots||[],into=sp.filter(x=>x
     (cx.rows&&cx.rows.length?`<button type="button" class="linkish vclr">${nRows?`${nRows} place${nRows>1?'s':''} in the Clearance tab`:'Gaps in the Clearance tab'}</button>`:'');
   const vl=el.querySelector('.vclr');if(vl)vl.onclick=()=>{dock='clr';showPane();};
   return V0[0];};
-// Through clamps' "Go round the parts" (through.js opt.avoid): gaps to the kept-clear parts of the current survey. gap(p) is
+// "Go round the parts" on Through clamps (through.js opt.avoid) and Route through points (through.js viaRound): gaps to the kept-clear parts of the current survey. gap(p) is
 // the pipe surface gap at a centreline point (to faces: flat and cylindrical exact, others their box); local(pts) gives the
 // same for the parts near those points only (fast, for the fit), the box of the faces causing the clash and the part's name
-window.bcAvoider=function(OD){if(!BC.cad||BC.mode!=='through')return null;const sv=survey();if(!sv)return null;
+window.bcAvoider=function(OD){if(!BC.cad||(BC.mode!=='through'&&BC.mode!=='arc'))return null;const sv=survey();if(!sv)return null;
   const kept=sv.parts.filter(keepClear);if(!kept.length)return null;const need=sv.o.gap,rad=OD/2,r=rad+need+60;
   const faces=kept.flatMap(p=>p.faces.map(f=>({f,p}))),ix=CadSolids.index(faces.map(x=>x.f),50);
   return{need,rad,step:Math.max(1,Math.min(3,OD/4)),

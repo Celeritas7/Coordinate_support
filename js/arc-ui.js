@@ -43,13 +43,19 @@ function arcRun(){
   $('statusBend').style.color='';$('statusBend').textContent=`Placing corners through ${P.length} stations...`;
   $('runBend').disabled=true;
   setTimeout(()=>{
-    let res;const t0=performance.now();
-    try{res=ArcRoute.solve(P,{R,Rmax:R*SF,tol,startDir:parseDir($('sd').value),endDir:parseDir($('ed').value)});}
+    let res,via=null;const t0=performance.now(),sopt={R,Rmax:R*SF,tol,startDir:parseDir($('sd').value),endDir:parseDir($('ed').value)};
+    // Go round the parts (through.js viaRound): via points added clear of a kept-clear part, every station still on the curve
+    const avoid=$('arcAvoid').checked&&typeof bcAvoider==='function'?bcAvoider(Math.max(0.1,+$('cdD').value||8)):null;
+    try{if(avoid){via=Through.viaRound(P,sopt,avoid);res=via.res;}else res=ArcRoute.solve(P,sopt);}
     catch(e){$('runBend').disabled=false;$('statusBend').style.color='var(--bad)';return $('statusBend').textContent=e.message;}
+    // stations and via points in route order, named for the labels and the .pts header (vias: "via 1", …)
+    let nv=0;const SN=via?via.S.map((p,i)=>via.via.includes(i)?{p,name:`via ${++nv}`,via:true}:null):null;
+    if(SN){let k=0;SN.forEach((x,i)=>{if(!x)SN[i]={p:P[k],name:names[k++]};});}
+    const namesAll=SN?SN.map(x=>x.name):names;
     $('runBend').disabled=false;
     const ms=Math.round(performance.now()-t0);
     if(!res.ok){
-      const off=res.errs.map((e,k)=>e>tol?`${names[k]} ${e.toFixed(1)} mm`:'').filter(Boolean);
+      const off=res.errs.map((e,k)=>e>tol?`${namesAll[k]} ${e.toFixed(1)} mm`:'').filter(Boolean);
       $('statusBend').style.color='var(--bad)';
       $('statusBend').textContent=`No lines + arcs route holds R ${R} through these stations: ${res.reason}.`+(off.length?` Off the curve: ${off.join(', ')}.`:'')+' Move those stations apart, or lower Min radius to see how far it gets.';
       return;}
@@ -63,23 +69,26 @@ function arcRun(){
     // gap to the kept-clear parts (bend-cad.js), as Check route does for a hose
     const cx=typeof bcPipeCheck==='function'?bcPipeCheck({Q:W,d},P):null;
     dropCheckRuns();
-    addRun({fromCheck:true,...(cx?bcRunFields(cx):{}),Q:W,d,wi,minR:res.R,len,tidx:[],qLabel:arcLabels(res,names),stations:P.map((p,i)=>({p,name:names[i]})),
+    addRun({fromCheck:true,...(cx?bcRunFields(cx):{}),Q:W,d,wi,minR:res.R,len,tidx:[],qLabel:arcLabels(res,namesAll),stations:SN?SN.map(x=>({p:x.p,name:x.name})):P.map((p,i)=>({p,name:names[i]})),
       name:`Lines + arcs R${Rtxt}`,kind:'arc',kindLabel:'bend radius, lines + arcs',params:{R,SF},
-      settings:`${W.length} corner points, single radius ${Rtxt} mm, stations within ${err.toFixed(3)} mm${cx?cx.note:''}${frameNote}`,
-      text:arcPts({W,owner:res.owner},names,{R:Rtxt,Rlim:R,len,err})});
-    const done=`Added. One radius, R ${Rtxt} mm (${(res.R/R).toFixed(2)}x the limit), through all ${P.length} stations with ${W.length} points. Solved in ${ms} ms.`;
+      settings:`${W.length} corner points, single radius ${Rtxt} mm, stations within ${err.toFixed(3)} mm${nv?`, ${nv} via point${nv>1?'s':''} round kept-clear parts`:''}${cx?cx.note:''}${frameNote}`,
+      text:arcPts({W,owner:res.owner},namesAll,{R:Rtxt,Rlim:R,len,err})});
+    const went=via&&via.steps.length?` ${via.steps.map(s=>s.how).join('; ')}.`:'';
+    const left=via&&via.left.length?` Could not go round ${[...new Set(via.left.map(x=>x.name||'a part'))].join(', ')}: at a station, or no way round that holds R ${R} through the stations.`:'';
+    const done=`Added. One radius, R ${Rtxt} mm (${(res.R/R).toFixed(2)}x the limit), through all ${P.length} stations with ${W.length} points. Solved in ${ms} ms.${went}${left}`;
     if(cx)bcVerdict($('statusBend'),cx,done);else $('statusBend').textContent=done;
     // a clash or a tight spot: stop keeping clear of that part (it is not in the way), or move a station beside it
     const sp=cx&&cx.spots?cx.spots.slice().sort((a,b)=>a.gap-b.gap)[0]:null;
     if(sp&&typeof nextSteps==='function')nextSteps('statusBend',[
-      {label:`Stop keeping clear of ${esc(String(sp.name).split(' / ').pop())}`,title:'Unticks it under Keep clear and solves again. To go round it instead, add or move a station beside it',go:()=>{bcKeepClearName(sp.name,false);arcRun();}},
-      {label:'Download .pts',go:()=>{dock='pts';showPane();$('dl').click();}}]);
+      !$('arcAvoid').checked?{label:'Go round it',title:'Ticks “Go round the parts kept clear of” and solves again: via points clear of the part, every station still on the curve',go:()=>{$('arcAvoid').checked=true;arcRun();}}:null,
+      {label:`Stop keeping clear of ${esc(String(sp.name).split(' / ').pop())}`,title:'Unticks it under Keep clear and solves again',go:()=>{bcKeepClearName(sp.name,false);arcRun();}},
+      {label:'Download .pts',go:()=>{dock='pts';showPane();$('dl').click();}}].filter(Boolean));
   },20);
 }
 
 {const spline=$('runBend').onclick,LABEL={spline:$('runBend').textContent,arc:'Solve lines + arcs, then add to comparison'};
   const sync=()=>{const arc=$('shape').value==='arc';
-    $('panBend').classList.toggle('arc',arc);$('splineOpts').hidden=arc;$('spBox').hidden=arc;$('arcTolBox').hidden=!arc;$('arcHint').hidden=!arc;$('bendHint').hidden=arc;$('altBox').hidden=arc;
+    $('panBend').classList.toggle('arc',arc);$('splineOpts').hidden=arc;$('spBox').hidden=arc;$('arcTolBox').hidden=!arc;$('arcHint').hidden=!arc;$('arcAvoidBox').hidden=!arc;$('bendHint').hidden=arc;$('altBox').hidden=arc;
     if(!bendJob)$('runBend').textContent=LABEL[arc?'arc':'spline'];store.set('rs.shape',$('shape').value);};
   $('shape').onchange=sync;
   if(store.get('rs.shape')==='arc')$('shape').value='arc';sync();

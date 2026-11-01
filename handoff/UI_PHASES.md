@@ -302,7 +302,8 @@ Seen, not changed: the 3D readout says "Passes, but inside the ×1.5 safety marg
   default), and on a clash the Next line: **Go round it** (primary: ticks it and routes again) · **Stop keeping clear of
   <part>** · **Download .pts**. What it did is in the "Done:" line ("kept clear of BLOCK_1: corners near it moved (same
   length)"); what it could not go round follows ("Could not go round …: on an end straight, a clamp's straight, or no way
-  round with R …"). Route through points: Next is Stop keeping clear of <part> · Download .pts (no going round yet).
+  round with R …"). Route through points: the same checkbox above Solve, and on a clash Next **Go round it** · **Stop keeping
+  clear of <part>** · **Download .pts**; it adds via points ("via 1" in the labels), every station stays on the curve.
 
 ---
 

@@ -44,8 +44,15 @@ let fail=0;const check=(ok,m)=>{console.log((ok?"ok   ":"FAIL ")+m);if(!ok)fail+
  check(R.some(r=>r[0]==="bad"&&r[2]==="BLOCK_1"&&r[3]==="−3.0 mm"),"Clearance tab: BLOCK_1 −3.0 mm, red");
  check(R.some(r=>r[0]===""&&r[2]==="CLAMP_1"&&/not counted/.test(r[4])),"Clearance tab: CLAMP_1 listed, not counted (unticked)");
  check(/^Clearance \(1\)$/.test(await txt("dClr")),`tab label: ${await txt("dClr")}`);
- check(JSON.stringify(await pg.evaluate(()=>[...document.querySelectorAll("#statusBend + .next button")].map(b=>b.textContent)))==='["Stop keeping clear of BLOCK_1","Download .pts"]',"Route through points: Next offers Stop keeping clear of BLOCK_1, Download .pts");
+ check(JSON.stringify(await pg.evaluate(()=>[...document.querySelectorAll("#statusBend + .next button")].map(b=>b.textContent)))==='["Go round it","Stop keeping clear of BLOCK_1","Download .pts"]',"Route through points: Next offers Go round it, Stop keeping clear of BLOCK_1, Download .pts");
  check(/Clash: 3\.0 mm into BLOCK_1/.test(await txt("readout")),`3D readout: ${(await txt("readout")).slice(0,90)}`);
+ // Go round it: a via point beside BLOCK_1, every station still on the curve
+ await pg.click('#statusBend + .next button:text-is("Go round it")');for(let i=0;i<60;i++){await pg.waitForTimeout(250);if(/^(Clear|Close|Clash):/.test(await txt("statusBend"))&&/via point|Could not go round/.test(await txt("statusBend")))break;}
+ st=await txt("statusBend");console.log("     "+st.slice(0,300));
+ check(await pg.evaluate(()=>$("arcAvoid").checked)&&/^Clear: /.test(st)&&/kept clear of BLOCK_1: a via point added between P3 and P4/.test(st),"Route through points, Go round it: Clear, one via point between P3 and P4");
+ check(/through all 6 stations/.test(st)&&/stations within 0\.0\d\d mm/.test(await pg.evaluate(()=>selected().settings)),`every station still on the curve (${await pg.evaluate(()=>selected().settings)})`);
+ R=await rows();check(!R.some(r=>r[0]==="bad"||r[0]==="warn"),"Clearance tab: no red or amber row");
+ await pg.evaluate(()=>{$("arcAvoid").checked=false;});
 
  // ---- Pipe · Through clamps: the clamp on the pipe ticked, route; the route keeps the second straight
  await task("pipe","clamps");
