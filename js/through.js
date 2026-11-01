@@ -243,7 +243,49 @@ function report(W0,V,W,o){
     endMove,endDirErr:Math.max(Math.acos(Math.min(1,dirS)),Math.acos(Math.min(1,dirE)))*DEG,samples:S,G};
 }
 
-const API={solve,report,clashes};
+// ---- Pipe · Route through points (ArcRoute): go round kept-clear parts with via points ----
+// S: the stations; sopt: ArcRoute.solve's options; avoid: as opt.avoid above. Solves, then for each place closer than the gap
+// (worst first) tries a via point clear of the part near it on 4 sides (one via, or two along a long part) and solves again:
+// every station stays on the curve and R holds (ArcRoute). Kept when that place clears with no worse clash elsewhere, no new
+// bend over 100° and at most maxLonger mm (300) longer; the shortest wins. {res, S (with vias), via: [index in S], steps, left}
+function viaRound(S,sopt,avoid){
+  let st=S.map(p=>p.slice()),isVia=S.map(()=>false),res=AR.solve(st,sopt);const steps=[];
+  if(!res.ok)return{res,S:st,via:[],steps,left:[]};
+  const t0=Date.now(),budget=avoid.budget||15000,maxL=avoid.maxLonger??300,tried=new Set();
+  const oOf=r=>({R:r.R,avoid}),lenOf=r=>{const G=AR.build(r.W,r.R);let L=0;G.lines.forEach(l=>L+=l.gap);G.corners.forEach(c=>{if(c&&c.th)L+=c.th*c.R;});return L;};
+  const sharpOf=r=>AR.build(r.W,r.R).corners.filter(c=>c&&c.th*DEG>100).length;
+  let C=clashes(res.W,oOf(res));
+  for(let guard=0;guard<6&&C.length&&Date.now()-t0<budget;guard++){
+    const c=C.find(x=>!tried.has(x.p.map(Math.round).join(',')));if(!c)break;tried.add(c.p.map(Math.round).join(','));
+    // the stations either side of it, along the curve
+    const Smp=AR.sample(AR.build(res.W,res.R),avoid.step||3),at=q=>{let bi=0,bd=Infinity;Smp.pts.forEach((p,i)=>{const d=len(sub(p,q));if(d<bd){bd=d;bi=i;}});return Smp.s[bi];};
+    const sc=at(c.p),ss=st.map(at);let k=0;while(k<st.length-2&&ss[k+1]<=sc)k++;
+    const loc=avoid.local(c.pts);if(!loc.box)continue;
+    const e=(avoid.rad||0)+avoid.need+2*res.R+50,pm=[0,1,2].map(i=>Math.min(...c.pts.map(p=>p[i]))-e),px=[0,1,2].map(i=>Math.max(...c.pts.map(p=>p[i]))+e);
+    const b={min:[0,1,2].map(i=>Math.max(loc.box.min[i],pm[i])),max:[0,1,2].map(i=>Math.min(loc.box.max[i],px[i]))};if([0,1,2].some(i=>b.min[i]>b.max[i]))continue;
+    const cs=[];for(let q=0;q<8;q++)cs.push([q&1?b.max[0]:b.min[0],q&2?b.max[1]:b.min[1],q&4?b.max[2]:b.min[2]]);
+    const t=norm(sub(c.pts[c.pts.length-1],c.pts[0]).some(v=>Math.abs(v)>1e-6)?sub(c.pts[c.pts.length-1],c.pts[0]):sub(st[k+1],st[k]));
+    const ctr=mul(add(b.min,b.max),0.5);let u=sub(c.p,ctr);u=sub(u,mul(t,dot(u,t)));if(len(u)<1e-6)u=Math.abs(t[2])<0.9?[0,0,1]:[1,0,0];u=norm(sub(u,mul(t,dot(u,t))));
+    const v=norm([t[1]*u[2]-t[2]*u[1],t[2]*u[0]-t[0]*u[2],t[0]*u[1]-t[1]*u[0]]),clear=(avoid.rad||0)+avoid.need+2;
+    const along=cs.map(q=>dot(sub(q,c.p),t)),lo=Math.min(...along),hi=Math.max(...along),L0=lenOf(res),s0=sharpOf(res),b0=badness(C);let best=null;
+    for(const n of[u,mul(u,-1),v,mul(v,-1)]){const h=Math.max(...cs.map(q=>dot(sub(q,c.p),n)))+clear;if(h<=0||h>400)continue;
+      // one via at the worst point (the curve sags back between it and the stations: also one pushed a gap further), or
+      // two along the part's length, past each end by the clearance
+      const one=[add(c.p,mul(n,h))],more=[add(c.p,mul(n,h+clear))],two=[add(add(c.p,mul(t,lo-clear)),mul(n,h)),add(add(c.p,mul(t,hi+clear)),mul(n,h))];
+      for(const vias of[one,more,two]){
+        const S2=st.slice(0,k+1).concat(vias,st.slice(k+1)),V2=isVia.slice(0,k+1).concat(vias.map(()=>true),isVia.slice(k+1));
+        let r2;try{r2=AR.solve(S2,sopt);}catch(err){continue;}if(!r2.ok)continue;
+        const Cn=clashes(r2.W,oOf(r2)),still=Cn.some(x=>x.pts.some(p=>len(sub(p,c.p))<avoid.need+(avoid.rad||0)+20)),dL=lenOf(r2)-L0;
+        if(still||badness(Cn)>=b0-1e-6||sharpOf(r2)>s0||dL>maxL)continue;
+        // what is still too close counts far more than length: a via that clears everything beats a shorter one that does not
+        const score=200*badness(Cn)+dL+25*vias.length;if(!best||score<best.score)best={S:S2,V:V2,r:r2,Cn,score,dL,n:vias.length,side:sideName(n)};}
+      if(Date.now()-t0>budget)break;}
+    if(!best)continue;
+    const pa=isVia.slice(0,k+1).filter(x=>!x).length;   // stations numbered as typed (vias not counted)
+    st=best.S;isVia=best.V;res=best.r;C=best.Cn;tried.clear();
+    steps.push({how:`kept clear of ${loc.name||'a part'}: ${best.n===1?'a via point':'two via points'} added between P${pa} and P${pa+1}, round its ${best.side} side (${Math.round(best.dL)>0?`${Math.round(best.dL)} mm longer`:Math.round(best.dL)<0?`${-Math.round(best.dL)} mm shorter`:'same length'})`,avoid:true,part:loc.name||null});}
+  return{res,S:st,via:isVia.map((x,i)=>x?i:-1).filter(i=>i>=0),steps,left:C.map(c=>({g:c.g,p:c.p,name:avoid.local(c.pts).name||null}))};}
+const API={solve,report,clashes,viaRound};
 if(typeof module!=="undefined"&&module.exports)module.exports=API;
 root.Through=API;
 })(typeof globalThis!=="undefined"?globalThis:this);

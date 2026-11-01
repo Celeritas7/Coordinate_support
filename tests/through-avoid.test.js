@@ -88,7 +88,29 @@ else {
       `${p.name.slice(-3)} with Go round: ${res.steps.filter(s => s.avoid).map(s => s.how).join("; ")}; corners moved ≤ ${moved.toFixed(2)} mm, ${res.W.length} points, clamps held`);
     check(minGap(res.W, p.R, avoid.gap) >= need - 0.06 && res.report.bends.filter(b => b > 100).length === base.report.bends.filter(b => b > 100).length,
       `${p.name.slice(-3)}: smallest gap ${minGap(res.W, p.R, avoid.gap).toFixed(2)} mm, no new sharp bend, ${Math.round(res.report.length - base.report.length)} mm longer`);
+    // Route through points on the same pipe's ends and clamps (stations): via points only where needed, no sharp bend
+    { const at = q => { let bi = 0, bd = 1e9; p.samples.pts.forEach((s, i) => { const d = len(sub(s, q)); if (d < bd) { bd = d; bi = i; } }); return bi; };
+      const St = [p.Q[0], ...cl.map(c => c.fix.c).sort((a, b) => at(a) - at(b)), p.Q[p.Q.length - 1]], so = { R: p.R, Rmax: p.R * 1.5, tol: 0.05 };
+      const sv2 = C.survey(cad, St, { d: OD, gap: need, reach: 60 }), kept2 = sv2.parts.filter(q => q.role === "obstacle" || (q.role === "pipe" && q.stations.length < 2));
+      const f2 = kept2.flatMap(q => q.faces.map(f => ({ f, q }))), ix2 = C.index(f2.map(x => x.f), 50);
+      const av2 = { ...avoid, gap: g(ix2), local(pts) { const hit = f2.filter(x => pts.some(q => C.boxDist(q, x.f) <= rad + need + 5)); if (!hit.length) return { gap: this.gap, box: null, name: null };
+        return { gap: this.gap, box: { min: [0, 1, 2].map(k => Math.min(...hit.map(x => x.f.min[k]))), max: [0, 1, 2].map(k => Math.max(...hit.map(x => x.f.max[k]))) }, name: [...new Set(hit.map(x => x.q.name.split(" / ").pop()))].join(", ") }; } };
+      const v = T.viaRound(St, so, av2), G = AR.build(v.res.W, v.res.R), r0 = AR.solve(St, so);
+      check(v.res.ok && !v.left.length && minGap(v.res.W, v.res.R, av2.gap) >= need - 0.06 && G.corners.filter(c => c && c.th * 180 / Math.PI > 100).length === 0 &&
+        Math.max(...St.map(q => AR.nearest(G, q, 0, v.res.W.length - 1).d)) <= 0.05,
+        `${p.name.slice(-3)} through points (ends + clamps): ${v.steps.map(s => s.how).join("; ") || "nothing near, unchanged"}; gap ${minGap(v.res.W, v.res.R, av2.gap).toFixed(2)} mm (was ${minGap(r0.W, r0.R, av2.gap).toFixed(2)})`); }
+
   }
 }
+
+// 8. Route through points (ArcRoute): via points round a part, every station still on the curve
+{ const SS = [[0, 0, 0], [250, 0, 0], [350, 100, 0], [350, 300, 0], [450, 400, 0], [650, 400, 0]], so = { R: 50, Rmax: 75, tol: 0.05 }, av = avoidOf([B1], 12, 4);
+  const r0 = AR.solve(SS, so), v = T.viaRound(SS, so, av), G = AR.build(v.res.W, v.res.R);
+  check(minGap(r0.W, r0.R, av.gap) < -2.9, `points route: ${minGap(r0.W, r0.R, av.gap).toFixed(1)} mm into BLOCK_1 before`);
+  check(v.steps.length === 1 && /BLOCK_1: a via point added between P3 and P4/.test(v.steps[0].how) && minGap(v.res.W, v.res.R, av.gap) >= 4 - 0.06,
+    `via: ${v.steps.map(s => s.how).join("; ")}; gap ${minGap(v.res.W, v.res.R, av.gap).toFixed(2)} mm`);
+  check(Math.max(...SS.map(q => AR.nearest(G, q, 0, v.res.W.length - 1).d)) <= 0.05 && v.res.R >= 50, `every station on the curve, R ${v.res.R}`);
+  const vn = T.viaRound(SS, so, avoidOf([{ min: [1e4, 1e4, 1e4], max: [1e4 + 1, 1e4 + 1, 1e4 + 1] }], 12, 4));
+  check(JSON.stringify(vn.res.W) === JSON.stringify(r0.W) && !vn.via.length, "nothing near: the same route, no via"); }
 console.log(fail ? `${fail} failed` : "all passed");
 process.exit(fail ? 1 : 0);

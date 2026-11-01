@@ -175,8 +175,13 @@ Today (`js/through.js`): every ticked clamp is routed in one run, but clamps are
    straight the added corners start with one on the bore axis, so the clamp keeps its straight. A part on an end straight
    (end and direction fixed) cannot be gone round: reported, route unchanged. "Drop detour corners" keeps a corner whose
    removal adds a clash. At most 15 s. Next buttons on a clash: Go round it · Stop keeping clear of <part> · Download .pts.
-   Route through points: Next (Stop keeping clear of <part> · Download .pts) only; going round there is still to do
-   (its solver fits stations, not clamps). Known limit: the gap is to faces, unsigned: a centreline deep inside a part
+   Route through points (done 2026-11-01, `through.js` viaRound): "Go round the parts kept clear of" (above Solve, off by
+   default; also the first Next button on a clash) adds via points: for each place closer than the gap, worst first, a
+   via clear of the part near it on 4 sides (one at the worst point, one a gap further, or two past the part's ends) and
+   ArcRoute solves again, so every station stays on the curve and R holds. Kept with the same guards as Through (the place
+   clears, nothing worse elsewhere, no new bend over 100°, ≤ 300 mm longer); what is still too close outweighs length.
+   Vias are named "via 1" … in the labels and the .pts. piping3 211 through its ends and clamps: one via, +Y side, 1 mm
+   longer, 3.1 mm → clear of 111. Known limit: the gap is to faces, unsigned: a centreline deep inside a part
    reads as near its faces, not as inside. Tests: `tests/through-avoid.test.js` (exact boxes), `tests/pipe-clear.js`
    - Fixed after the first try on piping3 (2026-11-01): Go round on pipe 111 made loops round pipe 211. Cause: a torus face
      (a pipe bend) was measured as the full ring, held only to its box, so 111 read "5.6 mm into" 211 at six places where it
