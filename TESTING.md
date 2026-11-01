@@ -190,7 +190,12 @@ clamp CLAMP_1 on it with a CSYS, BLOCK_1 3 mm into its middle straight, PIPE_B �
    corners slide clear (gap ≥ 4); a wall across it → one corner added over it; a box on a clamp's straight → corners added
    on the far side, the clamp still straight through; a part on an end straight → left, route unchanged; nothing near →
    the same route as without it.
-5. piping3 pipe 111 with Go round ticked: if nothing kept clear is within 4 mm, the route is the one without it (pipe 111
-   still kept through its 3 clamps, 23 points).
+5. The same test, bend faces: a point where the rest of a bend's ring would be reads 66.6 mm to the bend's end (was −6);
+   on piping3 (skipped without it) the face gap between pipes 111 and 211 equals their centreline gap (one place, 2.44 mm),
+   and Go round on 111 / 211 moves two corners ≤ 2 mm (gap 4.27 / 4.25 mm), 23 points, clamps held, no new sharp bend.
+6. In the app (piping3, Pipe → Through clamps, pipe 111, Go round ticked): "Clear: smallest gap 4.3 mm …", Done line "kept
+   clear of U104904_PIPING-3_PRACTICE_211: corners near it moved (same length)", no loops in 3D.
+7. The bend fix changes Hose gaps near bend faces: rerun `node tests/frame-alt.js` and `node tests/cad-solids.test.js` on
+   frame_asm.stp (clean routes about 679 / 931 / 1141 mm; STEP exact gap −0.41 mm = IGES).
 On the real files (not run here: no samples in that session): piping3 Through clamps on pipe 111 and frame_asm.stp Route
 through points with route_343434's stations should list the frame parts as on Hose, and the clamps as not counted.

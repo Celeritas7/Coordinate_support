@@ -56,11 +56,21 @@ function inFace(s,u,v){let inside=false;for(const L of s.loops){const b=L.bb;if(
 // nearest boundary loop to (u,v): {d, loop}
 function nearLoop(s,u,v){let d=Infinity,loop=null;for(const L of s.loops){const b=L.bb,du=Math.max(b[0]-u,0,u-b[2]),dv=Math.max(b[1]-v,0,v-b[3]);
     if(du*du+dv*dv>=d*d)continue;const e=seg2(u,v,L.segs);if(e<d){d=e;loop=L;}}return{d,loop};}
-// untrimmed surfaces (sphere, torus, cone, swept profile): the distance to the whole surface, never less than to the face's
-// own box (s.box), so a full torus or sphere does not reach past the patch the face covers
+// untrimmed surfaces (sphere, cone, swept profile): the distance to the whole surface, never less than to the face's own box
+// (s.box), so a full sphere does not reach past the patch the face covers. A torus (a pipe bend) is held to its arc around
+// the bend axis too (s.x, s.y, s.a0, s.th from its boundary): past the arc, the distance is to the nearer end circle of the
+// tube. Without it a pipe passing a bend's box read the rest of the ring: piping3 pipe 111 was "5.6 mm into" pipe 211
+// where it is 17 mm clear.
+function torDist(s,p){const w=sub3(p,s.c),h=dot3(w,s.z),q=sub3(w,s.z.map(v=>v*h)),rho=len3(q);
+  if(s.th!=null&&rho>1e-9){const a=Math.atan2(dot3(q,s.y),dot3(q,s.x)),rel=((a-s.a0)%TAU+TAU)%TAU;
+    if(rel>s.th+1e-9){let b=Infinity;for(const e of[s.a0,s.a0+s.th]){const ce=Math.cos(e),se=Math.sin(e),
+        o=[0,1,2].map(k=>s.c[k]+s.R*(ce*s.x[k]+se*s.y[k])),n=[0,1,2].map(k=>-se*s.x[k]+ce*s.y[k]),v=sub3(p,o),hn=dot3(v,n);
+        b=Math.min(b,Math.hypot(len3(sub3(v,n.map(x=>x*hn)))-s.r,hn));}
+      return b;}}
+  return Math.abs(Math.hypot(rho-s.R,h)-s.r);}
 function surfDist(s,p){let d;
   if(s.kind==='sph')d=Math.abs(len3(sub3(p,s.c))-s.R);
-  else if(s.kind==='tor'){const w=sub3(p,s.c),h=dot3(w,s.z),rho=Math.hypot(...sub3(w,s.z.map(v=>v*h)));d=Math.abs(Math.hypot(rho-s.R,h)-s.r);}
+  else if(s.kind==='tor')d=torDist(s,p);
   else if(s.kind==='cone'){const w=sub3(p,s.a),h=dot3(w,s.z),rho=Math.hypot(...sub3(w,s.z.map(v=>v*h)));d=Math.abs(rho-(s.r0+h*Math.tan(s.ang)))*Math.cos(s.ang);}
   else{// swept profile: across the sweep to the profile polyline, along it past the face's extent
     const t=dot3(sub3(p,s.o),s.d),q=sub3(p,s.d.map(v=>v*t)),g=s.segs;let b=Infinity;
@@ -194,7 +204,7 @@ function step(text,opts){
       // spheres, tori, cones and swept profiles: the untrimmed surface, held to the face box (surfDist)
       if(exactStep&&!face.shape){const Vv=q=>unit(F.vec(inst.M,q)),box={min:face.min,max:face.max};
         if(f.kind==='spherical'&&f.ax&&f.r>0)face.shape={kind:'sph',c:P(f.ax.o),R:f.r,box};
-        else if(f.kind==='toroidal'&&f.ax&&f.R>0&&f.r>0)face.shape={kind:'tor',c:P(f.ax.o),z:Vv(f.ax.z),R:f.R,r:f.r,box};
+        else if(f.kind==='toroidal'&&f.ax&&f.R>0&&f.r>0)face.shape=torShape(P(f.ax.o),Vv(f.ax.z),f.R,f.r,box,WL);
         else if(f.kind==='conical'&&f.ax&&f.ang!=null&&Math.abs(f.ang)<1.5)face.shape={kind:'cone',a:P(f.ax.o),z:Vv(f.ax.z),r0:f.r||0,ang:f.ang,box};
         else if(f.ext&&f.loops&&f.loops.length){const d=Vv(f.ext.d),P0=f.ext.pts.map(P),o=P0[0],segs=[];
           // the profile projected across the sweep (onto the plane through its first point, normal to the sweep)
@@ -209,6 +219,16 @@ function step(text,opts){
   return{format:'STEP',solids,faces};
 }
 
+// a torus face: centre c, axis z, radii; its arc around the axis from the boundary points (the largest gap between their
+// angles is where the face is not): x, y in the plane, a0 = start, th = sweep. A face going all the way round keeps no arc.
+function torShape(c,z,R,r,box,WL){const s={kind:'tor',c,z,R,r,box},A=[];let x=null;
+  for(const l of WL)for(const q of l){const w=sub3(q,c),h=dot3(w,z),u=sub3(w,z.map(v=>v*h)),L=len3(u);if(L<1e-9)continue;
+    if(!x)x=u.map(v=>v/L);A.push(u);}
+  if(!x||A.length<2)return s;const y=[z[1]*x[2]-z[2]*x[1],z[2]*x[0]-z[0]*x[2],z[0]*x[1]-z[1]*x[0]];
+  const ang=A.map(u=>((Math.atan2(dot3(u,y),dot3(u,x)))%TAU+TAU)%TAU).sort((a,b)=>a-b);
+  let gap=TAU-ang[ang.length-1]+ang[0],a0=ang[0];for(let i=1;i<ang.length;i++)if(ang[i]-ang[i-1]>gap){gap=ang[i]-ang[i-1];a0=ang[i];}
+  if(gap<1e-6)return s;   // all the way round
+  return Object.assign(s,{x,y,a0,th:TAU-gap});}
 // opts.pipe: STEP only, the "pipe?" overrides for this file ({partName: true|false}); opts.parsed: a StepAsm.parse result of
 // the same text (the assembly already open), so the file is not read twice
 function read(text,name,opts){

@@ -50,5 +50,45 @@ check(r.W.every((p, i) => len(sub(p, W0[i])) < 1e-3), "route unchanged when noth
 // 5. no avoid: same result as before
 const r0 = T.solve(W0, { R, clamps: [clamp] }), r1 = T.solve(W0, { R, clamps: [clamp], avoid: avoidOf([{ min: [1e4, 1e4, 1e4], max: [1e4 + 1, 1e4 + 1, 1e4 + 1] }], OD, 4) });
 check(JSON.stringify(r0.W) === JSON.stringify(r1.W), "nothing near: the same route as without avoid");
+
+// 6. a pipe bend (torus face) is held to its arc: where the rest of the ring would be, the distance is to the nearer end of
+// the bend, not to the full ring (generated sample, PIPE_A's first bend: centre 300 50 0, R 50, from (300,0,0) to (350,50,0))
+const fs = require("fs"), path = require("path"), S = require("../js/step-asm.js"), C = require("../js/cad-solids.js");
+const tor = C.read(require("./make-pipe-sample.js").makePipeSample(), "s.stp").faces.filter(f => f.shape && f.shape.kind === "tor")
+  .find(f => Math.abs(f.shape.c[0] - 300) < 1e-6 && Math.abs(f.shape.c[1] - 50) < 1e-6);
+const dRing = C.shapeDist(tor.shape, [300, 100, 0]), dArc = C.shapeDist(tor.shape, [300 + 50 * Math.SQRT1_2, 50 - 50 * Math.SQRT1_2, 9]);
+check(tor.shape.th > 0 && Math.abs(tor.shape.th - Math.PI / 2) < 1e-3, `bend face arc: ${(tor.shape.th * 180 / Math.PI).toFixed(1)}°`);
+check(Math.abs(dRing - Math.hypot(44, 50)) < 0.01, `where the rest of the ring would be: ${dRing.toFixed(2)} mm to the bend's end (was −6, "into" the full ring)`);
+check(Math.abs(dArc - 3) < 1e-6, `on the arc: ${dArc.toFixed(3)} mm (3 mm off the tube)`);
+
+// 7. piping3 (skipped without it): the gap between pipes 111 and 211 read from the faces = the gap between their
+// centrelines; Go round on 111 (and 211) only nudges corners off the one real 2.44 mm spot, clamps held, no loop
+const P3 = path.join(__dirname, "../samples/piping3_practice_asm.stp");
+if (!fs.existsSync(P3)) console.log("skip: samples/piping3_practice_asm.stp not found");
+else {
+  global.ArcRoute = AR;
+  const r = S.parse(fs.readFileSync(P3, "utf8")), cad = C.read("", "piping3.stp", { parsed: r }), inst = new Map(cad.solids.map(s => [s.sid, s.inst]));
+  for (const pi of [0, 1]) {
+    const p = r.pipes[pi], other = r.pipes[1 - pi], cl = r.clampsFor(pi).filter(c => c.use), OD = p.OD, rad = OD / 2, need = 4;
+    // the page's survey and bcAvoider (bend-cad.js), for Pipe · Through clamps with the default ticks
+    const sv = C.survey(cad, [p.Q[0], ...cl.map(c => c.fix.c), p.Q[p.Q.length - 1]], { d: OD, gap: need, reach: 60, line: p.Q });
+    const kept = sv.parts.filter(q => q.role === "obstacle" || (q.role === "pipe" && inst.get(q.sid) !== p.inst));
+    const faces = kept.flatMap(q => q.faces.map(f => ({ f, q }))), ix = C.index(faces.map(x => x.f), 50), rr = rad + need + 60;
+    const g = (ixx) => q => { const n = ixx.nearest(q, rr); return isFinite(n.d) ? n.d - rad : 1e6; };
+    const avoid = { need, rad, step: Math.max(1, Math.min(3, OD / 4)), gap: g(ix),
+      local(pts) { const hit = faces.filter(x => pts.some(q => C.boxDist(q, x.f) <= rad + need + 5)); if (!hit.length) return { gap: this.gap, box: null, name: null };
+        const box = { min: [0, 1, 2].map(k => Math.min(...hit.map(x => x.f.min[k]))), max: [0, 1, 2].map(k => Math.max(...hit.map(x => x.f.max[k]))) };
+        return { gap: this.gap, box, name: [...new Set(hit.map(x => x.q.name.split(" / ").pop()))].join(", ") }; } };
+    const opt = { R: p.R, minStraight: 30, margin: 2, dropDetours: true, clamps: cl.map(c => ({ c: c.fix.c, a: c.fix.d, length: c.fix.length, name: c.fix.name })) };
+    const base = T.solve(p.Q, opt), cs = T.clashes(base.W, { ...opt, avoid }), B = other.samples.pts;
+    const axis = q => Math.min(...B.map(b => len(sub(q, b)))) - other.OD / 2 - rad;
+    check(cs.length === 1 && Math.abs(cs[0].g - axis(cs[0].p)) < 0.05, `${p.name.slice(-3)}: one place within 4 mm, ${cs.map(c => `${c.g.toFixed(2)} mm (centrelines: ${axis(c.p).toFixed(2)})`).join(", ")} — the bends of the other pipe no longer read as clashes`);
+    const res = T.solve(p.Q, { ...opt, avoid }), moved = Math.max(...res.W.map((q, i) => len(sub(q, base.W[i]))));
+    check(res.W.length === base.W.length && res.report.clamps.every(c => c.ok) && moved < 5 && !res.left.length,
+      `${p.name.slice(-3)} with Go round: ${res.steps.filter(s => s.avoid).map(s => s.how).join("; ")}; corners moved ≤ ${moved.toFixed(2)} mm, ${res.W.length} points, clamps held`);
+    check(minGap(res.W, p.R, avoid.gap) >= need - 0.06 && res.report.bends.filter(b => b > 100).length === base.report.bends.filter(b => b > 100).length,
+      `${p.name.slice(-3)}: smallest gap ${minGap(res.W, p.R, avoid.gap).toFixed(2)} mm, no new sharp bend, ${Math.round(res.report.length - base.report.length)} mm longer`);
+  }
+}
 console.log(fail ? `${fail} failed` : "all passed");
 process.exit(fail ? 1 : 0);
