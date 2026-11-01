@@ -174,13 +174,13 @@ Wording is provisional until the design pass; the buttons live in `js/next.js` (
 clamp CLAMP_1 on it with a CSYS, BLOCK_1 3 mm into its second straight) and walks it in Chromium:
 0. The file is opened from Pipe · Through clamps (before: the empty list says "No parts read"): the Keep clear list gets its
    parts there too, not only when the assembly is opened in Hose · Route through stations.
-1. Pipe · Route through points: the Keep clear list sits above Solve with Pipe OD; BLOCK_1 ticked, the existing pipe and the
-   clamp not. Stations `0 0 0 / 250 0 0 / 350 100 0 / 350 400 0`, Min R 50 → "Clash: pipe 3.0 mm into BLOCK_1 between P3 and
+1. Pipe · Route through points: the Keep clear list sits above Solve with Pipe OD; BLOCK_1 and the other pipe PIPE_B ticked,
+   PIPE_A (the points trace it: "taken as the pipe being replaced") and the clamp not. Stations `0 0 0 / 250 0 0 / 350 100 0 / 350 400 0`, Min R 50 → "Clash: pipe 3.0 mm into BLOCK_1 between P3 and
    P4"; Clearance tab: BLOCK_1 −3.0 mm red, CLAMP_1 muted "not counted"; tab label "Clearance (1)"; the 3D readout says Clash.
 2. Pipe · Through clamps: the same list under the clamp settings, CLAMP_1 "clip at CLAMP_1" (the clamp the pipe runs
-   through, not kept clear); Route through ticked clamps → Clash into BLOCK_1; the report's Clearance line; untick BLOCK_1 and
-   route again → Clear.
+   through, not kept clear), PIPE_A "the pipe being re-routed" unticked, PIPE_B ticked; Route through ticked clamps → Clash
+   into BLOCK_1; the report's Clearance line; untick BLOCK_1 and route again → Clear.
 3. Back to Hose · Route through stations: the list is in the Load card again, Check on the same points reports BLOCK_1 in hose
-   words.
+   words; existing pipes unticked (Hose default).
 On the real files (not run here: no samples in that session): piping3 Through clamps on pipe 111 and frame_asm.stp Route
 through points with route_343434's stations should list the frame parts as on Hose, and the clamps as not counted.

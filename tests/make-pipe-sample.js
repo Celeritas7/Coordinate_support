@@ -3,6 +3,7 @@
 //   PIPE_A   Ø12 pipe: straight along +X (0,0,0) → (300,0,0), 90° bend R 50 about Z, straight along +Y (350,50,0) → (350,400,0)
 //   CLAMP_1  20 × 30 × 30 block with a Ø12.5 bore along X on the pipe's axis (X 140…160), CSYS CLAMP_1_CS in it
 //   BLOCK_1  100 × 60 × 60 block, X 353…453, Y 200…260: the second straight runs 3 mm into it
+//   PIPE_B   Ø15 straight pipe along X at Y −60 (0 … 300): another existing pipe, 46.5 mm from PIPE_A surface to surface
 // Only what the readers use: faces with their surfaces and edge loops (circles, lines), no end caps on the pipe.
 (function (root) {
 "use strict";
@@ -48,10 +49,12 @@ function make() {
   const rb = 6.25, c0 = ring([140,0,0], X, Y, rb), c1 = ring([160,0,0], X, Y, rb);
   const clamp = box([140,-15,-15], [160,15,15], { 0: [c0], 1: [c1] }).concat([face(E(`CYLINDRICAL_SURFACE('',#${AX([140,0,0], X, Y)},${n(rb)})`), [c0, c1], false)]);
   const block = box([353,200,-30], [453,260,30]);
+  const e0 = ring([0,-60,0], X, Y, 7.5), e1 = ring([300,-60,0], X, Y, 7.5);
+  const pipeB = [face(E(`CYLINDRICAL_SURFACE('',#${AX([0,-60,0], X, Y)},${n(7.5)})`), [e0, e1], true)];
   const kids = [product("PIPE_A", [solid("PIPE_A", pipe)]), product("CLAMP_1", [solid("CLAMP_1", clamp), AX([150,0,0], X, Y, "CLAMP_1_CS")]),
-    product("BLOCK_1", [solid("BLOCK_1", block)])];
+    product("BLOCK_1", [solid("BLOCK_1", block)]), product("PIPE_B", [solid("PIPE_B", pipeB)])];
   const top = product("PIPE_CLEAR_TEST_ASM", [AX([0,0,0], Z, X, "ASM_DEF_CSYS")]);
-  kids.forEach((k, i) => E(`NEXT_ASSEMBLY_USAGE_OCCURRENCE('${i + 1}','${["PIPE_A","CLAMP_1","BLOCK_1"][i]}','',#${top},#${k},$)`));
+  kids.forEach((k, i) => E(`NEXT_ASSEMBLY_USAGE_OCCURRENCE('${i + 1}','${["PIPE_A","CLAMP_1","BLOCK_1","PIPE_B"][i]}','',#${top},#${k},$)`));
   return ["ISO-10303-21;", "HEADER;", "FILE_DESCRIPTION((''),'2;1');", "FILE_NAME('pipe_clear_test.stp','',(''),(''),'','','');",
     "FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));", "ENDSEC;", "DATA;", ...L, "ENDSEC;", "END-ISO-10303-21;"].join("\n") + "\n";
 }

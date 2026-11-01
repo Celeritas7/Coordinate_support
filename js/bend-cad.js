@@ -12,22 +12,28 @@ const stations=()=>parsePts($('pts').value).map(p=>[p[0],p[1],p[2]]);
 // what the survey looks along, per mode: stations (their clips are not kept clear), the line parts are listed near, names of
 // the stations, and o (d = hose Ø or pipe OD, gap, reach, word for the messages). Through clamps: asm-ui.js thSurvey()
 function surveyCtx(){if(BC.mode==='through'){const t=typeof thSurvey==='function'?thSurvey():null;if(!t)return null;
-    return{P:t.stations,line:t.line,names:t.names,o:{d:Math.max(0.1,t.d),gap:Math.max(0,+$('thGap').value||0),reach:opt().reach,word:'pipe',clips:'clamps it runs through'}};}
+    return{P:t.stations,line:t.line,names:t.names,self:t.inst,o:{d:Math.max(0.1,t.d),gap:Math.max(0,+$('thGap').value||0),reach:opt().reach,word:'pipe',clips:'clamps it runs through'}};}
   const P=stations();return{P,line:P,names:null,o:BC.mode==='arc'?{...opt(),word:'pipe'}:opt()};}
 const W=o=>o.word||'hose';
 const stName=i=>BC.sv&&BC.sv.names&&BC.sv.names[i]||'P'+(i+1);
-const roleTxt=p=>p.role==='pipe'?`existing ${p.pipe.kind==='hose'?'hose':'pipe'}${p.pipe.name!==p.name?` ${esc(p.pipe.name)}`:''} Ø${fmt(p.pipe.OD,1)}`:p.role==='station'?`clip at ${p.stations.map(stName).join(', ')}`:p.role==='clip'?'small part on the station line, no station (clip, or screw?)':p.role==='mount'?`Mount of ${p.mountOf.map(stName).join(', ')} (its clip is bolted to it) · not kept clear`:'frame / part';
+const roleTxt=p=>p.role==='pipe'?`existing ${p.pipe.kind==='hose'?'hose':'pipe'}${p.pipe.name!==p.name?` ${esc(p.pipe.name)}`:''} Ø${fmt(p.pipe.OD,1)}${p.self?` · ${BC.mode==='through'?'the pipe being re-routed':'along the stations: taken as the pipe being replaced'}`:''}`:p.role==='station'?`clip at ${p.stations.map(stName).join(', ')}`:p.role==='clip'?'small part on the station line, no station (clip, or screw?)':p.role==='mount'?`Mount of ${p.mountOf.map(stName).join(', ')} (its clip is bolted to it) · not kept clear`:'frame / part';
 const last=n=>String(n||'').split(' / ').pop();
-const keepClear=p=>BC.user.has(p.sid)?BC.user.get(p.sid):p.role==='obstacle';
+// default: frame / parts kept clear; on the Pipe tasks other existing pipes too (a pipe route must clear them), not the pipe
+// being replaced (p.self, marked by survey())
+const keepClear=p=>BC.user.has(p.sid)?BC.user.get(p.sid):p.role==='obstacle'||(p.role==='pipe'&&BC.mode!=='hose'&&!p.self);
 // list groups: ticked, unticked clips and parts, unticked existing pipes
 const group=p=>keepClear(p)?0:p.role==='pipe'?2:1,GROUP=['Gap checked (ticked)','Not checked (clips, or unticked)','Existing pipes (not checked)'];
+// the existing pipe a pipe task replaces: Through clamps, the picked pipe (its instance, from thSurvey); Route through points,
+// an existing pipe touching 2 or more of the stations (the points trace it)
+function markSelf(sv,c){if(BC.mode==='hose')return;const inst=new Map(BC.cad.solids.map(s=>[s.sid,s.inst]));
+  sv.parts.forEach(p=>{if(p.role!=='pipe')return;p.self=BC.mode==='through'?c.self!=null&&inst.get(p.sid)===c.self:p.stations.length>=2;});}
 // parts the too-close list and the gap chart look at: ticked ones, and unticked ones away from any station except existing pipes
 const watched=p=>keepClear(p)||(p.role!=='station'&&p.role!=='pipe'&&p.role!=='mount');
 function survey(){if(!BC.cad)return null;const c=surveyCtx();if(!c||c.P.length<2||c.line.length<2)return null;const{P,line,o}=c,key=JSON.stringify([BC.mode,P,line,o]);
   // a big assembly read near the route: first the parts within the survey's reach of the station line (its own test, on
   // the parts' boxes), so the survey is the one the whole assembly would give
   if(BC.key!==key){if(BC.cad.lazy)ensure(near(CadSolids.along(line,2),Math.max(o.reach,o.d/2+o.gap+5)+1));
-    BC.sv=CadSolids.survey(BC.cad,P,{...o,line});BC.sv.names=c.names;BC.sv.o=o;BC.key=key;render();}return BC.sv;}
+    BC.sv=CadSolids.survey(BC.cad,P,{...o,line});markSelf(BC.sv,c);BC.sv.names=c.names;BC.sv.o=o;BC.key=key;render();}return BC.sv;}
 // Big assembly (more than LAZY_FACES faces placed): its parts are not all read at Open (on a 663 MB file that was 720 000
 // faces and most of the freeze after Open). They are read a part at a time when something needs them: the survey (parts
 // near the station line), a part picked in 3D, Suggest (parts near the selected run). Built parts are kept per instance;
@@ -58,7 +64,7 @@ function render(){const sv=BC.sv,box=$('cdParts');
   if(!sv){box.innerHTML=BC.mode==='hose'?'':`<p class="hint" style="margin:4px 0">${!BC.cad?'No parts read: open the assembly with its parts (Open…) to check the route against them.'
     :BC.mode==='arc'?'Type or paste the points: the parts near them are listed here.':'Pick a pipe with bends: the parts near it are listed here.'}</p>`;return;}
   const n=sv.parts.filter(keepClear).length;
-  box.innerHTML=`<div class="presets" style="margin:6px 0 2px"><button type="button" data-t="def" title="Clips and existing pipes unticked, frame and other parts ticked">Default</button><button type="button" data-t="frame" title="Only the parts that are not clips">Frame only</button><button type="button" data-t="all" title="Tick all">All</button><button type="button" data-t="none" title="Untick all">None</button></div>
+  box.innerHTML=`<div class="presets" style="margin:6px 0 2px"><button type="button" data-t="def" title="${BC.mode==='hose'?'Clips and existing pipes unticked, frame and other parts ticked':'Clips and the pipe being replaced unticked; frame, other parts and other pipes ticked'}">Default</button><button type="button" data-t="frame" title="Only the parts that are not clips">Frame only</button><button type="button" data-t="all" title="Tick all">All</button><button type="button" data-t="none" title="Untick all">None</button></div>
     <p class="hint" style="margin:4px 0">${sv.parts.length} part${sv.parts.length===1?'':'s'} within ${fmt(sv.reach)} mm of the station line; gap checked to ${n} (ticked). Gap = ${W(sv.o)} surface to part. ${BC.mode==='arc'?'Solve again':BC.mode==='through'?'Route through ticked clamps again':'Press Check'} after changing ticks.</p>`+
     sv.parts.slice().sort((a,b)=>(group(a)-group(b))||(a.dLine-b.dLine)).slice(0,60).map((p,i,arr)=>(i===0||group(arr[i-1])!==group(p)?`<div class="cdhead">${GROUP[group(p)]}</div>`:'')+`<div class="cdrow${BC.focus===p.sid?' on':''}"><label class="chk cdp"><input type="checkbox" data-sid="${p.sid}" ${keepClear(p)?'checked':''}><span><b title="${esc(p.name)}">${esc(last(p.name))}</b> <span class="unit">${p.dims.map(v=>Math.round(v)).join('×')} mm · ${roleTxt(p)} · line ${fmt(p.dLine,1)} mm away · centre ${centre(p).map(v=>Math.round(v)).join(', ')}</span></span></label><button type="button" class="cdshow" data-show="${p.sid}" aria-pressed="${BC.focus===p.sid}" title="Show this part in 3D, zoomed">show</button></div>`).join('');
   box.querySelectorAll('input[data-sid]').forEach(el=>el.onchange=()=>{BC.user.set(+el.dataset.sid,el.checked);render();});

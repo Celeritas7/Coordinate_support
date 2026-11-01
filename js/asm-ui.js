@@ -216,7 +216,7 @@ function cmpReport(){const C=TH.cmp;if(!C)return;const{res}=C,F=asmFrame(),xyz=q
 // clamps it runs through, not kept clear)
 function thSurvey(){if(!ASM||!ASM.r)return null;const pi=thPipe(),p=ASM.r.pipes[pi];if(!p||!p.Q||p.Q.length<2)return null;
   const C=thClamps(pi).filter(c=>c.known&&TH.pick[pi+':'+c.i]&&!c.end&&!c.holds),R=TH.route&&TH.route.pi===pi&&TH.route.file===ASM.name?TH.route:null;
-  return{line:R?R.W:p.Q,stations:[p.Q[0],...C.map(c=>c.fix.c),p.Q[p.Q.length-1]],names:['start',...C.map(c=>c.fix.name),'end'],d:p.OD||8};}
+  return{line:R?R.W:p.Q,stations:[p.Q[0],...C.map(c=>c.fix.c),p.Q[p.Q.length-1]],names:['start',...C.map(c=>c.fix.name),'end'],d:p.OD||8,inst:p.inst};}
 const thResurvey=()=>{if(typeof bcResurvey==='function')bcResurvey();};
 function thRun(){
   if(!ASM)return;const pi=thPipe(),p=ASM.r.pipes[pi],say=(m,bad)=>{$('statusThrough').textContent=m;$('statusThrough').style.color=bad?'var(--bad)':'';};

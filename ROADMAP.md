@@ -161,8 +161,10 @@ Today (`js/through.js`): every ticked clamp is routed in one run, but clamps are
    the three tasks (it moves into the task on show, ticks shared), Pipe OD and Gap (Route through points: Advanced; Through
    clamps: "Gap to parts", default 4 mm), a Clash / Close / Clear line under the solver's own, the places in the Clearance
    tab, marks and the gap chart as on Hose. Through clamps surveys along the pipe's corners (the routed ones after a run); its
-   stations are the ends and the ticked clamps, so those clamps are not kept clear, nor the pipe being re-routed (existing
-   pipe). Spans are named by the stations (Route through points) or the corner points (Through clamps). Checked, not
+   stations are the ends and the ticked clamps, so those clamps are not kept clear, nor the pipe being re-routed. Other
+   existing pipes are kept clear by default on both pipe tasks (user's call, 2026-11-01: piping3 pipe 211 when routing 111);
+   on Route through points an existing pipe touching 2+ stations is taken as the one being replaced. Hose keeps them
+   unticked. Spans are named by the stations (Route through points) or the corner points (Through clamps). Checked, not
    avoided: step 3 below. Test: `tests/pipe-clear.js` on a generated sample
 3. **Avoidance**: parts as a constraint in the Through clamps fit (corners move to clear them, clamps held on their axes); "Drop detour corners" keeps a corner that bends round a part
 - Tests with the user's multi-clamp examples; piping3 pipe 111 (3 clamps) must still pass unchanged
