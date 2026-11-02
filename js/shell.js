@@ -97,9 +97,11 @@ async function open(list){
     let fits=false;try{ASM.r.pipes.forEach((p,i)=>{const r=PtsCompare.compare(ASM.r,i,texts[0]);if(r.frame.err<=Math.max(r.tol,p.OD||0))fits=true;});}catch(e){}
     if(fits){go('pipe','asm');cmpLoad(files[0]);return say(`${files[0].name}: fits a pipe in ${ASM.name} → ${label('pipe','asm')}.`);}}
   // stations / points: Pipe · Route through points keeps them, anything else goes to Hose / Cable
-  // a solid-model IGES (B-rep, entity 186) is a frame / parts file: load it as parts, keep the stations
-  if(files.length===1&&/\.(igs|iges)$/i.test(files[0].name)&&/^ {5}186 /m.test(texts[0])&&typeof bcLoad==='function'){
-    go('hose','route');bcLoad(files[0]);return say(`${files[0].name}: solid model → parts to keep clear of (Hose / Cable · Route through stations). Stations unchanged.`);}
+  // a solid-model IGES (B-rep, entity 186) is a frame / parts file: load it as parts, keep the stations. So is a surface
+  // model (a vendor part whose faces were never merged into a solid: 514 shells, 144 / 143 trimmed surfaces), read as solids
+  const igsBody=files.length===1&&/\.(igs|iges)$/i.test(files[0].name)?(/^ {5}186 /m.test(texts[0])?'solid':/^ {5}(514|144|143) /m.test(texts[0])?'surface':''):'';
+  if(igsBody&&typeof bcLoad==='function'){
+    go('hose','route');bcLoad(files[0]);return say(`${files[0].name}: ${igsBody} model → parts to keep clear of (Hose / Cable · Route through stations)${igsBody==='surface'?', its surfaces read as solids':''}. Stations unchanged.`);}
   if(files.length===1&&st.mod==='pipe'&&st.task.pipe==='route'){cadLoadInto('pts',files[0]);return say(`${files[0].name} → ${label('pipe','route')}.`);}
   const cur=st.mod==='hose'?st.task.hose:'route';
   if(files.length>1||cur==='check'){go('hose','check');waLoadFiles(files,'acab');
