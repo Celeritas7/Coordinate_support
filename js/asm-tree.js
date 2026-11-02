@@ -27,12 +27,14 @@ function render(box, r, o) {
     const solid = g.solids.length > 0, v = ov[g.name], o3 = v === true ? "1" : v === false ? "0" : "";
     const status = pipe ? `<b>${pipe.kind === "hose" ? "hose" : "pipe"}</b> ${esc(pipeText(pipe))}${v === true ? " (marked)" : ""}${pipe.fromCurve ? " \u00b7 from datum curve" : ""}`
       : solid ? esc(g.pipeWhy || "not a pipe") : "";
+    const sb = g.solids.filter(x => x.surface), open = sb.reduce((n, x) => n + (x.open || 0), 0);
+    const surfT = sb.length ? `<span class="surf">from surfaces, read as solid${open ? ` \u00b7 ${open} open edge${open === 1 ? "" : "s"}` : ""}</span>` : "";
     const fixT = fx.length ? `<span class="fx">clamp bore ${fx.map(x => `\u00d8${f1(x.D)} (${esc(x.csys)})`).join(", ")}</span>` : "";
     const sel = solid && first[inst.pd] === i ? `<select data-part="${esc(g.name)}" aria-label="Is ${esc(g.name)} the pipe?"><option value=""${o3 === "" ? " selected" : ""}>auto</option><option value="1"${o3 === "1" ? " selected" : ""}>pipe</option><option value="0"${o3 === "0" ? " selected" : ""}>not a pipe</option></select>`
       : solid ? `<span class="same">as above</span>` : "";
     const at = inst.M.o.map(x => x.toFixed(1)).join(", "), cs = inst.csys.map(c => c.name);
-    const title = `${g.name}${inst.path.length > 1 ? "\nin " + inst.path.slice(0, -1).join(" / ") : ""}\nplaced at ${at}\n${g.solids.length} solid${g.solids.length === 1 ? "" : "s"}${solid ? ": " + faces(g) : ""}${cs.length ? "\nCSYS: " + cs.join(", ") : ""}`;
-    const pp = `${sel}<span class="st">${status}${fixT ? (status ? " \u00b7 " : "") + fixT : ""}</span>`;
+    const title = `${g.name}${inst.path.length > 1 ? "\nin " + inst.path.slice(0, -1).join(" / ") : ""}\nplaced at ${at}\n${g.solids.length} solid${g.solids.length === 1 ? "" : "s"}${solid ? ": " + faces(g) : ""}${sb.length ? `\n${sb.length} of them from surfaces (a part whose faces were never merged into a solid)${open ? `: ${open} edge${open === 1 ? "" : "s"} bound one surface only, so it is not closed there` : ", closed"}` : ""}${cs.length ? "\nCSYS: " + cs.join(", ") : ""}`;
+    const pp = `${sel}<span class="st">${status}${fixT ? (status ? " \u00b7 " : "") + fixT : ""}${surfT ? (status || fixT ? " \u00b7 " : "") + surfT : ""}</span>`;
     const nm = `<td class="nm" style="padding-left:${6 + inst.depth * 12}px">${esc(g.name)}${count[inst.pd] > 1 ? ` <span class="x">\u00d7${count[inst.pd]}</span>` : ""}`;
     return `<tr class="${pipe ? "is-pipe" : ""}${solid ? "" : " asm"}" title="${esc(title)}">` + (o.compact ? `${nm}<div class="pp">${pp}</div></td></tr>`
       : `${nm}</td><td class="n">${g.solids.length || ""}</td><td>${solid ? esc(faces(g)) : ""}</td><td>${esc(cs.slice(0, 4).join(", "))}${cs.length > 4 ? ` +${cs.length - 4}` : ""}</td><td class="pp">${pp}</td></tr>`);

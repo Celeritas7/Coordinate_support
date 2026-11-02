@@ -99,7 +99,7 @@ function asmApplied(r,note,t0){
   ASM.r=r;asmPrev=null;TH.pick={};TH.last=null;TH.cmp=null;const ms=Math.round(performance.now()-t0),s=r.summary,parts=r.instances.filter(i=>i.solids).length;
   ASM.secs=ms/1000;
   runs=runs.filter(x=>!(x.asm&&x.asm.file===ASM.name));
-  const nOv=Object.keys(ASM.ov).length,tree=`${parts} part${parts===1?'':'s'} with solids (${s.solids} solid${s.solids===1?'':'s'}), ${s.csys} coordinate systems${nOv?`, ${nOv} part${nOv>1?'s':''} marked by hand`:''}`;
+  const nOv=Object.keys(ASM.ov).length,tree=`${parts} part${parts===1?'':'s'} with solids (${s.solids} solid${s.solids===1?'':'s'}), ${s.csys} coordinate systems${nOv?`, ${nOv} part${nOv>1?'s':''} marked by hand`:''}${surfNote(r)}`;
   const nH=r.pipes.filter(p=>p.kind==='hose').length,nP=r.pipes.length-nH,found=[nP?`${nP} pipe${nP===1?'':'s'}`:'',nH?`${nH} hose${nH===1?'':'s'}`:''].filter(Boolean).join(', ');
   thSetup();setTimeout(()=>document.dispatchEvent(new CustomEvent('asm:loaded',{detail:ASM})),0);
   if(!r.pipes.length){renderRuns();rebuild(true);renderCmp();renderPts();
@@ -121,6 +121,11 @@ function asmLoad(file){
   if(ASM)asmPrev=ASM.r?ASM:asmPrev;
   ASM={name:file.name,file,ov:AsmTree.load(file.name),r:null};$('asmParts').open=false;asmApply();
 }
+// parts that came as surfaces (a vendor part whose faces were never merged into a solid): read as solids all the same.
+// The ones whose surfaces leave gaps (edges bounding one face only) are named, so they can be fixed in Creo if it matters
+function surfNote(r){const S=new Map();r.instances.forEach(I=>{if(!I.surfaces||S.has(I.pd))return;const b=I.part.solids.filter(s=>s.surface);S.set(I.pd,{name:I.part.name,open:b.reduce((n,s)=>n+(s.open||0),0)});});
+  if(!S.size)return'';const L=[...S.values()],op=L.filter(x=>x.open);
+  return`; ${L.length} part${L.length===1?'':'s'} came as surfaces, read as solid${L.length===1?'':'s'}`+(op.length?` (not closed: ${op.slice(0,3).map(x=>`${x.name}, ${x.open} open edge${x.open===1?'':'s'}`).join('; ')}${op.length>3?` +${op.length-3}`:''})`:'');}
 function asmTree(){if(!ASM||!ASM.r)return;const n=new Set(ASM.r.instances.filter(i=>i.solids).map(i=>i.pd)).size;$('asmPartsN').textContent=`(${n} different)`;
   AsmTree.render($('asmTree'),ASM.r,{compact:true,overrides:ASM.ov,onChange:(name,v)=>{
     if(v==null)delete ASM.ov[name];else ASM.ov[name]=v;AsmTree.save(ASM.name,ASM.ov);

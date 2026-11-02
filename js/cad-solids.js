@@ -7,7 +7,10 @@
  * Flat faces (128 bilinear / any planar 128, 190, 108) and cylinders (120 with a line parallel to its axis) also get
  * their exact shape: the boundary loops (lines, arcs 100 + 124, B-splines 126 sampled) in the face plane / on the
  * cylinder. The gap to such a face is exact, so a hose through a hole in a plate sees the hole edge, not the box.
- * Other faces (cones, tori, free-form) stay boxes. No DOM.
+ * Other faces (cones, tori, free-form) stay boxes.
+ * Surface bodies: a vendor part whose faces never became a solid (STEP: SHELL_BASED_SURFACE_MODEL / OPEN_SHELL; IGES: a 514
+ * shell with no 186, or loose 144 / 143 trimmed surfaces, grouped by shared edges) is read as a body all the same:
+ * solid.surface = true, solid.open = edges bounding only one face (0 = the surfaces close it off). No DOM.
  * Browser: window.CadSolids. Node: require('./cad-solids.js').
  */
 (function (root) {
@@ -15,6 +18,13 @@
 const num=x=>+String(x).replace(/D/i,'E');
 function grow(b,p){for(let k=0;k<3;k++){if(p[k]<b.min[k])b.min[k]=p[k];if(p[k]>b.max[k])b.max[k]=p[k];}}
 function circle(b,c,n,r){for(let k=0;k<3;k++){const s=r*Math.sqrt(Math.max(0,1-n[k]*n[k]));b.min[k]=Math.min(b.min[k],c[k]-s);b.max[k]=Math.max(b.max[k],c[k]+s);}}
+// one key per boundary edge, however the faces share it: its ends (either order) and the point halfway along it, rounded to
+// 0.05 mm, so two surfaces that each carry their own copy of the edge between them, either way round, still meet there
+const half=pl=>{let L=0;for(let i=1;i<pl.length;i++)L+=Math.hypot(pl[i][0]-pl[i-1][0],pl[i][1]-pl[i-1][1],pl[i][2]-pl[i-1][2]);let t=L/2;
+  for(let i=1;i<pl.length;i++){const a=pl[i-1],b=pl[i],l=Math.hypot(b[0]-a[0],b[1]-a[1],b[2]-a[2]);if(t<=l&&l>0){const u=t/l;return[a[0]+(b[0]-a[0])*u,a[1]+(b[1]-a[1])*u,a[2]+(b[2]-a[2])*u];}t-=l;}
+  return pl[pl.length>>1];};
+function edgeKey(pl){if(!pl||pl.length<2)return null;const r=p=>p.map(v=>Math.round(v*20)).join(','),a=r(pl[0]),b=r(pl[pl.length-1]);
+  return(a<b?a+'|'+b:b+'|'+a)+'|'+r(half(pl));}
 const newBox=()=>({min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]});
 const ok=b=>b.min.every(Number.isFinite)&&b.max.every(Number.isFinite);
 const TAU=2*Math.PI,sub3=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]],dot3=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2],
@@ -158,18 +168,54 @@ function iges(text){
       const w=sub3(gp[0],ax[0]),rv=sub3(w,z.map(v=>v*dot3(w,z))),R=len3(rv);if(R<1e-6)return null;return cylShape(ax[0],z,rv.map(v=>v/R),R,loops);}
     return null;}
   const faces=[],solids=[];let sid=0;
-  for(const [de,e] of ents){if(e.type!==186)continue;sid++;const sp=par(+par(de)[1]);if(!sp)continue;const nf=+sp[1],sb=newBox();let made=0;
+  // one face of a body: its box from the boundary, and its exact shape when it is flat or a cylinder
+  function addFace(sde,loops,b,exact,sb){if(!ok(b))return false;const f={sid,min:b.min,max:b.max},sh=exact?faceShape(sde,loops):null;
+    if(sh){f.shape=sh;const nb=newBox(),pad=sh.kind==='cyl'?sh.R*0.002+0.01:0.01;loops.forEach(e=>e.forEach(pl=>pl.forEach(p=>grow(nb,p))));   // exact face: box from its sampled boundary, not from whole circles
+      if(ok(nb)){f.min=nb.min.map(v=>v-pad);f.max=nb.max.map(v=>v+pad);}}
+    faces.push(f);grow(sb,f.min);grow(sb,f.max);return true;}
+  // the faces of a 514 shell (each 510 → 508 loops → 504 edges); keys: when given, every edge's key is counted (open edges)
+  function shellFaces(spde,sb,keys){const sp=par(spde);if(!sp)return 0;const nf=+sp[1];let made=0;
     for(let k=0;k<nf;k++){const fp=par(+sp[2+2*k]);if(!fp)continue;const nl=+fp[2],b=newBox(),loops=[];let exact=true;
       for(let l=0;l<nl;l++){const lp=par(+fp[4+l]);if(!lp)continue;const ne=+lp[1],edges=[];let i=2;loops.push(edges);
         for(let q=0;q<ne;q++){const typ=+lp[i],el=+lp[i+1],ei=+lp[i+2],K=+lp[i+4];i+=5+2*K;const ep=par(el);if(!ep)continue;
           if(typ===0){const o=2+5*(ei-1),sv=vl(+ep[o+1])[+ep[o+2]-1],tv=vl(+ep[o+3])[+ep[o+4]-1],cd=+ep[o];grow(b,sv);grow(b,tv);curve(b,cd);   // 0 = edge, 1 = vertex
-            const ce=ents.get(cd),cp=ce&&ce.type!==110?curvePts(cd):null;if(ce&&ce.type!==110&&!cp)exact=false;edges.push(cp||[sv,tv]);}
+            const ce=ents.get(cd),cp=ce&&ce.type!==110?curvePts(cd):null;if(ce&&ce.type!==110&&!cp)exact=false;edges.push(cp||[sv,tv]);
+            if(keys){const k=edgeKey(cp||[sv,tv]);if(k)keys.set(k,(keys.get(k)||0)+1);}}
           else{const v=vl(el)[ei-1];if(v){grow(b,v);edges.push([v]);}}}}
-      if(ok(b)){const f={sid,min:b.min,max:b.max},sh=exact?faceShape(+fp[1],loops):null;
-        if(sh){f.shape=sh;const nb=newBox(),pad=sh.kind==='cyl'?sh.R*0.002+0.01:0.01;loops.forEach(e=>e.forEach(pl=>pl.forEach(p=>grow(nb,p))));   // exact face: box from its sampled boundary, not from whole circles
-          if(ok(nb)){f.min=nb.min.map(v=>v-pad);f.max=nb.max.map(v=>v+pad);}}
-        faces.push(f);grow(sb,f.min);grow(sb,f.max);made++;}}
+      if(addFace(+fp[1],loops,b,exact,sb))made++;}
+    return made;}
+  const inSolid=new Set(),surfOfSolid=new Set();
+  for(const [de,e] of ents){if(e.type!==186)continue;sid++;const sh=+par(de)[1];inSolid.add(sh);const sb=newBox(),made=shellFaces(sh,sb,null);
+    const sp=par(sh);if(sp)for(let k=0;k<+sp[1];k++){const fp=par(+sp[2+2*k]);if(fp)surfOfSolid.add(+fp[1]);}
     if(made)solids.push({sid,name:`solid ${sid}`,faces:made,min:sb.min,max:sb.max});}
+  // surface bodies: what a vendor part comes as when its faces were never merged into a solid (Creo: a quilt). They are read
+  // as bodies all the same, so the part is still an obstacle; open = edges that bound only one face (0: closed off)
+  const surfBody=(made,sb,keys,label)=>{if(!made)return;let open=0;for(const n of keys.values())if(n===1)open++;
+    solids.push({sid,name:`${label} ${sid}`,faces:made,min:sb.min,max:sb.max,surface:true,open});};
+  // a 514 shell no 186 solid uses
+  for(const [de,e] of ents){if(e.type!==514||inSolid.has(de))continue;sid++;const sb=newBox(),keys=new Map();surfBody(shellFaces(de,sb,keys),sb,keys,'surfaces');}
+  // trimmed (144) and bounded (143) surfaces, grouped into bodies by the edges they share
+  const loose=[];
+  for(const [de,e] of ents){if(e.type!==144&&e.type!==143)continue;const p=par(de);if(!p)continue;const sde=+p[e.type===144?1:2];if(surfOfSolid.has(sde))continue;   // the same surface as a solid's face (exported both ways)
+    const loops=[];let exact=true;
+    // a boundary curve as its pieces (a 102 composite split into its curves, so each edge between two faces is one piece)
+    const take=cde=>{const c=ents.get(cde);if(!c){return[];}if(c.type===102){const q=par(cde);const o=[];for(let k=0;k<+q[1];k++)o.push(...take(+q[2+k]));return o;}
+      const pts=curvePts(cde);if(!pts){exact=false;return[];}return[pts];};
+    if(e.type===144){const n1=+p[2],n2=+p[3],bl=[];if(n1)bl.push(+p[4]);for(let k=0;k<n2;k++)bl.push(+p[5+k]);
+      for(const b142 of bl){const q=par(b142);if(!q)continue;const pl=take(+q[4]);if(pl.length)loops.push(pl);}}
+    else{const nb=+p[3];for(let k=0;k<nb;k++){const q=par(+p[4+k]);if(!q)continue;const nc=+q[4],edges=[];let i=5;
+        for(let c=0;c<nc;c++){edges.push(...take(+q[i]));const K=+q[i+2];i+=3+K;}if(edges.length)loops.push(edges);}}
+    const b=newBox();loops.forEach(l=>l.forEach(pl=>pl.forEach(q=>grow(b,q))));
+    if(!loops.length){const se=ents.get(sde);if(se&&se.type===128){const sp=par(sde),K1=+sp[1],K2=+sp[2],M1=+sp[3],M2=+sp[4],X=xform(se.xf),n=(K1+1)*(K2+1),s0=10+(K1+M1+2)+(K2+M2+2)+n;
+        for(let q=0;q<n;q++)grow(b,apply(X,[num(sp[s0+3*q]),num(sp[s0+3*q+1]),num(sp[s0+3*q+2])]));exact=false;}}
+    if(ok(b))loose.push({sde,loops,b,exact,ends:loops.flatMap(l=>l.flatMap(pl=>pl.length?[pl[0],pl[pl.length-1]]:[])),edges:loops.flatMap(l=>l.flatMap(pl=>pl.length>1?[pl]:[]))});}
+  if(loose.length){const up=loose.map((_,i)=>i),find=i=>{while(up[i]!==i)i=up[i]=up[up[i]];return i;},at=new Map();
+    const key=q=>q.map(v=>Math.round(v*20)).join(',');
+    loose.forEach((L,i)=>L.ends.forEach(q=>{const k=key(q),j=at.get(k);if(j==null)at.set(k,i);else up[find(i)]=find(j);}));
+    const groups=new Map();loose.forEach((L,i)=>{const r=find(i);if(!groups.has(r))groups.set(r,[]);groups.get(r).push(L);});
+    for(const G of groups.values()){sid++;const sb=newBox(),keys=new Map();let made=0;
+      for(const L of G){L.edges.forEach(pl=>{const k=edgeKey(pl);if(k)keys.set(k,(keys.get(k)||0)+1);});if(addFace(L.sde,L.loops,L.b,L.exact,sb))made++;}
+      surfBody(made,sb,keys,'surfaces');}}
   plates(faces);
   return{format:'IGES',solids,faces};
 }
@@ -214,7 +260,7 @@ function step(text,opts){
           let t0=Infinity,t1=-Infinity;f.loops.forEach(l=>pts3(l).forEach(q=>{const t=dot3(sub3(P(q),o),d);if(t<t0)t0=t;if(t>t1)t1=t;}));
           if(d&&isFinite(t0))face.shape={kind:'ext',o,d,segs:Float64Array.from(segs),t0:Math.min(t0,0),t1:Math.max(t1,0),box};}}
       faces.push(face);grow(sb,face.min);grow(sb,face.max);made++;});
-    if(made)solids.push({sid,inst:idx,name:inst.label||inst.name||`solid ${sid}`,faces:made,min:sb.min,max:sb.max,...(pipe?{pipe}:{})});});});
+    if(made)solids.push({sid,inst:idx,name:inst.label||inst.name||`solid ${sid}`,faces:made,min:sb.min,max:sb.max,...(pipe?{pipe}:{}),...(sol.surface?{surface:true,open:sol.open}:{})});});});
   plates(faces);
   return{format:'STEP',solids,faces};
 }

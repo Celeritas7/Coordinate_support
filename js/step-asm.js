@@ -333,8 +333,13 @@ function parse(text,opts){
       return /\.F\./.test(sa[1]||'')?out.map(reverse).reverse():out;});}
     return[];}
 
-  function solid(id){const e=get(id),sh=get(ref(e.args[1]));if(!sh)return null;const faces=[],types={},verts=[],ext=[];
-    for(const fid of refs(sh.args[1])){const f=get(fid);if(!f||!(has(f,'ADVANCED_FACE')||has(f,'FACE_SURFACE')))continue;const fa=f.args,S=get(ref(fa[2]));if(!S)continue;
+  // a body from its faces. Solids: MANIFOLD_SOLID_BREP / BREP_WITH_VOIDS (one closed shell). Surface bodies (surf: true):
+  // the faces of one or more open / closed shells of a SHELL_BASED_SURFACE_MODEL or FACE_BASED_SURFACE_MODEL, as a vendor
+  // part arrives when its faces were not merged into a solid (Creo: a quilt). Read the same, so the part still counts as a
+  // body (gap checks, 3D, holes); body.open = how many of its edges bound only one face (0 = the surfaces close it off)
+  function solid(id,faceIds,surf){const e=get(id);if(!faceIds){const sh=get(ref(e.args[1]));if(!sh)return null;faceIds=refs(sh.args[1]);}
+    const faces=[],types={},verts=[],ext=[],edgeUse=surf?new Map():null;
+    for(const fid of faceIds){const f=get(fid);if(!f||!(has(f,'ADVANCED_FACE')||has(f,'FACE_SURFACE')))continue;const fa=f.args,S=get(ref(fa[2]));if(!S)continue;
       const kind=has(S,'B_SPLINE_SURFACE_WITH_KNOTS')?'bspline':S.kind.replace(/_SURFACE.*$/,'').toLowerCase().replace(/^b_spline.*/,'bspline');const face={kind,verts:[],edges:[],loops:[],sense:!/\.F\./.test(fa[3]||'')};
       if(kind==='bspline')face.S=S;
       // a swept profile (Creo writes tank shells and bent sheets so): its curve sampled, and the sweep direction
@@ -355,6 +360,7 @@ function parse(text,opts){
             if(v1&&v2){const ang=p=>{const d=sub(p,ax.o);return Math.atan2(dot(d,ax.y),dot(d,ax.x));},a0=ang(v1),a1=ang(v2);let th=mod(same?a1-a0:a0-a1);if(th<1e-6||len(sub(v1,v2))<1e-6)th=TAU;
               const N=Math.max(2,Math.ceil(th*DEG/10));ep=[];for(let i=0;i<=N;i++){const a=a0+(same?1:-1)*th*i/N;ep.push(add(ax.o,add(mul(ax.x,cr*Math.cos(a)),mul(ax.y,cr*Math.sin(a)))));}}}}
           else if(cv&&has(cv,'B_SPLINE_CURVE_WITH_KNOTS')&&v1&&v2){const bc=bsCurve(cv);if(bc){ep=bsSample(bc,12);if(!same)ep.reverse();}}
+          if(edgeUse){const k=edgeKey(ref(oe.args[3]),ep);edgeUse.set(k,(edgeUse.get(k)||0)+1);}
           if(!fwd)ep=ep.slice().reverse();
           ep.forEach((p,i)=>{if(i===0&&lp.length&&len(sub(lp[lp.length-1],p))<1e-6)return;lp.push(p);});}
         if(lp.length>=3)face.loops.push(lp);}
@@ -365,7 +371,25 @@ function parse(text,opts){
       for(const v of verts)for(let k=0;k<3;k++)grow(k,v[k]);
       for(const f of faces)for(const l of f.loops)for(const q of l)for(let k=0;k<3;k++)grow(k,q[k]);
       for(const c of ext)for(let k=0;k<3;k++){const s=c.r*Math.sqrt(Math.max(0,1-c.n[k]*c.n[k]));grow(k,c.c[k]-s);grow(k,c.c[k]+s);}}
-    return{id,name:str(e.args[0]),faces,types,bbox,nVerts:verts.length};}
+    const out={id,name:str(e.args[0]),faces,types,bbox,nVerts:verts.length};
+    if(surf){out.surface=true;let open=0;for(const n of edgeUse.values())if(n===1)open++;out.open=open;}
+    return out;}
+  // one key per edge however the faces share it: by its points (rounded to 0.05 mm, ends in either order, plus the point
+  // halfway along it), so two faces that each carry their own copy of a shared edge (a vendor part's unmerged surfaces) still
+  // meet there
+  const half=pl=>{let L=0;for(let i=1;i<pl.length;i++)L+=Math.hypot(pl[i][0]-pl[i-1][0],pl[i][1]-pl[i-1][1],pl[i][2]-pl[i-1][2]);let t=L/2;
+    for(let i=1;i<pl.length;i++){const a=pl[i-1],b=pl[i],l=Math.hypot(b[0]-a[0],b[1]-a[1],b[2]-a[2]);if(t<=l&&l>0){const u=t/l;return[a[0]+(b[0]-a[0])*u,a[1]+(b[1]-a[1])*u,a[2]+(b[2]-a[2])*u];}t-=l;}
+    return pl[pl.length>>1];};
+  function edgeKey(eid,ep){if(!ep||ep.length<2)return'#'+eid;const r=p=>p.map(v=>Math.round(v*20)).join(','),a=r(ep[0]),b=r(ep[ep.length-1]);
+    return(a<b?a+'|'+b:b+'|'+a)+'|'+r(half(ep));}
+  // the faces of a surface model: SHELL_BASED_SURFACE_MODEL → shells (OPEN_SHELL / CLOSED_SHELL / ORIENTED_*) → faces;
+  // FACE_BASED_SURFACE_MODEL → CONNECTED_FACE_SETs → faces
+  function shellFaces(id){const e=get(id);if(!e)return[];
+    if(has(e,'ORIENTED_OPEN_SHELL')||has(e,'ORIENTED_CLOSED_SHELL')){const a=e.args;return shellFaces(ref(a[2]));}
+    return refs(e.args[1]);}
+  function surfaceBodies(id){const e=get(id),out=[];
+    for(const sid of refs(e.args[1])){const fs=shellFaces(sid);if(!fs.length)continue;const b=solid(sid,fs,true);if(b&&b.faces.length)out.push(b);}
+    return out;}
 
   // skin pieces of a swept solid: lines from cylinders, arcs from tori. The pipe radius is the one carrying the
   // most length (end beads, bosses and the bore carry less); the bore is the next radius with comparable length
@@ -413,7 +437,9 @@ function parse(text,opts){
       else if(has(e,'CARTESIAN_POINT')){const nm=str(e.args[0]);const p=point(id);if(nm&&p)g.points.push({name:nm,p});}
       else if(has(e,'GEOMETRIC_SET')||has(e,'GEOMETRIC_CURVE_SET'))refs(A(e,e.kinds.find(k=>/GEOMETRIC/.test(k)))[1]).forEach(take);
       else if(has(e,'TRIMMED_CURVE')||has(e,'B_SPLINE_CURVE_WITH_KNOTS')||has(e,'COMPOSITE_CURVE'))g.curves.push(...curveItem(id));
-      else if(has(e,'MANIFOLD_SOLID_BREP')||has(e,'BREP_WITH_VOIDS')){const s=solid(id);if(s)g.solids.push(s);}};
+      else if(has(e,'MANIFOLD_SOLID_BREP')||has(e,'BREP_WITH_VOIDS')){const s=solid(id);if(s)g.solids.push(s);}
+      else if(has(e,'SHELL_BASED_SURFACE_MODEL')||has(e,'FACE_BASED_SURFACE_MODEL'))g.solids.push(...surfaceBodies(id));
+      else if(has(e,'OPEN_SHELL')||has(e,'CLOSED_SHELL')||has(e,'CONNECTED_FACE_SET')){const fs=shellFaces(id);if(fs.length){const b=solid(id,fs,true);if(b&&b.faces.length)g.solids.push(b);}}};
     items.forEach(take);
     const pr=pipeOf(g);g.pipe=pr.pipe;g.pipeWhy=pr.why;g.pipeForced=pr.forced;g.pipeBest=pr.best||null;partCache.set(pd,g);D.clear();return g;}
 
@@ -469,7 +495,7 @@ function parse(text,opts){
   instances.forEach((inst,idx)=>{const g=part(inst.pd);inst.part=g;inst.label=inst.path.slice(1).join(' / ')||g.name;
     inst.csys=g.csys.map(c=>({name:c.name,o:F.pt(inst.M,c.o),x:F.vec(inst.M,c.x),y:F.vec(inst.M,c.y),z:F.vec(inst.M,c.z),inst:idx}));
     inst.points=g.points.map(p=>({name:p.name,p:F.pt(inst.M,p.p),inst:idx}));
-    inst.solids=g.solids.length;inst.bbox=null;g.solids.forEach(s=>{if(!s.bbox)return;const w=bboxWorld(inst.M,s);if(!w)return;if(!inst.bbox)inst.bbox=w;else for(let k=0;k<3;k++){inst.bbox.min[k]=Math.min(inst.bbox.min[k],w.min[k]);inst.bbox.max[k]=Math.max(inst.bbox.max[k],w.max[k]);}});
+    inst.solids=g.solids.length;inst.surfaces=g.solids.filter(s=>s.surface).length;inst.bbox=null;g.solids.forEach(s=>{if(!s.bbox)return;const w=bboxWorld(inst.M,s);if(!w)return;if(!inst.bbox)inst.bbox=w;else for(let k=0;k<3;k++){inst.bbox.min[k]=Math.min(inst.bbox.min[k],w.min[k]);inst.bbox.max[k]=Math.max(inst.bbox.max[k],w.max[k]);}});
     csys.push(...inst.csys);points.push(...inst.points);
     if(g.pipe){const ch={pieces:g.pipe.chain.pieces.map(p=>xformPiece(inst.M,p)),length:g.pipe.chain.length,leftover:g.pipe.chain.leftover},info=describe(ch);
       pipes.push({inst:idx,name:g.name,label:inst.label,OD:g.pipe.OD,ID:g.pipe.ID,R:info.R,chain:ch,info,Q:info.Q,bends:info.bends,length:info.length,kind:info.kind,
@@ -520,7 +546,7 @@ function parse(text,opts){
   const nEnt=E.size;E.clear();D.clear();byKind.clear();
   tell('Done',1);
   return attach({product,units,degrees,entities:nEnt,products:[...products.values()].map(P=>({pd:P.pd,name:P.name,pid:P.pid})),instances,csys,points,pipes,fixings,holes,
-    summary:{parts:products.size,instances:instances.length,solids:instances.reduce((s,i)=>s+i.solids,0),pipes:pipes.length,fixings:fixings.length,csys:csys.length,points:points.length}});
+    summary:{parts:products.size,instances:instances.length,solids:instances.reduce((s,i)=>s+i.solids,0),surfaces:instances.reduce((s,i)=>s+(i.surfaces||0),0),pipes:pipes.length,fixings:fixings.length,csys:csys.length,points:points.length}});
 }
 
 // methods on a parse result, kept outside parse() so a result made in a Web Worker (plain data) gets them back

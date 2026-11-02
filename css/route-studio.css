@@ -158,9 +158,10 @@ textarea[data-drop]{outline:2px dashed var(--ok);outline-offset:1px}
 .asmtree{width:100%;table-layout:fixed;border-collapse:collapse;font-size:12px}.asmtree th{position:sticky;top:0;background:var(--panel);font:500 11.5px var(--sans);color:var(--muted);text-align:left;padding:4px 6px;border-bottom:1px solid var(--rule)}
 .asmtree td{padding:4px 6px;border-bottom:1px solid var(--rule);vertical-align:top}.asmtree td.nm{font-family:var(--mono);overflow-wrap:anywhere;word-break:break-word}.asmtree .x{color:var(--muted)}
 .asmtree.compact .pp{display:flex;flex-wrap:wrap;gap:2px 8px;align-items:baseline;margin-top:2px;font-family:var(--sans)}.asmtree.compact .pp select{width:auto;margin:0;padding:2px 4px;font-size:12px}.asmtree.compact .st{display:inline;overflow-wrap:anywhere}
-.asmtree td,.asmtree .st,.asmtree .pp,.asmtree .fx{white-space:normal}
+.asmtree td,.asmtree .st,.asmtree .pp,.asmtree .fx,.asmtree .surf{white-space:normal}
 .asmtree tr.asm td.nm{color:var(--muted)}.asmtree tr.is-pipe td{background:color-mix(in oklab,var(--ok) 9%,transparent)}.asmtree td.pp select{width:auto;margin:0 0 3px;padding:2px 4px;font-size:12px}
 .asmtree .st{display:block;color:var(--muted)}.asmtree .st b{color:var(--ok);font-weight:600}.asmtree .fx{color:var(--ink)}.asmtree .same{display:block;color:var(--muted);font-size:11.5px}
+.asmtree .surf{color:var(--warn-ink)}
 #cmpOut{overflow-x:auto}#cmpOut ul{font:12.5px/1.45 var(--sans);margin:8px 0 0;padding-left:18px}#cmpOut li.bad{color:var(--bad)}#cmpOut li.warn{color:var(--warn-ink)}#cmpOut li.ok{color:var(--ok)}
 #cmpOut table{width:100%;border-collapse:collapse;font:12px var(--mono);margin-top:8px}#cmpOut th{font:500 11.5px var(--sans);color:var(--muted);text-align:left;padding:3px 6px;border-bottom:1px solid var(--rule)}
 #cmpOut td{padding:3px 6px;border-bottom:1px solid var(--rule);vertical-align:top;white-space:normal}#cmpOut table{table-layout:fixed}#cmpOut th:nth-child(1),#cmpOut th:nth-child(2){width:34px}#cmpOut td:last-child{font-family:var(--sans);overflow-wrap:anywhere}#cmpOut tr.bad td:last-child{color:var(--bad)}#cmpOut tr.warn td:last-child{color:var(--warn-ink)}#cmpOut tr.drop td{color:var(--muted);text-decoration:line-through}

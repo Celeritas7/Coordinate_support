@@ -341,3 +341,7 @@ Behaviour
 - Everything outside the span is locked; position and tangent match at both span ends
 - Before/after overlay, bend + clearance re-checked for the span, undo
 - Works on imported cables from Phase 3, so a flagged issue can be fixed in place
+
+## Vendor parts that come as surfaces
+- Done: STEP `SHELL_BASED_SURFACE_MODEL` / `FACE_BASED_SURFACE_MODEL` / loose `OPEN_SHELL` / `CLOSED_SHELL`, and IGES 514 shells with no 186 or loose 144 / 143 trimmed surfaces (grouped into one body by the edges they share), are read as solids. `solid.surface = true`, `solid.open` = edges that bound one surface only (matched by position, so surfaces that each carry their own copy of a shared edge still close). Load line and part tree say which parts came as surfaces and which are not closed. Test: `node tests/surface-parts.test.js` (cubes from `tests/make-surface-sample.js`: one solid, one closed set of 6 surfaces, one with its top missing)
+- Open: confirm on a real vendor export. A surface left out where the merge failed is a real gap in the part: Route Studio reports it but does not fill it. A healed solid back in Creo still needs Creo (merge the quilt, then Solidify)

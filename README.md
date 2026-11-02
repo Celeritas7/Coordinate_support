@@ -25,6 +25,7 @@ Hose and cable routing checks for Creo: bend radius on one route, clearance betw
 - js/dock-tables.js - dock tabs Clearance (table / chart) and Clamps to add, counts on the tab labels
 - js/bend-cad.js - Keep clear of the parts near the route: one list for Hose · Route through stations, Pipe · Route through points and Pipe · Through clamps (it moves into the task on show); gap report, Clearance rows, 3D marks
 - UI_AUDIT.md - every control, which module it belongs to, and why
+- Vendor parts that come as surfaces (faces never merged into a solid: STEP `SHELL_BASED_SURFACE_MODEL` / `OPEN_SHELL`, IGES loose 144 trimmed surfaces or a 514 shell without a 186) are read as solids: they count as parts to keep clear of, show in 3D and in the part tree ("from surfaces, read as solid"), and the load line names the ones that are not closed (edges that bound one surface only). `node tests/surface-parts.test.js`; samples from `tests/make-surface-sample.js`
 - tests/ - `node tests/arcroute.test.js`, `node tests/step-asm.test.js`, `node tests/through.test.js`, `node tests/asm-extras.test.js`, `node tests/cad-pipes.test.js`; `tests/make-hose-sample.js` builds the spline hose sample
 - samples/ - test files (see TESTING.md); DESIGN_BRIEF.md - what the app is for
 - Launch Route Studio.bat - double-click on Windows; serves the folder on localhost:8765 and opens the browser

@@ -261,10 +261,11 @@ function fromText(name,t,parsed){const t0=performance.now();let cad;
       say(`${name}: big assembly, ${ns} solids, ${nf} faces: the parts near the route are read when the route is known (${BC.cad.solids.length} solids so far).`);
       return true;}
     try{cad=CadSolids.read(t,name,{pipe,parsed});}catch(e){return say(`${name}: ${e.message}`,true);}
-    if(!cad.solids.length)return say(`${name}: no solids found. Export from Creo with solids (IGES: BREP / "Solid", or STEP AP214).`,true);
+    if(!cad.solids.length)return say(`${name}: no solids or surfaces found. Export from Creo with solids (IGES: BREP / "Solid", or STEP AP214).`,true);
     BC.cad=cad;BC.key='';BC.user=new Map();survey();
     const ex=cad.faces.filter(x=>x.shape).length,np=cad.solids.filter(x=>x.pipe).length;
-    say(`${name}: ${cad.solids.length} solids, ${cad.faces.length} faces (${cad.format}${ex?`; ${ex} flat or cylindrical, gap exact`:''}${np?`; ${np} solid${np>1?'s':''} of existing pipes, not checked`:''}), read in ${((performance.now()-t0)/1000).toFixed(1)} s.${BC.sv?'':' Use the stations to see which parts are near.'}`);
+    say(`${name}: ${cad.solids.length} solids, ${cad.faces.length} faces (${cad.format}${ex?`; ${ex} flat or cylindrical, gap exact`:''}${np?`; ${np} solid${np>1?'s':''} of existing pipes, not checked`:''}${(()=>{const sf=cad.solids.filter(x=>x.surface),op=sf.filter(x=>x.open);
+      return sf.length?`; ${sf.length} came as surfaces, read as solid${sf.length>1?'s':''}${op.length?`, ${op.length} not closed`:''}`:'';})()}), read in ${((performance.now()-t0)/1000).toFixed(1)} s.${BC.sv?'':' Use the stations to see which parts are near.'}`);
     return true;}
 // the open assembly's parse is reused (no second read of the file, and no text of it is kept). Tagged as the assembly's only
 // when this read replaced BC.cad: a failed read of a file with the same name must not mark the parts left from before as current
