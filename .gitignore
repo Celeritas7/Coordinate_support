@@ -3,3 +3,4 @@ samples/
 node_modules/
 package-lock.json
 handoff/shot/
+dist/

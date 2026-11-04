@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
-<meta name="app-build" content="cd790fe4">
+<meta name="app-build" content="7cc82379">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Route Studio - hose, cable and pipe checks for Creo</title>
 <link rel="stylesheet" href="fonts/fonts.css?v=f81061a6">
-<link rel="stylesheet" href="css/route-studio.css?v=f2f9c497">
+<link rel="stylesheet" href="css/route-studio.css?v=c683b984">
 </head>
 <body>
 <div class="app">
@@ -32,7 +32,8 @@
       <span class="shasmact" id="shAsmAct" hidden><button type="button" class="linkish" id="shChange" title="Open another assembly in its place">Change…</button><button type="button" class="linkish" id="shRemove">Remove</button></span></div>
     <div class="modsw" role="tablist" aria-label="Module"><button type="button" role="tab" data-mod="hose">Hose / Cable</button><button type="button" role="tab" data-mod="pipe">Pipe</button><button type="button" role="tab" data-mod="bundle">Bundle</button><button type="button" role="tab" data-mod="library">Library</button></div>
     <div class="shstatus" id="shStatus" aria-live="polite">Drop .stp, .igs or .pts files anywhere on the page.</div>
-    <div class="shnew" id="shNew" role="status" hidden>A newer version of Route Studio is out. <button type="button" class="linkish" id="shNewGo">Reload</button> <span class="unit">(open files stay on your disk; reopen them after)</span></div>
+    <div class="shnew" id="shNew" role="status" hidden><span id="shNewTxt">A newer version of Route Studio is out. </span><button type="button" class="linkish" id="shNewGo">Reload</button> <span class="unit" id="shNewNote">(open files stay on your disk; reopen them after)</span></div>
+    <div class="shoff unit" id="shOffline" hidden><span id="shOfflineTxt">Offline copy</span> · works without internet; files stay on this computer</div>
     <input type="file" id="shFile" multiple accept=".pts,.txt,.csv,.ibl,.igs,.iges,.stp,.step" hidden>
   </header>
 
@@ -482,7 +483,7 @@
 <script src="js/clamp-stations.js?v=cf3e5a03"></script>
 <script src="js/alt-ui.js?v=3b3a3907"></script>
 <script src="js/strip.js?v=6c8afcd2"></script>
-<script src="js/shell.js?v=e2444961"></script>
+<script src="js/shell.js?v=ee16eb26"></script>
 <script src="js/asm-view.js?v=ab281db5"></script>
 <script src="js/csys-make.js?v=44ac668b"></script>
 <script src="js/dock-tables.js?v=faac15df"></script>

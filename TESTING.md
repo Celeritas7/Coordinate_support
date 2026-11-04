@@ -212,3 +212,11 @@ through points with route_343434's stations should list the frame parts as on Ho
    server, "A newer version of Route Studio is out. Reload" shows; Reload loads the page again.
 3. On Pages after a merge: F5 loads the new scripts at once (new tags); a page opened from a bookmark within 10 minutes of
    the merge may be the old one, and then shows the notice within about 3 s.
+
+## 16. Offline copy (one file)
+
+`node tests/offline.js` (Chromium): builds the offline copy into an empty folder, opens `Route Studio.html` from disk
+(file://) with every network request blocked: no errors, no request for any other file, header "Offline copy · build …",
+IBM Plex from inside the file, an assembly opens (piping3 if present, else the generated sample) and Pipe · Through clamps
+gives its Clash / Close / Clear line; the Inspector file opens on its own. Update check against a stand-in live site:
+a newer build → "A newer Route Studio is out … Open the live site"; the same build or no network → nothing.
