@@ -173,8 +173,17 @@ go(st.mod,st.task[st.mod]);
 // old page without asking. tools/stamp.js writes the build into <meta name="app-build"> and version.json; version.json is
 // fetched past the cache when the page opens and when it comes back into view, and a newer build offers a reload (never
 // automatic: an open assembly would be lost). Not on file:// (no server to ask).
-{const mine=(document.querySelector('meta[name="app-build"]')||{}).content;let last=0;
-  const check=()=>{if(!mine||location.protocol==='file:'||Date.now()-last<60000)return;last=Date.now();
-    fetch('version.json?t='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.json():null).then(v=>{if(v&&v.build&&v.build!==mine)$('shNew').hidden=false;}).catch(()=>{});};
-  $('shNewGo').onclick=()=>location.reload();
+// The offline copy (tools/make-offline.js: one HTML file, <meta name="offline-build" content="<build> <date>">) says so in the
+// header, and when the computer is online asks the live site instead (GitHub Pages lets any page read version.json); a newer
+// build there points to where a fresh copy is, since reloading the file would give the same old copy. Silent when offline.
+const LIVE='https://celeritas7.github.io/Coordinate_support/';
+{const mine=(document.querySelector('meta[name="app-build"]')||{}).content,off=(document.querySelector('meta[name="offline-build"]')||{}).content;let last=0;
+  if(off){const[b,d]=off.split(' ');$('shOffline').hidden=false;$('shOfflineTxt').textContent=`Offline copy · build ${b}${d?` · ${d}`:''}`;}
+  const src=off?(window.RS_LIVE||LIVE)+'version.json':'version.json';
+  const check=()=>{if(!mine||(location.protocol==='file:'&&!off)||(off&&navigator.onLine===false)||Date.now()-last<60000)return;last=Date.now();
+    fetch(src+'?t='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.json():null).then(v=>{if(!v||!v.build||v.build===mine)return;
+      if(off){$('shNewTxt').textContent=`A newer Route Studio is out (build ${v.build}; this offline copy is ${mine}). `;$('shNewGo').textContent='Open the live site';
+        $('shNewNote').textContent='(or take the new “Route Studio.html” from the Drive folder “Route Studio Offline …”)';}
+      $('shNew').hidden=false;}).catch(()=>{});};
+  $('shNewGo').onclick=()=>{if(off)window.open(window.RS_LIVE||LIVE,'_blank','noopener');else location.reload();};
   setTimeout(check,3000);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')check();});}
