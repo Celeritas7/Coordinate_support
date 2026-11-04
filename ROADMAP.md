@@ -341,3 +341,15 @@ Behaviour
 - Everything outside the span is locked; position and tangent match at both span ends
 - Before/after overlay, bend + clearance re-checked for the span, undo
 - Works on imported cables from Phase 3, so a flagged issue can be fixed in place
+
+## Phase 7 — Projects and Home (done 2026-11-04)
+User's choices: reuse settings + Keep clear choices for a similar job; saved in the app + project file; Home on start
+(when there are projects) and a Home button; the CAD file remembered (Chrome / Edge file handle, one permission click).
+- `js/projects.js`: project = fields of the Route / Pipe / Offset panels, module + task, station points, Hose station list
+  (`csState` / `csRestore` in clamp-stations.js: rows by name + place within 1 mm, ticks, start / end, hand order), Keep
+  clear by part name (`BC.names`, `bcKeepState` / `bcKeepRestore` in bend-cad.js; a tick by hand still wins), the picked
+  pipe by name, routes (Q, kind, R, .pts text; back as lines + arcs or spline, named "… (saved)"), CAD file name + handle.
+- Saved in IndexedDB (localStorage if unavailable) when a snapshot every 3 s differs, and on leaving the page. Export /
+  Import as `<name>.route-studio.json` (no handle). The website and the offline file keep separate lists.
+- Not kept: the CAD file itself (opened again), Alternatives candidates, clearance results (Check again), the 3D view.
+- Next: a thumbnail per project; project file on Drive directly; "Similar job" choosing what to carry per project.

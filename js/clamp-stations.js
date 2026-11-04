@@ -298,6 +298,17 @@ function usePick(p,r,as){
     :p.kind==='csys'?(st.D?`${verb} to ${st.name} (Ø${fmt(st.D,1)} hole${on}).`:`${verb} to ${st.name}. No hole there: its Z axis is the hose direction.`)
     :`${verb} to the clicked point${on}; direction free.`;
   say(bt?`${m} ${bt}`:`${m} ${ticked().length} stations ticked.`);return bt?`${m} ${bt}`:m;}
+// a project (projects.js): the station list as names and places, ticks, start / end and a hand-made order; and back, once
+// the list is built for the same assembly (each saved row matched to a row of the same name within 1 mm; rows not found are
+// left as the list built them). csRestore returns how many rows it matched (0: the list is not built yet, try again)
+const key=s=>({name:s.name,part:s.part,c:s.c.map(v=>Math.round(v*1000)/1000)});
+window.csState=()=>CS.list.length?{rows:CS.list.map(s=>({...key(s),on:CS.use.has(s.id)})),start:CS.start!=null?key(CS.list.find(s=>s.id===CS.start)||{name:'',c:[0,0,0]}):null,
+  end:CS.end!=null?key(CS.list.find(s=>s.id===CS.end)||{name:'',c:[0,0,0]}):null,handOrder:CS.handOrder}:null;
+window.csRestore=st=>{if(!st||!st.rows||!CS.list.length)return 0;const find=k=>k&&CS.list.find(s=>s.name===k.name&&dist(s.c,k.c)<1);let n=0;
+  const order=[];st.rows.forEach(k=>{const s=find(k);if(!s)return;n++;order.push(s);if(k.on)CS.use.add(s.id);else CS.use.delete(s.id);CS.hand.set(s.id,!!k.on);});
+  if(!n)return 0;const a=find(st.start),b=find(st.end);CS.start=a?a.id:CS.start;CS.end=b?b.id:CS.end;
+  if(st.handOrder){CS.list=order.concat(CS.list.filter(s=>!order.includes(s)));CS.handOrder=true;}
+  render();syncStations();return n;};
 // an empty Start or End is filled by the next click on a part or CSYS in 3D (Hose · Route through stations, an assembly open).
 // The pick panel says so and offers Undo (focused) and Make it the end / start; CS.armed holds what Undo puts back.
 const snap=()=>({list:CS.list.slice(),extra:CS.extra.slice(),from:CS.from,use:new Set(CS.use),picked:new Set(CS.picked),hand:new Map(CS.hand),start:CS.start,end:CS.end,

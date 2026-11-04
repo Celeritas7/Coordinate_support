@@ -4,7 +4,8 @@
 // asm: name of the open assembly BC.cad was taken from (bcFromAsm); null for a file loaded here (its solids' inst are its own)
 // mode: the task the list serves — 'hose' (Hose · Route through stations), 'arc' (Pipe · Route through points), 'through'
 // (Pipe · Through clamps). One list and one set of ticks for all three; #cdBox moves into the panel on show (place()).
-const BC={cad:null,sv:null,key:'',user:new Map(),focus:0,asm:null,mode:'hose'};
+// names: keep clear yes / no by part name, from a project (projects.js; a tick in the list, user by sid, still wins)
+const BC={cad:null,sv:null,key:'',user:new Map(),names:new Map(),focus:0,asm:null,mode:'hose'};
 {
 const say=(m,bad)=>{const e=$('statusCad');e.textContent=m;e.style.color=bad?'var(--bad)':'';};
 const opt=()=>({d:Math.max(0.1,+$('cdD').value||8),gap:Math.max(0,+$('cdGap').value||0),reach:Math.max(10,+$('cdReach').value||60)});
@@ -20,7 +21,7 @@ const roleTxt=p=>p.role==='pipe'?`existing ${p.pipe.kind==='hose'?'hose':'pipe'}
 const last=n=>String(n||'').split(' / ').pop();
 // default: frame / parts kept clear; on the Pipe tasks other existing pipes too (a pipe route must clear them), not the pipe
 // being replaced (p.self, marked by survey())
-const keepClear=p=>BC.user.has(p.sid)?BC.user.get(p.sid):p.role==='obstacle'||(p.role==='pipe'&&BC.mode!=='hose'&&!p.self);
+const keepClear=p=>BC.user.has(p.sid)?BC.user.get(p.sid):BC.names.has(p.name)?BC.names.get(p.name):p.role==='obstacle'||(p.role==='pipe'&&BC.mode!=='hose'&&!p.self);
 // list groups: ticked, unticked clips and parts, unticked existing pipes
 const group=p=>keepClear(p)?0:p.role==='pipe'?2:1,GROUP=['Gap checked (ticked)','Not checked (clips, or unticked)','Existing pipes (not checked)'];
 // the existing pipe a pipe task replaces: Through clamps, the picked pipe (its instance, from thSurvey); Route through points,
@@ -271,6 +272,9 @@ function fromText(name,t,parsed){const t0=performance.now();let cad;
 window.bcFromAsm=a=>{if(a&&a.r&&fromText(a.name,'',a.r))BC.asm=a.name;};
 window.bcLoad=f=>{$('cdBox').open=true;load(f);};
 window.bcName=()=>BC.cad?BC.cad.name:null;window.bcCad=()=>BC.cad;
+// a project's Keep clear choices by part name (the ticks set by hand, and the names a project brought), and back
+window.bcKeepState=()=>{const o=Object.fromEntries(BC.names);if(BC.cad)BC.user.forEach((v,sid)=>{const s=BC.cad.solids.find(x=>x.sid===sid);if(s)o[s.name]=v;});return o;};
+window.bcKeepRestore=o=>{BC.names=new Map(Object.entries(o||{}));BC.key='';if(!survey())render();};
 // keep clear on / off for one solid (Alternatives' "Stop keeping clear of …")
 window.bcKeepClear=(sid,on)=>{if(!BC.cad)return;BC.user.set(sid,!!on);render();};
 const clearParts=()=>{BC.cad=null;BC.asm=null;BC.sv=null;BC.key='';BC.focus=0;render();say('');};

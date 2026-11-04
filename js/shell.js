@@ -131,7 +131,7 @@ function openAssembly(f,rest){const n=rest?rest.length:0,also=n?` ${n} other fil
   document.addEventListener('asm:loaded',ok);document.addEventListener('asm:failed',bad);
   // while reading, the header shows asm-ui's progress line ("Reading <file>, 20.3 MB: parts 59 %"); the others in its tooltip
   $('shStatus').title=n?`Not opened: ${rest.join(', ')} (one assembly at a time; open ${n>1?'them':'it'} once this one has loaded)`:'';asmLoad(f);}
-window.openAssembly=openAssembly;window.goTask=go;
+window.openAssembly=openAssembly;window.goTask=go;window.rsOpenFiles=open;
 // name · parts · pipes · holes with a CSYS; once Hose / Cable has its clamp list, the clamps that fit its Ø instead
 function asmLine(a){const r=a.r;if(!r)return esc(a.name);const parts=r.instances.filter(i=>i.solids).length,np=r.pipes.length,
     holes=r.holes.filter(h=>h.csys).length,cs=typeof csCount==='function'?csCount():null;
