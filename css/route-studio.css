@@ -53,6 +53,15 @@ details{margin:10px 0}summary{cursor:pointer;color:var(--muted);font-size:13px}
 .modsw button{border:0;background:var(--field);color:var(--muted);font:600 13.5px var(--sans);padding:9px 4px;cursor:pointer}.modsw button+button{border-left:1px solid var(--rule)}
 .modsw button[aria-selected="true"]{background:var(--ink);color:var(--paper)}
 .shoff{font-size:11.5px;margin:4px 0 0}
+.shproj{font-size:12px;margin:5px 0 0;color:var(--muted)}.shproj .linkish{font-weight:600;color:var(--ink)}
+.home{position:fixed;inset:0;z-index:60;overflow:auto;background:var(--paper);color:var(--ink)}
+.homein{max-width:980px;margin:0 auto;padding:28px 20px 40px}
+.homehead{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px}.homehead h1{margin:0;font-size:22px}
+.homeact{display:flex;flex-wrap:wrap;gap:8px}
+.hmlist{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:12px;margin-top:16px}
+.hmcard{background:var(--panel);border:1px solid var(--rule);border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+.hmcard.cur{border-color:var(--focus)}.hmcard h2{margin:0;font-size:15px;overflow-wrap:anywhere}.hmcard .unit{font-size:12px;overflow-wrap:anywhere}
+.hmcard .hmbtns{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}.hmempty{grid-column:1/-1;color:var(--muted);font-size:13px}
 .shnew{font-size:12px;margin:6px 0 0;padding:6px 8px;border-radius:6px;background:var(--panel);border:1px solid var(--rule);color:var(--ink)}
 .shstatus{font-size:12px;color:var(--muted);margin:7px 0 0;min-height:1.3em;overflow-wrap:anywhere}.shstatus.on{color:var(--ink)}
 .tabs[hidden]{display:none}

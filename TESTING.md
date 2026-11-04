@@ -220,3 +220,17 @@ through points with route_343434's stations should list the frame parts as on Ho
 IBM Plex from inside the file, an assembly opens (piping3 if present, else the generated sample) and Pipe · Through clamps
 gives its Clash / Close / Clear line; the Inspector file opens on its own. Update check against a stand-in live site:
 a newer build → "A newer Route Studio is out … Open the live site"; the same build or no network → nothing.
+
+## 17. Projects and Home (`js/projects.js`)
+
+`node tests/projects-ui.js` (Chromium; the generated pipe sample, and piping3's Hose stations when present):
+1. No projects: straight to work. Opening an assembly starts a project named after it (header "Project …").
+2. Route through points with a route, BLOCK_1 unticked by hand, Min R 50; reload → Home lists the project with its file,
+   "1 route", "R 50", "1 Keep clear choice".
+3. Open → the fields, task and route ("… (saved)") back at once; the CAD file asked for (no handle in the test browser);
+   once opened: "Project … back: 1 route, 1 Keep clear choice", BLOCK_1 unticked by part name, the project's task again.
+   piping3 (another assembly → its own project): a Hose station unticked by hand stays unticked after reopening.
+4. Similar job → a new project with the settings and the Keep clear choice, none of the old routes; Export (no file
+   handle in the file), Import, Rename, Delete; `?home=0` skips Home. `tests/offline.js`: a project from the offline file
+   (IndexedDB from file://).
+In Chrome / Edge by hand: Open… (file picker) then Home → Open the project: one "Allow" for the remembered file.

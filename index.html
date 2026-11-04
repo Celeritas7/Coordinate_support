@@ -4,18 +4,28 @@
 <meta charset="utf-8">
 <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
-<meta name="app-build" content="7cc82379">
+<meta name="app-build" content="0dd5a8a6">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Route Studio - hose, cable and pipe checks for Creo</title>
 <link rel="stylesheet" href="fonts/fonts.css?v=f81061a6">
-<link rel="stylesheet" href="css/route-studio.css?v=c683b984">
+<link rel="stylesheet" href="css/route-studio.css?v=a38068dc">
 </head>
 <body>
+<div class="home" id="home" hidden role="dialog" aria-labelledby="homeH">
+  <div class="homein">
+    <div class="homehead"><h1 id="homeH">Route Studio <span class="unit">· projects</span></h1>
+      <div class="homeact"><button type="button" class="shbtn primary" id="hmNew">New project</button><button type="button" class="shbtn" id="hmImport">Open project file…</button><button type="button" class="shbtn" id="hmClose">Back to work</button></div></div>
+    <p class="hint">A project keeps your settings, task, stations, Keep clear choices and routes, saved in this browser as you work. The CAD file stays on your disk: opening a project opens it again (Chrome / Edge remember it; else you pick it). <b>Similar job</b> starts a new project with the same settings and Keep clear choices: open the new assembly and go. <b>Export</b> saves a project file for Drive, another PC or the other copy of the app (the website and the offline file keep separate lists).</p>
+    <div id="hmList" class="hmlist"></div>
+    <div class="status" id="hmStatus" aria-live="polite"></div>
+    <input type="file" id="hmFile" accept=".json" hidden>
+  </div>
+</div>
 <div class="app">
 <aside>
   <header class="shell">
     <div class="shrow"><h1>Route Studio</h1>
-      <div class="shact"><button type="button" id="shOpen" class="shbtn primary" title="Open .stp, .igs or .pts files (or drop them anywhere)">Open…</button>
+      <div class="shact"><button type="button" id="shHome" class="shbtn" title="Your projects">Home</button><button type="button" id="shOpen" class="shbtn primary" title="Open .stp, .igs or .pts files (or drop them anywhere)">Open…</button>
         <details class="shmenu" id="shEx"><summary class="shbtn">Examples</summary><div class="menu">
           <button type="button" data-preset="target" data-goto="hose:route">Route example, 16 stations</button>
           <button type="button" id="aExample" data-goto="hose:check">Check example, 3 edited cables</button>
@@ -33,6 +43,7 @@
     <div class="modsw" role="tablist" aria-label="Module"><button type="button" role="tab" data-mod="hose">Hose / Cable</button><button type="button" role="tab" data-mod="pipe">Pipe</button><button type="button" role="tab" data-mod="bundle">Bundle</button><button type="button" role="tab" data-mod="library">Library</button></div>
     <div class="shstatus" id="shStatus" aria-live="polite">Drop .stp, .igs or .pts files anywhere on the page.</div>
     <div class="shnew" id="shNew" role="status" hidden><span id="shNewTxt">A newer version of Route Studio is out. </span><button type="button" class="linkish" id="shNewGo">Reload</button> <span class="unit" id="shNewNote">(open files stay on your disk; reopen them after)</span></div>
+    <div class="shproj" id="shProj" hidden>Project <button type="button" class="linkish" id="shProjName" title="Rename"></button> <span class="unit" id="shProjSaved"></span></div>
     <div class="shoff unit" id="shOffline" hidden><span id="shOfflineTxt">Offline copy</span> · works without internet; files stay on this computer</div>
     <input type="file" id="shFile" multiple accept=".pts,.txt,.csv,.ibl,.igs,.iges,.stp,.step" hidden>
   </header>
@@ -479,14 +490,15 @@
 <script src="js/offset.js?v=3612d14b"></script>
 <script src="js/offset-ui.js?v=c7625023"></script>
 <script src="js/cad-solids.js?v=d13fa385"></script>
-<script src="js/bend-cad.js?v=a3aaa29f"></script>
-<script src="js/clamp-stations.js?v=cf3e5a03"></script>
+<script src="js/bend-cad.js?v=a9e4bb6c"></script>
+<script src="js/clamp-stations.js?v=6fbb3fe4"></script>
 <script src="js/alt-ui.js?v=3b3a3907"></script>
 <script src="js/strip.js?v=6c8afcd2"></script>
-<script src="js/shell.js?v=ee16eb26"></script>
+<script src="js/shell.js?v=a15f2318"></script>
 <script src="js/asm-view.js?v=ab281db5"></script>
 <script src="js/csys-make.js?v=44ac668b"></script>
 <script src="js/dock-tables.js?v=faac15df"></script>
 <script src="js/clamp-suggest.js?v=7ede4c8f"></script>
+<script src="js/projects.js?v=6b6d609d"></script>
 </body>
 </html>

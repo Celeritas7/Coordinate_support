@@ -45,6 +45,10 @@ let fail = 0; const check = (ok, m) => { console.log((ok ? "ok   " : "FAIL ") + 
   await pg.click("#thRun"); for (let i = 0; i < 80; i++) { if (/^(Clash|Close|Clear):|No route/.test(await txt("statusThrough"))) break; await pg.waitForTimeout(250); }
   check(/^(Clash|Close|Clear):/.test(await txt("statusThrough")), `Through clamps: ${(await txt("statusThrough")).slice(0, 110)}`);
   check(await pg.evaluate(() => document.querySelectorAll("#cdParts .cdrow").length) > 0, "Keep clear list filled (parts read inside the file)");
+  // projects work from disk too: opening the assembly started one, saved in the browser for this file
+  check(/^Project piping3_practice_asm|^Project pipe_clear_test/.test(await txt("shProj")), `project from disk: ${await txt("shProj")}`);
+  await pg.waitForTimeout(3500); const nProj = await pg.evaluate(async () => (await rsProjects.list()).length);
+  check(nProj === 1, `saved in the browser (IndexedDB from file://): ${nProj} project`);
   check(!asked.length, asked.length ? `asked for other files / the network: ${[...new Set(asked)].slice(0, 5).join(", ")}` : "no request for any other file or the network");
   check(!errs.length, "no page errors while working" + (errs.length ? ": " + errs.join(" | ") : ""));
   // update check against the stand-in live site
